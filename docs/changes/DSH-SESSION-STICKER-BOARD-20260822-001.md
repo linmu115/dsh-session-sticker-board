@@ -8,6 +8,7 @@
 
 - 修改前：仓库不存在。
 - 修改后：`dsh-session-sticker-board@0.1.0`，协议版本 `1`。
+- 功能提交：`aa49372`（贴纸交互层）、`3d02029`（deep-link 定位）。
 
 ## 改动
 
@@ -40,6 +41,16 @@ pnpm --dir ..\.. vitest run tests/knowledge-protocol-contract.test.ts
 
 Task 7 本地验证结果：23 个插件测试通过；`lib/client.js` 仅引用 React 平台模块，没有 `@deepseek-ai/*` 值依赖或 Node 内建模块。
 
+## 兼容与产物
+
+- 验证 DSH：官方 npm `@deepseek-ai/dsh@0.1.1-rc.2`。
+- tgz：`D:\AI\DSH-Plugin-Packages\dsh-session-sticker-board-0.1.0.tgz`。
+- tgz SHA-256：`cde458bc06ef28939e0880282e35aa4b373c026b34695c5f4ef9c9bc34c22c86`。
+- 隔离 profile：官方 `dsh plugin --profile validation add <tgz>` 安装成功，bundle 自动登记，`--dump-config` 正常组合插件 patch。
+- 未安装到真实 DSH profile；没有读取或修改真实会话、工作区和密钥。
+
 ## 回退
 
 首个提交是仓库基线；后续通过 Git 标签和 DSH Maintenance generation 选择旧提交，不直接修改已发布产物。
+
+首版回退标签：`change/DSH-SESSION-STICKER-BOARD-20260822-001`。
