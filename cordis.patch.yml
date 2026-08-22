@@ -1,0 +1,4 @@
+# dsh-session-sticker-board bundle patch
+- insert:
+    - id: session-sticker-board
+      name: 'dsh-session-sticker-board'

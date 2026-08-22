@@ -1,0 +1,117 @@
+import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
+
+import { createBridgeClient } from "./bridge-client.ts";
+import {
+  CITATION_REFERENCE_APPEARANCE,
+  clearAllSessionReferences,
+  createCitationTray,
+  createPendingCitationStore,
+  createSubmissionResolver,
+  registerCitationReferenceSource,
+  syncAllSessionReferences,
+} from "./composer.tsx";
+import { StickerOverlay } from "./overlay.tsx";
+import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
+import type { Context } from "../context-types.ts";
+import type { PendingCitation } from "../protocol.ts";
+import "./styles.css";
+
+const BRIDGE_ORIGIN = "http://127.0.0.1:27124";
+
+export const inject = ["sessions", "slots"];
+
+function StickerBoardRoot(props: {
+  ctx: Context;
+  workspace: StickerWorkspace;
+  openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
+}): ReactNode {
+  const sessionList = useSyncExternalStore(
+    useCallback((listener: () => void) => props.ctx.sessions.list.subscribe(listener), [props.ctx]),
+    () => props.ctx.sessions.list.getSnapshot(),
+    () => props.ctx.sessions.list.getSnapshot(),
+  );
+  useSyncExternalStore(
+    useCallback((listener: () => void) => props.workspace.subscribe(listener), [props.workspace]),
+    () => props.workspace.getSnapshot(),
+    () => props.workspace.getSnapshot(),
+  );
+  const sessionId = sessionList.current ?? "";
+  useEffect(() => {
+    if (sessionId) void props.workspace.ensure(sessionId).catch((error) => {
+      console.warn("[dsh-session-sticker-board] session-note load failed", error);
+    });
+  }, [props.workspace, sessionId]);
+  if (!sessionId) return null;
+  const title = sessionList.byId?.[sessionId]?.title ?? sessionId;
+  return (
+    <StickerOverlay
+      sessionId={sessionId}
+      sessionTitle={title}
+      stickers={props.workspace.list(sessionId)}
+      onSave={(record) => props.workspace.save(record)}
+      onDelete={(stickerId) => props.workspace.remove(sessionId, stickerId)}
+      onOpenNote={props.openNote}
+    />
+  );
+}
+
+export function apply(ctx: Context): void {
+  ctx.effect(() => {
+    const bridge = createBridgeClient({ origin: BRIDGE_ORIGIN });
+    const citations = createPendingCitationStore();
+    const stickers = createStickerWorkspace(bridge);
+    const resolver = createSubmissionResolver({
+      store: citations,
+      resolveCitation: (citation) => bridge.resolveCitation(citation),
+    });
+    const unregisterReferenceSource = registerCitationReferenceSource(ctx, citations);
+    const hiddenReferenceStyle = document.createElement("style");
+    hiddenReferenceStyle.dataset.dshStickerBoardHiddenReference = "";
+    hiddenReferenceStyle.textContent = `[data-reference-appearance="${CITATION_REFERENCE_APPEARANCE}"] { visibility: hidden !important; }`;
+    document.head.appendChild(hiddenReferenceStyle);
+
+    const overlayHost = document.createElement("div");
+    overlayHost.dataset.dshStickerBoard = "";
+    document.body.appendChild(overlayHost);
+    const root = createRoot(overlayHost);
+    root.render(
+      <StickerBoardRoot
+        ctx={ctx}
+        workspace={stickers}
+        openNote={(action) => bridge.openNote(action)}
+      />,
+    );
+
+    const offCitations = citations.subscribe(() => syncAllSessionReferences(ctx, citations));
+    const offSlot = ctx.slots.inject("conversation.input.dock", () => ctx.slots.register({
+      name: "conversation.input.dock",
+      id: "dsh-session-sticker-board-citations",
+      order: 12,
+      registrant: "dsh-session-sticker-board",
+    }, createCitationTray(ctx, citations, resolver)));
+
+    const applyAction = async (action: PendingCitation | { type: "deep-link" }): Promise<boolean> => {
+      if (action.type === "deep-link") return false;
+      const sessionId = ctx.sessions.list.getSnapshot().current;
+      if (!sessionId) return false;
+      citations.add(sessionId, action);
+      return true;
+    };
+    const polling = bridge.startPolling(applyAction, {
+      onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
+    });
+
+    return () => {
+      polling.stop();
+      offSlot();
+      offCitations();
+      clearAllSessionReferences(ctx, citations);
+      unregisterReferenceSource();
+      bridge.dispose();
+      hiddenReferenceStyle.remove();
+      setTimeout(() => root.unmount());
+      overlayHost.remove();
+    };
+  }, "dsh-session-sticker-board: client");
+}

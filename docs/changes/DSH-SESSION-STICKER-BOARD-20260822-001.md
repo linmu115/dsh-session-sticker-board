@@ -18,14 +18,25 @@
 - 添加 session-note 读写、resolved citation 回传与 Obsidian 笔记打开请求。
 - 添加 node/seq、quote hash 与 occurrence 组成的稳定消息锚点，重渲染后可重建选区。
 - 添加不可变贴纸状态快照；删除只重排显示编号，不改变其他贴纸 UUID。
+- 添加 rc.2 客户端窄接口镜像，不从 `@deepseek-ai/*` 动态导入运行时模块。
+- 添加 `user`、`steering`、`assistant-step` 单消息选段捕获、四色持久高亮和错位红点。
+- 添加 Markdown 贴纸编辑、标签、颜色选择、关联笔记打开、逻辑链接/引用 Markdown 复制和删除确认。
+- 添加 Codex 风格引用托盘：卡片可删除、悬停查看全文，删除后显示编号自动顺延。
+- 使用私有原生 reference codec 将 Obsidian 选段序列化进模型上下文；输入框中的内部引用占位符和 `@` 均隐藏。
+- 在发送事务开始时记录 conversation 基线，只在真实的新 `user` 节点落地后回传 resolved citation。
+- 添加每会话 revision 工作区；Vault 保存失败时不提交本地新增、编辑或删除。
+- 添加 DSH host/client 双入口构建、Cordis patch 和客户端依赖纯度保护。
 
 ## 验证
 
 ```powershell
 pnpm typecheck
 pnpm test
+pnpm build
 pnpm --dir ..\.. vitest run tests/knowledge-protocol-contract.test.ts
 ```
+
+Task 6 本地验证结果：18 个插件测试通过；`lib/client.js` 仅引用 React 平台模块，没有 `@deepseek-ai/*` 值依赖或 Node 内建模块。
 
 ## 回退
 
