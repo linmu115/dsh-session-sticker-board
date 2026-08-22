@@ -48,6 +48,15 @@
   cursor: pointer;
 }
 
+.dsh-sticker-board-deep-link-flash {
+  animation: dsh-sticker-board-flash 2s ease-out;
+}
+
+@keyframes dsh-sticker-board-flash {
+  0%, 24% { box-shadow: 0 0 0 4px rgba(214, 64, 69, 0.42); background: rgba(255, 234, 122, 0.28); }
+  100% { box-shadow: 0 0 0 0 rgba(214, 64, 69, 0); background: transparent; }
+}
+
 .dsh-sticker-board-menu,
 .dsh-sticker-board-editor {
   position: fixed;

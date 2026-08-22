@@ -330,6 +330,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
           key={view.record.stickerId}
           type="button"
           className="dsh-sticker-board-dot"
+          data-dsh-sticker-anchor-id={view.record.anchorId}
           style={{ left: point.x, top: point.y }}
           title={`贴纸 ${view.displayNumber}：${view.record.markdown || view.record.quote}`}
           aria-label={`打开贴纸 ${view.displayNumber}`}

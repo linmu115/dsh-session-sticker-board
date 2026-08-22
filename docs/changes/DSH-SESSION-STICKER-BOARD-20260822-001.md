@@ -26,6 +26,8 @@
 - 在发送事务开始时记录 conversation 基线，只在真实的新 `user` 节点落地后回传 resolved citation。
 - 添加每会话 revision 工作区；Vault 保存失败时不提交本地新增、编辑或删除。
 - 添加 DSH host/client 双入口构建、Cordis patch 和客户端依赖纯度保护。
+- 添加 `dsh://` deep-link 状态机：打开目标会话、最多回载 50 页、校验 quote/full-message hash、精确滚动并闪烁 2 秒。
+- 成功定位后自动打开目标消息红点；已删除会话、缺失锚点、内容变化和 DOM 未就绪均返回可诊断状态。
 
 ## 验证
 
@@ -36,7 +38,7 @@ pnpm build
 pnpm --dir ..\.. vitest run tests/knowledge-protocol-contract.test.ts
 ```
 
-Task 6 本地验证结果：18 个插件测试通过；`lib/client.js` 仅引用 React 平台模块，没有 `@deepseek-ai/*` 值依赖或 Node 内建模块。
+Task 7 本地验证结果：23 个插件测试通过；`lib/client.js` 仅引用 React 平台模块，没有 `@deepseek-ai/*` 值依赖或 Node 内建模块。
 
 ## 回退
 

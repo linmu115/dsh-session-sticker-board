@@ -11,6 +11,7 @@ import {
   registerCitationReferenceSource,
   syncAllSessionReferences,
 } from "./composer.tsx";
+import { applyDeepLink } from "./deep-link.ts";
 import { StickerOverlay } from "./overlay.tsx";
 import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
 import type { Context } from "../context-types.ts";
@@ -91,8 +92,23 @@ export function apply(ctx: Context): void {
       registrant: "dsh-session-sticker-board",
     }, createCitationTray(ctx, citations, resolver)));
 
-    const applyAction = async (action: PendingCitation | { type: "deep-link" }): Promise<boolean> => {
-      if (action.type === "deep-link") return false;
+    const applyAction = async (action: PendingCitation | import("../protocol.ts").DeepLinkAction): Promise<boolean> => {
+      if (action.type === "deep-link") {
+        await stickers.ensure(action.sessionId).catch(() => undefined);
+        const matchingSticker = stickers.list(action.sessionId).find((view) => (
+          view.record.anchorId === action.anchorId
+          && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
+        ));
+        const result = await applyDeepLink(ctx, action, {
+          ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
+        });
+        if (result.status !== "located") {
+          console.warn("[dsh-session-sticker-board] deep-link was not located", result);
+        }
+        // A DOM miss is usually the one-frame gap after sessions.open(); keep
+        // the queue action unacked so the next poll retries it.
+        return result.status !== "dom-unavailable";
+      }
       const sessionId = ctx.sessions.list.getSnapshot().current;
       if (!sessionId) return false;
       citations.add(sessionId, action);
