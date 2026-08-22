@@ -14,11 +14,16 @@
 - 添加独立 pnpm workspace、锁文件、TypeScript 与 Vitest 配置。
 - 定义 deep-link、open-note、pending-citation、resolved-citation 和 session-note 消息。
 - 定义贴纸 UUID、消息锚点、引用哈希、颜色、标签和 Vault 位置字段。
+- 添加 Obsidian bridge client：短期 token 自动续期、401 单次重握手、FIFO apply/ack 和可见性轮询退避。
+- 添加 session-note 读写、resolved citation 回传与 Obsidian 笔记打开请求。
+- 添加 node/seq、quote hash 与 occurrence 组成的稳定消息锚点，重渲染后可重建选区。
+- 添加不可变贴纸状态快照；删除只重排显示编号，不改变其他贴纸 UUID。
 
 ## 验证
 
 ```powershell
 pnpm typecheck
+pnpm test
 pnpm --dir ..\.. vitest run tests/knowledge-protocol-contract.test.ts
 ```
 
