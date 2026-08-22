@@ -18,7 +18,7 @@ import type { Context } from "../context-types.ts";
 import type { PendingCitation } from "../protocol.ts";
 import "./styles.css";
 
-const BRIDGE_ORIGIN = "http://127.0.0.1:27124";
+const BRIDGE_ORIGIN = "__DSH_OBSIDIAN_BRIDGE_ORIGIN__";
 
 export const inject = ["sessions", "slots"];
 

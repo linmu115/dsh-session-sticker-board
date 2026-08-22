@@ -7,6 +7,17 @@ const CLIENT_EXTERNALS = ["react", "react/jsx-runtime", "react-dom", "react-dom/
 const NODE_BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 const CSS_PREFIX = "\0dsh-sticker-css:";
 const CSS_SUFFIX = ".mjs";
+const BRIDGE_ORIGIN_TOKEN = "__DSH_OBSIDIAN_BRIDGE_ORIGIN__";
+const DEFAULT_BRIDGE_PORT = 18_473;
+
+function configuredBridgeOrigin(): string {
+  const rawPort = process.env.DSH_OBSIDIAN_BRIDGE_PORT ?? String(DEFAULT_BRIDGE_PORT);
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`DSH_OBSIDIAN_BRIDGE_PORT must be an integer from 1 to 65535: ${rawPort}`);
+  }
+  return `http://127.0.0.1:${port}`;
+}
 
 const browserPlugin: NonNullable<UserConfig["plugins"]> = {
   name: "dsh-sticker-browser-boundary",
@@ -31,6 +42,16 @@ const browserPlugin: NonNullable<UserConfig["plugins"]> = {
       "}",
       "export default '';",
     ].join("\n");
+  },
+  transform(code, id) {
+    if (!/src[\\/]client[\\/]index\.tsx$/.test(id)) return null;
+    if (!code.includes(BRIDGE_ORIGIN_TOKEN)) {
+      throw new Error(`Bridge origin token is missing from ${id}`);
+    }
+    return {
+      code: code.replaceAll(BRIDGE_ORIGIN_TOKEN, configuredBridgeOrigin()),
+      map: null,
+    };
   },
 };
 
