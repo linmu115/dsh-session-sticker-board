@@ -176,6 +176,79 @@
 
 .dsh-sticker-sidebar-save:disabled { opacity: 0.45; cursor: default; }
 
+.dsh-sticker-sidebar-backlinks {
+  margin-top: 18px;
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.11));
+  padding-top: 12px;
+}
+
+.dsh-sticker-sidebar-backlinks > header {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dsh-sticker-sidebar-backlinks h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.dsh-sticker-sidebar-backlink-state {
+  margin: 9px 0 0;
+  color: var(--dsw-alias-label-tertiary, #757b84);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.dsh-sticker-sidebar-backlink-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dsh-sticker-sidebar-backlink-list li + li {
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.08));
+}
+
+.dsh-sticker-sidebar-backlink-list button {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  padding: 9px 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dsh-sticker-sidebar-backlink-list button:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.055));
+}
+
+.dsh-sticker-sidebar-backlink-title {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dsh-sticker-sidebar-backlink-path,
+.dsh-sticker-sidebar-backlink-excerpt {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary, #757b84);
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dsh-sticker-board-deep-link-flash {
   animation: dsh-sticker-board-flash 2s ease-out;
 }

@@ -1,10 +1,13 @@
 import {
   parseBridgeMessage,
+  stickerBacklinkSchema,
   type DeepLinkAction,
   type OpenNoteAction,
   type PendingCitation,
   type ResolvedCitation,
   type SessionNoteDocument,
+  type StickerBacklink,
+  type StickerRecord,
 } from "../protocol.ts";
 
 export type DshBridgeAction = DeepLinkAction | PendingCitation;
@@ -44,6 +47,7 @@ export interface BridgeClient {
   saveSessionNote(document: SessionNoteDocument, expectedRevision: string): Promise<{ revision: string }>;
   resolveCitation(citation: ResolvedCitation): Promise<{ notePath: string; blockId: string }>;
   openNote(action: OpenNoteAction): Promise<void>;
+  listBacklinks(sticker: StickerRecord): Promise<StickerBacklink[]>;
   dispose(): void;
 }
 
@@ -260,6 +264,18 @@ export function createBridgeClient(options: BridgeClientOptions): BridgeClient {
     });
   }
 
+  async function listBacklinks(sticker: StickerRecord): Promise<StickerBacklink[]> {
+    const query = new URLSearchParams({
+      stickerId: sticker.stickerId,
+      sessionId: sticker.sessionId,
+      anchorId: sticker.anchorId,
+      quoteHash: sticker.quoteHash,
+    });
+    const response = await authenticated(`/v1/sticker-backlinks?${query.toString()}`);
+    const body = await response.json() as { backlinks?: unknown };
+    return stickerBacklinkSchema.array().parse(body.backlinks);
+  }
+
   function dispose(): void {
     if (disposed) return;
     disposed = true;
@@ -277,6 +293,7 @@ export function createBridgeClient(options: BridgeClientOptions): BridgeClient {
     saveSessionNote,
     resolveCitation,
     openNote,
+    listBacklinks,
     dispose,
   };
 }

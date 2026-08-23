@@ -522,7 +522,13 @@ function StickerEditor(props: {
 }
 
 export function buildDshLogicalLink(sticker: StickerRecord): string {
-  return `dsh://open/session/${encodeURIComponent(sticker.sessionId)}?anchor=${encodeURIComponent(sticker.anchorId)}&quoteHash=${encodeURIComponent(sticker.quoteHash)}`;
+  const query = new URLSearchParams({
+    session: sticker.sessionId,
+    anchor: sticker.anchorId,
+    quoteHash: sticker.quoteHash,
+    sticker: sticker.stickerId,
+  });
+  return `obsidian://deepharness?${query.toString()}`;
 }
 
 export function buildReferenceMarkdown(sticker: StickerRecord, sessionTitle: string): string {

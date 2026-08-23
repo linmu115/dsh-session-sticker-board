@@ -73,7 +73,12 @@ export function apply(ctx: Context): void {
       const injected = sidebarContext as Context;
       injected.effect(() => {
         stickerSidebar.attach(injected.betterSidebar);
-        const unregister = registerStickerSidebar(injected, stickers, (action) => bridge.openNote(action));
+        const unregister = registerStickerSidebar(
+          injected,
+          stickers,
+          (action) => bridge.openNote(action),
+          (record) => bridge.listBacklinks(record),
+        );
         return () => {
           unregister();
           stickerSidebar.detach(injected.betterSidebar);

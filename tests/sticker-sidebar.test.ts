@@ -6,6 +6,7 @@ import {
   STICKER_DETAIL_TAB_ID,
   STICKER_DETAIL_TAB_TYPE,
   createStickerSidebarController,
+  backlinkOpenAction,
   openStickerInSidebar,
 } from "../src/client/sticker-sidebar.tsx";
 
@@ -38,6 +39,24 @@ function service(overrides: Partial<BetterSidebarService> = {}): BetterSidebarSe
 }
 
 describe("sticker sidebar", () => {
+  it("opens a backlink at its stable block and exact fallback line", () => {
+    expect(backlinkOpenAction({
+      notePath: "项目/架构.md",
+      line: 12,
+      column: 4,
+      blockId: "sticker-reference",
+      excerpt: "回到贴纸",
+    }, () => "1378702f-84d2-4e73-9f74-c08d269b2c7f")).toEqual({
+      protocolVersion: 1,
+      type: "open-note",
+      actionId: "1378702f-84d2-4e73-9f74-c08d269b2c7f",
+      notePath: "项目/架构.md",
+      blockId: "sticker-reference",
+      line: 12,
+      column: 4,
+    });
+  });
+
   it("updates and opens the single detail tab for the selected sticker", () => {
     const sidebar = service();
     expect(openStickerInSidebar(sidebar, sticker)).toBe(true);

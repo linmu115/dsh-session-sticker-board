@@ -3,6 +3,7 @@ import {
   ExternalLink,
   Link,
   Quote,
+  RefreshCw,
   RotateCcw,
   Save,
   Trash2,
@@ -10,7 +11,12 @@ import {
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import type { BetterSidebarService, Context, SidebarTab, TabComponentProps } from "../context-types.ts";
-import { type OpenNoteAction, type StickerRecord } from "../protocol.ts";
+import {
+  PROTOCOL_VERSION,
+  type OpenNoteAction,
+  type StickerBacklink,
+  type StickerRecord,
+} from "../protocol.ts";
 import { createStickerCommands } from "./overlay.tsx";
 import type { StickerWorkspace } from "./sticker-workspace.ts";
 
@@ -29,6 +35,21 @@ function parseStickerTabMeta(value: unknown): StickerTabMeta | null {
 
 function stickerPath(stickerId: string): string {
   return `dsh-sticker:${stickerId}`;
+}
+
+export function backlinkOpenAction(
+  backlink: StickerBacklink,
+  createActionId: () => string = () => crypto.randomUUID(),
+): OpenNoteAction {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "open-note",
+    actionId: createActionId(),
+    notePath: backlink.notePath,
+    ...(backlink.blockId ? { blockId: backlink.blockId } : {}),
+    line: backlink.line,
+    ...(backlink.column !== undefined ? { column: backlink.column } : {}),
+  };
 }
 
 export function openStickerInSidebar(service: BetterSidebarService, record: StickerRecord): boolean {
@@ -78,6 +99,7 @@ function StickerDetailPanel(props: {
   tab: SidebarTab;
   sessionId: string;
   openNote(action: OpenNoteAction): Promise<void>;
+  listBacklinks(record: StickerRecord): Promise<StickerBacklink[]>;
   close(): void;
 }): ReactNode {
   useSyncExternalStore(
@@ -104,6 +126,7 @@ function StickerDetailPanel(props: {
       record={view.record as StickerRecord}
       workspace={props.workspace}
       openNote={props.openNote}
+      listBacklinks={props.listBacklinks}
       close={props.close}
     />
   );
@@ -113,6 +136,7 @@ function StickerDetailForm(props: {
   record: StickerRecord;
   workspace: StickerWorkspace;
   openNote(action: OpenNoteAction): Promise<void>;
+  listBacklinks(record: StickerRecord): Promise<StickerBacklink[]>;
   close(): void;
 }): ReactNode {
   const [markdown, setMarkdown] = useState(props.record.markdown);
@@ -120,10 +144,29 @@ function StickerDetailForm(props: {
   const [color, setColor] = useState<StickerRecord["color"]>(props.record.color);
   const [phase, setPhase] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [backlinks, setBacklinks] = useState<StickerBacklink[]>([]);
+  const [backlinkPhase, setBacklinkPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [backlinkError, setBacklinkError] = useState("");
   const colors: StickerRecord["color"][] = ["yellow", "green", "pink", "blue"];
   const dirty = markdown !== props.record.markdown
     || tags !== props.record.tags.join(", ")
     || color !== props.record.color;
+
+  const loadBacklinks = useCallback(async (): Promise<void> => {
+    setBacklinkPhase("loading");
+    setBacklinkError("");
+    try {
+      setBacklinks(await props.listBacklinks(props.record));
+      setBacklinkPhase("ready");
+    } catch (reason) {
+      setBacklinkError(reason instanceof Error ? reason.message : String(reason));
+      setBacklinkPhase("error");
+    }
+  }, [props.listBacklinks, props.record]);
+
+  useEffect(() => {
+    void loadBacklinks();
+  }, [loadBacklinks]);
 
   const reset = (): void => {
     setMarkdown(props.record.markdown);
@@ -196,6 +239,44 @@ function StickerDetailForm(props: {
         </span>
         <button type="button" className="dsh-sticker-sidebar-save" disabled={!dirty || phase === "saving"} onClick={() => void save()}><Save size={14} />保存</button>
       </footer>
+      <section className="dsh-sticker-sidebar-backlinks" aria-label="反向链接">
+        <header>
+          <h4>反向链接</h4>
+          <button
+            type="button"
+            className="dsh-sticker-sidebar-icon-button"
+            title="刷新反向链接"
+            aria-label="刷新反向链接"
+            disabled={backlinkPhase === "loading"}
+            onClick={() => void loadBacklinks()}
+          >
+            <RefreshCw size={14} />
+          </button>
+        </header>
+        {backlinkPhase === "loading" ? <p className="dsh-sticker-sidebar-backlink-state">正在检查 Obsidian 引用...</p> : null}
+        {backlinkPhase === "error" ? <p className="dsh-sticker-sidebar-backlink-state dsh-sticker-sidebar-status-error">{backlinkError}</p> : null}
+        {backlinkPhase === "ready" && backlinks.length === 0 ? <p className="dsh-sticker-sidebar-backlink-state">尚无 Obsidian 笔记引用此贴纸。</p> : null}
+        {backlinks.length > 0 ? (
+          <ul className="dsh-sticker-sidebar-backlink-list">
+            {backlinks.map((backlink) => (
+              <li key={`${backlink.notePath}:${backlink.blockId ?? `${backlink.line}:${backlink.column ?? 0}`}`}>
+                <button
+                  type="button"
+                  title={`在 Obsidian 中打开 ${backlink.notePath}`}
+                  onClick={() => void props.openNote(backlinkOpenAction(backlink)).catch((reason: unknown) => {
+                    setBacklinkError(reason instanceof Error ? reason.message : String(reason));
+                    setBacklinkPhase("error");
+                  })}
+                >
+                  <span className="dsh-sticker-sidebar-backlink-title">{backlink.heading ?? backlink.notePath.split("/").at(-1)?.replace(/\.md$/i, "") ?? backlink.notePath}</span>
+                  <span className="dsh-sticker-sidebar-backlink-path">{backlink.notePath} · 第 {backlink.line + 1} 行</span>
+                  <span className="dsh-sticker-sidebar-backlink-excerpt">{backlink.excerpt}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
     </section>
   );
 }
@@ -204,6 +285,7 @@ export function registerStickerSidebar(
   ctx: Context,
   workspace: StickerWorkspace,
   openNote: (action: OpenNoteAction) => Promise<void>,
+  listBacklinks: (record: StickerRecord) => Promise<StickerBacklink[]>,
 ): () => void {
   return ctx.betterSidebar.registerTab({
     id: STICKER_DETAIL_TAB_TYPE,
@@ -218,6 +300,7 @@ export function registerStickerSidebar(
         tab={tab}
         sessionId={scope.sessionId}
         openNote={openNote}
+        listBacklinks={listBacklinks}
         close={() => ctx.betterSidebar.closeTab(tab.id, scope)}
       />
     ),

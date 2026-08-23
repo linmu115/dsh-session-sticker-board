@@ -6,6 +6,8 @@ import type {
   OpenNoteAction,
   ResolvedCitation,
   SessionNoteDocument,
+  StickerBacklink,
+  StickerRecord,
 } from "../src/protocol.ts";
 
 const action: DeepLinkAction = {
@@ -106,12 +108,21 @@ describe("DSH bridge client", () => {
       stickers: [],
     };
     const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const backlinks: StickerBacklink[] = [{
+      notePath: "项目/架构.md",
+      line: 12,
+      column: 4,
+      blockId: "sticker-reference",
+      heading: "插件架构",
+      excerpt: "回到贴纸",
+    }];
     const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       requests.push({ url: String(url), ...(init ? { init } : {}) });
       if (String(url).endsWith("/v1/handshake")) return json(200, { token: "token", expiresAt: 20_000 });
       if (init?.method === "PUT") return json(200, { revision: "sha256:two" });
       if (String(url).endsWith("/v1/citations/resolve")) return json(200, { notePath: "note.md", blockId: "dsh-ref-a17" });
       if (String(url).endsWith("/v1/obsidian/open-note")) return json(200, { opened: true });
+      if (String(url).includes("/v1/sticker-backlinks?")) return json(200, { backlinks });
       return json(200, document);
     });
     const client = createBridgeClient({ origin: "http://127.0.0.1:27124", fetch, now: () => 1_000 });
@@ -130,15 +141,32 @@ describe("DSH bridge client", () => {
       actionId: "1378702f-84d2-4e73-9f74-c08d269b2c7f",
       notePath: "note.md",
       blockId: "dsh-ref-a17",
+      line: 12,
+      column: 4,
+    };
+    const sticker: StickerRecord = {
+      stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
+      sessionId: "session-demo",
+      anchorId: "user-node-42",
+      role: "user",
+      quote: "完整组合",
+      quoteHash: "sha256:30101ebf",
+      occurrence: 0,
+      markdown: "",
+      tags: [],
+      color: "yellow",
     };
 
     expect(await client.readSessionNote("session-demo")).toEqual(document);
     expect(await client.saveSessionNote(document, "sha256:one")).toEqual({ revision: "sha256:two" });
     expect(await client.resolveCitation(resolved)).toEqual({ notePath: "note.md", blockId: "dsh-ref-a17" });
+    expect(await client.listBacklinks(sticker)).toEqual(backlinks);
     await client.openNote(openNote);
 
     const put = requests.find((request) => request.init?.method === "PUT");
     expect(JSON.parse(String(put?.init?.body))).toEqual({ document, expectedRevision: "sha256:one" });
     expect(requests.some((request) => request.url.endsWith("/v1/obsidian/open-note"))).toBe(true);
+    const backlinkRequest = requests.find((request) => request.url.includes("/v1/sticker-backlinks?"));
+    expect(backlinkRequest?.url).toContain(`stickerId=${sticker.stickerId}`);
   });
 });
