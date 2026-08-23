@@ -1,8 +1,3 @@
-[data-dsh-sticker-board] {
-  position: relative;
-  z-index: 0;
-}
-
 .dsh-sticker-board-selection-action {
   position: fixed;
   z-index: 70;
@@ -15,6 +10,10 @@
   padding: 6px 10px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.dsh-sticker-board-selection-action-below {
+  transform: translate(-50%, 0);
 }
 
 .dsh-sticker-board-highlight {

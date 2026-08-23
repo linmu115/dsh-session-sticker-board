@@ -5,6 +5,7 @@ import {
   buildReferenceMarkdown,
   createStickerCommands,
   isEligibleMessageSelection,
+  placeSelectionAction,
   spreadDotPoint,
 } from "../src/client/overlay.tsx";
 import type { StickerRecord } from "../src/protocol.ts";
@@ -55,6 +56,36 @@ describe("sticker overlay commands", () => {
       { x: 100, y: 100 },
       [{ x: 100, y: 100 }, { x: 100, y: 124 }],
     )).toEqual({ x: 100, y: 148 });
+  });
+
+  it("keeps the sticker action visible beside the sidechat selection toolbar", () => {
+    const selection = { left: 300, top: 180, width: 120, height: 22 };
+
+    expect(placeSelectionAction(selection, null, 720)).toEqual({
+      x: 360,
+      y: 170,
+      below: false,
+    });
+    expect(placeSelectionAction(selection, {
+      left: 250,
+      top: 134,
+      width: 220,
+      height: 36,
+    }, 720)).toEqual({
+      x: 360,
+      y: 128,
+      below: false,
+    });
+    expect(placeSelectionAction({ ...selection, top: 38 }, {
+      left: 250,
+      top: 4,
+      width: 220,
+      height: 24,
+    }, 720)).toEqual({
+      x: 360,
+      y: 66,
+      below: true,
+    });
   });
 
   it("copies stable logical and Markdown links from a message dot", async () => {

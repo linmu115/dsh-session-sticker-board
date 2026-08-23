@@ -34,6 +34,45 @@ export function isEligibleMessageSelection(input: {
 
 export interface OverlayPoint { x: number; y: number }
 
+export interface SelectionActionPlacement extends OverlayPoint {
+  readonly below: boolean;
+}
+
+interface RectLike {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+const SELECTION_ACTION_HEIGHT = 32;
+const SELECTION_ACTION_GAP = 6;
+
+export function placeSelectionAction(
+  selectionRect: RectLike,
+  sidechatToolbarRect: RectLike | null,
+  viewportHeight: number,
+): SelectionActionPlacement {
+  const left = selectionRect.left + selectionRect.width / 2;
+  if (!sidechatToolbarRect) {
+    return { x: left, y: Math.max(8, selectionRect.top - 10), below: false };
+  }
+
+  const roomAbove = sidechatToolbarRect.top - SELECTION_ACTION_GAP;
+  if (roomAbove >= SELECTION_ACTION_HEIGHT + 8) {
+    return { x: left, y: roomAbove, below: false };
+  }
+
+  return {
+    x: left,
+    y: Math.min(
+      Math.max(8, viewportHeight - SELECTION_ACTION_HEIGHT - 8),
+      selectionRect.top + selectionRect.height + SELECTION_ACTION_GAP,
+    ),
+    below: true,
+  };
+}
+
 export function spreadDotPoint(point: OverlayPoint, placed: readonly OverlayPoint[]): OverlayPoint {
   let y = point.y;
   while (placed.some((candidate) => Math.abs(candidate.x - point.x) < 18 && Math.abs(candidate.y - y) < 20)) {
@@ -255,6 +294,19 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     });
   }, [props.stickers, geometryVersion]);
 
+  const selectionAction = useMemo(() => {
+    if (!selection) return null;
+    const sidechatToolbar = document.querySelector<HTMLElement>(
+      '[data-dsh-sidechat] [role="toolbar"]',
+    );
+    const sidechatRect = sidechatToolbar?.getBoundingClientRect() ?? null;
+    return placeSelectionAction(
+      selection.rect,
+      sidechatRect && sidechatRect.width > 0 && sidechatRect.height > 0 ? sidechatRect : null,
+      window.innerHeight,
+    );
+  }, [selection, geometryVersion]);
+
   const beginCreate = useCallback(async () => {
     if (!selection) return;
     const anchor = await createMessageAnchor({
@@ -307,11 +359,11 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   return (
     <>
-      {selection && !editor && !menu && (
+      {selection && selectionAction && !editor && !menu && (
         <button
           type="button"
-          className="dsh-sticker-board-selection-action"
-          style={{ left: selection.rect.left + selection.rect.width / 2, top: Math.max(8, selection.rect.top - 10) }}
+          className={`dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
+          style={{ left: selectionAction.x, top: selectionAction.y }}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => void beginCreate()}
         >
