@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
   "license": "MIT",
@@ -28,12 +28,24 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && tsdown",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "lucide-react": "0.542.0",
     "zod": "^4.4.3"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
   },
   "peerDependencies": {
     "cordis": "^4.0.0-rc.7",
