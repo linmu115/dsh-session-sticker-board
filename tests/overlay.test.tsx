@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildDshLogicalLink,
   buildReferenceMarkdown,
+  buildStickerWikiLink,
   createStickerCommands,
   isEligibleMessageSelection,
   placeSelectionAction,
@@ -102,11 +103,17 @@ describe("sticker overlay commands", () => {
     await commands.copyReferenceMarkdown();
 
     expect(writeText.mock.calls[0]?.[0]).toBe(
-      "[回到 DSH：插件维护系统的用户提问](obsidian://deepharness?session=session-demo&anchor=user-node-42&quoteHash=sha256%3A30101ebf&sticker=9bb3a80e-230d-44d1-a37c-f7b79d2bf315)",
+      "[[DeepHarness/Sessions/session-demo#^dsh-sticker-9bb3a80e|贴纸来源]]\n[回到 DSH：插件维护系统的用户提问](obsidian://deepharness?session=session-demo&anchor=user-node-42&quoteHash=sha256%3A30101ebf&sticker=9bb3a80e-230d-44d1-a37c-f7b79d2bf315)",
     );
     expect(writeText.mock.calls[1]?.[0]).toBe(buildReferenceMarkdown(sticker, "插件维护系统的用户提问"));
     expect(buildDshLogicalLink(sticker)).toBe(
       "obsidian://deepharness?session=session-demo&anchor=user-node-42&quoteHash=sha256%3A30101ebf&sticker=9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
+    );
+    expect(buildStickerWikiLink(sticker)).toBe(
+      "[[DeepHarness/Sessions/session-demo#^dsh-sticker-9bb3a80e|贴纸来源]]",
+    );
+    expect(writeText.mock.calls[1]?.[0]).toContain(
+      "> 来源：[[DeepHarness/Sessions/session-demo#^dsh-sticker-9bb3a80e|贴纸来源]]",
     );
   });
 

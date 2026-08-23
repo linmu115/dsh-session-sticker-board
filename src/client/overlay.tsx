@@ -531,10 +531,17 @@ export function buildDshLogicalLink(sticker: StickerRecord): string {
   return `obsidian://deepharness?${query.toString()}`;
 }
 
+export function buildStickerWikiLink(sticker: StickerRecord): string {
+  const sessionPath = `DeepHarness/Sessions/${encodeURIComponent(sticker.sessionId)}`;
+  const blockId = sticker.blockId ?? `dsh-sticker-${sticker.stickerId.slice(0, 8)}`;
+  return `[[${sessionPath}#^${blockId}|贴纸来源]]`;
+}
+
 export function buildReferenceMarkdown(sticker: StickerRecord, sessionTitle: string): string {
   const label = `回到 DSH：${sessionTitle}`;
   return [
     `> [!dsh-reference]`,
+    `> 来源：${buildStickerWikiLink(sticker)}`,
     `> [${label}](${buildDshLogicalLink(sticker)})`,
     `> 引用内容：${sticker.quote}`,
     ...(sticker.markdown ? [`> 贴纸：${sticker.markdown}`] : []),
@@ -558,7 +565,10 @@ export interface StickerCommandDependencies {
 export function createStickerCommands(sticker: StickerRecord, dependencies: StickerCommandDependencies) {
   return {
     copyLogicalLink: () => dependencies.clipboard.writeText(
-      `[回到 DSH：${dependencies.sessionTitle}](${buildDshLogicalLink(sticker)})`,
+      [
+        buildStickerWikiLink(sticker),
+        `[回到 DSH：${dependencies.sessionTitle}](${buildDshLogicalLink(sticker)})`,
+      ].join("\n"),
     ),
     copyReferenceMarkdown: () => dependencies.clipboard.writeText(
       buildReferenceMarkdown(sticker, dependencies.sessionTitle),
