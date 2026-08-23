@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Quote } from "lucide-react";
 
 import { createMessageAnchor } from "./anchor.ts";
 import type { StickerView } from "./sticker-store.ts";
@@ -208,6 +209,7 @@ export interface StickerOverlayProps {
   readonly onSave: (record: StickerRecord) => Promise<void>;
   readonly onDelete: (stickerId: string) => Promise<void>;
   readonly onOpenNote: StickerCommandDependencies["openNote"];
+  readonly onOpenSticker?: (record: StickerRecord) => boolean;
 }
 
 interface EditorState {
@@ -384,16 +386,21 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
           className="dsh-sticker-board-dot"
           data-dsh-sticker-anchor-id={view.record.anchorId}
           style={{ left: point.x, top: point.y }}
-          title={`贴纸 ${view.displayNumber}：${view.record.markdown || view.record.quote}`}
-          aria-label={`打开贴纸 ${view.displayNumber}`}
+          title={`打开贴纸：${view.record.markdown || view.record.quote}`}
+          aria-label="打开贴纸"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
+            if (props.onOpenSticker?.(view.record as StickerRecord)) {
+              setMenu(null);
+              setEditor(null);
+              return;
+            }
             setMenu({ view, point });
             setEditor(null);
           }}
         >
-          {view.displayNumber}
+          <Quote size={11} strokeWidth={2.4} aria-hidden="true" />
         </button>
       ) : null)}
       {menu && (

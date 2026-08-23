@@ -1,4 +1,5 @@
 import type { Context as CordisContext } from "cordis";
+import type { ReactNode } from "react";
 
 export type SessionId = string;
 
@@ -48,6 +49,64 @@ export interface SlotRegisterOptions {
 export interface SlotsService {
   register(options: SlotRegisterOptions, component: unknown): () => void;
   inject(key: string, callback: () => (() => void) | void): () => void;
+}
+
+export interface SessionScope {
+  sessionId: SessionId;
+  cwd?: string;
+}
+
+export interface SidebarTab {
+  id: string;
+  type: string;
+  title: string;
+  path?: string;
+  meta?: unknown;
+}
+
+export interface SidebarState {
+  splits?: unknown;
+  bottomSplits?: unknown;
+}
+
+export interface SidebarSnapshot {
+  sessionId?: SessionId;
+  state?: SidebarState;
+}
+
+export interface TabComponentProps {
+  ctx: Context;
+  scope: SessionScope;
+  tab: SidebarTab;
+  visible: boolean;
+}
+
+export interface TabDescriptor {
+  id: string;
+  title: string | (() => string);
+  icon?: ReactNode | ((size: number) => ReactNode);
+  order?: number;
+  hidden?: boolean;
+  single?: boolean;
+  component: (props: TabComponentProps) => ReactNode;
+}
+
+export interface BetterSidebarService {
+  readonly version: string;
+  readonly features: readonly string[];
+  registerTab(descriptor: TabDescriptor): () => void;
+  openTab(seed: {
+    type: string;
+    title?: string;
+    path?: string;
+    id?: string;
+    meta?: unknown;
+  }, scope?: SessionScope): void;
+  closeTab(tabId: string, scope?: SessionScope): void;
+  activateTab(tabId: string, scope?: SessionScope): void;
+  updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
+  isTabEnabled(id: string): boolean;
+  getSnapshot(): SidebarSnapshot;
 }
 
 export interface ReferenceOccurrence {
@@ -101,5 +160,6 @@ export interface InputZone {
 export interface Context extends CordisContext {
   sessions: SessionsService;
   slots: SlotsService;
+  betterSidebar: BetterSidebarService;
   get(name: string): unknown;
 }

@@ -13,9 +13,13 @@ import {
 } from "./composer.tsx";
 import { applyDeepLink } from "./deep-link.ts";
 import { StickerOverlay } from "./overlay.tsx";
+import {
+  createStickerSidebarController,
+  registerStickerSidebar,
+} from "./sticker-sidebar.tsx";
 import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
 import type { Context } from "../context-types.ts";
-import type { PendingCitation } from "../protocol.ts";
+import type { PendingCitation, StickerRecord } from "../protocol.ts";
 import "./styles.css";
 
 const BRIDGE_ORIGIN = "__DSH_OBSIDIAN_BRIDGE_ORIGIN__";
@@ -26,6 +30,7 @@ function StickerBoardRoot(props: {
   ctx: Context;
   workspace: StickerWorkspace;
   openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
+  openSticker: (record: StickerRecord) => boolean;
 }): ReactNode {
   const sessionList = useSyncExternalStore(
     useCallback((listener: () => void) => props.ctx.sessions.list.subscribe(listener), [props.ctx]),
@@ -53,6 +58,7 @@ function StickerBoardRoot(props: {
       onSave={(record) => props.workspace.save(record)}
       onDelete={(stickerId) => props.workspace.remove(sessionId, stickerId)}
       onOpenNote={props.openNote}
+      onOpenSticker={props.openSticker}
     />
   );
 }
@@ -62,6 +68,18 @@ export function apply(ctx: Context): void {
     const bridge = createBridgeClient({ origin: BRIDGE_ORIGIN });
     const citations = createPendingCitationStore();
     const stickers = createStickerWorkspace(bridge);
+    const stickerSidebar = createStickerSidebarController();
+    const sidebarFiber = ctx.inject(["betterSidebar"], (sidebarContext) => {
+      const injected = sidebarContext as Context;
+      injected.effect(() => {
+        stickerSidebar.attach(injected.betterSidebar);
+        const unregister = registerStickerSidebar(injected, stickers, (action) => bridge.openNote(action));
+        return () => {
+          unregister();
+          stickerSidebar.detach(injected.betterSidebar);
+        };
+      }, "dsh-session-sticker-board: sidebar tab");
+    });
     const resolver = createSubmissionResolver({
       store: citations,
       resolveCitation: (citation) => bridge.resolveCitation(citation),
@@ -81,6 +99,7 @@ export function apply(ctx: Context): void {
         ctx={ctx}
         workspace={stickers}
         openNote={(action) => bridge.openNote(action)}
+        openSticker={(record) => stickerSidebar.openSticker(record)}
       />,
     );
 
@@ -120,6 +139,7 @@ export function apply(ctx: Context): void {
 
     return () => {
       polling.stop();
+      void sidebarFiber.dispose();
       offSlot();
       offCitations();
       clearAllSessionReferences(ctx, citations);

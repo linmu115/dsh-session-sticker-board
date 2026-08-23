@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
   "license": "MIT",
@@ -33,6 +33,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "lucide-react": "0.542.0",
     "zod": "^4.4.3"
   },
   "dsh": {
