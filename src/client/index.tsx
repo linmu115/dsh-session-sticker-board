@@ -1,30 +1,25 @@
+import type { AnnotationCoreClient } from "dsh-annotation-core/client-api";
 import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { createBridgeClient } from "./bridge-client.ts";
-import {
-  CITATION_REFERENCE_APPEARANCE,
-  clearAllSessionReferences,
-  createCitationTray,
-  createPendingCitationStore,
-  createSubmissionResolver,
-  registerCitationReferenceSource,
-  syncAllSessionReferences,
-} from "./composer.tsx";
+import { BridgeUnavailableError, createBridgeHttpClient } from "../bridge/http-client.ts";
+import type { Context } from "../context-types.ts";
+import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
+import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
+import { startBridgePolling } from "./bridge-polling.ts";
 import { applyDeepLink } from "./deep-link.ts";
 import { StickerOverlay } from "./overlay.tsx";
+import { mountStickerRemote } from "./remote.ts";
 import {
   createStickerSidebarController,
   registerStickerSidebar,
 } from "./sticker-sidebar.tsx";
 import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
-import type { Context } from "../context-types.ts";
-import type { PendingCitation, StickerRecord } from "../protocol.ts";
 import "./styles.css";
 
-const BRIDGE_ORIGIN = "__DSH_OBSIDIAN_BRIDGE_ORIGIN__";
+const PROFILE_ID = "web";
 
-export const inject = ["sessions", "slots"];
+export const inject = ["sessions", "remote"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;
@@ -63,14 +58,40 @@ function StickerBoardRoot(props: {
   );
 }
 
+function openSourceAction(notePath: string, blockId?: string): OpenNoteAction {
+  return {
+    protocolVersion: 1,
+    type: "open-note",
+    actionId: crypto.randomUUID(),
+    notePath,
+    ...(blockId === undefined ? {} : { blockId }),
+  };
+}
+
 export function apply(ctx: Context): void {
-  ctx.effect(() => {
-    const bridge = createBridgeClient({ origin: BRIDGE_ORIGIN });
-    const citations = createPendingCitationStore();
+  ctx.inject(inject, async (injectedContext) => {
+    const ready = injectedContext as unknown as Context;
+    const mountedRemote = await mountStickerRemote(ready);
+    const bridge = createBridgeHttpClient({ origin: mountedRemote.origin });
+    try {
+      await bridge.preflight();
+    } catch (error) {
+      if (!(error instanceof BridgeUnavailableError)) {
+        bridge.dispose();
+        await mountedRemote.dispose();
+        throw error;
+      }
+      console.warn("[dsh-session-sticker-board] Obsidian bridge is offline; saved snapshots remain usable", error);
+    }
+    const annotationCore = ready.get("annotationCore") as AnnotationCoreClient | undefined;
+    if (annotationCore === undefined) {
+      console.warn("[dsh-session-sticker-board] dsh-annotation-core is unavailable; annotation capture is disabled");
+    }
+
     const stickers = createStickerWorkspace(bridge);
     const stickerSidebar = createStickerSidebarController();
-    const sidebarFiber = ctx.inject(["betterSidebar"], (sidebarContext) => {
-      const injected = sidebarContext as Context;
+    const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
+      const injected = sidebarContext as unknown as Context;
       injected.effect(() => {
         stickerSidebar.attach(injected.betterSidebar);
         const unregister = registerStickerSidebar(
@@ -85,15 +106,13 @@ export function apply(ctx: Context): void {
         };
       }, "dsh-session-sticker-board: sidebar tab");
     });
-    const resolver = createSubmissionResolver({
-      store: citations,
-      resolveCitation: (citation) => bridge.resolveCitation(citation),
-    });
-    const unregisterReferenceSource = registerCitationReferenceSource(ctx, citations);
-    const hiddenReferenceStyle = document.createElement("style");
-    hiddenReferenceStyle.dataset.dshStickerBoardHiddenReference = "";
-    hiddenReferenceStyle.textContent = `[data-reference-appearance="${CITATION_REFERENCE_APPEARANCE}"] { visibility: hidden !important; }`;
-    document.head.appendChild(hiddenReferenceStyle);
+
+    const unregisterObsidianSource = annotationCore?.registerSourceAdapter("obsidian-note", {
+      async openSource(item) {
+        if (item.sourceType !== "obsidian-note") throw new TypeError("Expected an Obsidian reference");
+        await bridge.openNote(openSourceAction(item.locator.notePath, item.locator.blockId));
+      },
+    }) ?? (() => undefined);
 
     const overlayHost = document.createElement("div");
     overlayHost.dataset.dshStickerBoard = "";
@@ -101,58 +120,55 @@ export function apply(ctx: Context): void {
     const root = createRoot(overlayHost);
     root.render(
       <StickerBoardRoot
-        ctx={ctx}
+        ctx={ready}
         workspace={stickers}
         openNote={(action) => bridge.openNote(action)}
         openSticker={(record) => stickerSidebar.openSticker(record)}
       />,
     );
 
-    const offCitations = citations.subscribe(() => syncAllSessionReferences(ctx, citations));
-    const offSlot = ctx.slots.inject("conversation.input.dock", () => ctx.slots.register({
-      name: "conversation.input.dock",
-      id: "dsh-session-sticker-board-citations",
-      order: 12,
-      registrant: "dsh-session-sticker-board",
-    }, createCitationTray(ctx, citations, resolver)));
-
-    const applyAction = async (action: PendingCitation | import("../protocol.ts").DeepLinkAction): Promise<boolean> => {
-      if (action.type === "deep-link") {
-        await stickers.ensure(action.sessionId).catch(() => undefined);
-        const matchingSticker = stickers.list(action.sessionId).find((view) => (
-          view.record.anchorId === action.anchorId
-          && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
-        ));
-        const result = await applyDeepLink(ctx, action, {
-          ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
+    const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
+      if (action.type === "reference-capture") {
+        if (annotationCore === undefined) return false;
+        const sessionId = ready.sessions.list.getSnapshot().current;
+        if (!sessionId) return false;
+        await consumeObsidianReferenceCapture({
+          capture: action,
+          sessionId,
+          profileId: PROFILE_ID,
+          annotationCore,
+          bridge,
         });
-        if (result.status !== "located") {
-          console.warn("[dsh-session-sticker-board] deep-link was not located", result);
-        }
-        // A DOM miss is usually the one-frame gap after sessions.open(); keep
-        // the queue action unacked so the next poll retries it.
-        return result.status !== "dom-unavailable";
+        return true;
       }
-      const sessionId = ctx.sessions.list.getSnapshot().current;
-      if (!sessionId) return false;
-      citations.add(sessionId, action);
-      return true;
+      await stickers.ensure(action.sessionId).catch(() => undefined);
+      const matchingSticker = stickers.list(action.sessionId).find((view) => (
+        view.record.anchorId === action.anchorId
+        && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
+      ));
+      const result = await applyDeepLink(ready, action, {
+        ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
+        ...(annotationCore === undefined ? {} : {
+          openAnnotation: (setId: string, referenceId?: string) => annotationCore.openAnnotation(setId, referenceId),
+        }),
+      });
+      if (result.status !== "located") {
+        console.warn("[dsh-session-sticker-board] deep-link was not located", result);
+      }
+      return result.status !== "dom-unavailable";
     };
-    const polling = bridge.startPolling(applyAction, {
+    const polling = startBridgePolling(bridge, applyAction, {
       onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
     });
 
-    return () => {
+    ready.effect(() => () => {
       polling.stop();
       void sidebarFiber.dispose();
-      offSlot();
-      offCitations();
-      clearAllSessionReferences(ctx, citations);
-      unregisterReferenceSource();
+      unregisterObsidianSource();
       bridge.dispose();
-      hiddenReferenceStyle.remove();
+      void mountedRemote.dispose();
       setTimeout(() => root.unmount());
       overlayHost.remove();
-    };
-  }, "dsh-session-sticker-board: client");
+    }, "dsh-session-sticker-board: client");
+  });
 }

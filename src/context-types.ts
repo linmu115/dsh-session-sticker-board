@@ -1,4 +1,4 @@
-import type { Context as CordisContext } from "cordis";
+import type { Context as CordisContext } from "@deepseek-ai/cordis";
 import type { ReactNode } from "react";
 
 export type SessionId = string;
@@ -131,7 +131,7 @@ export interface ReferenceInsert {
   readonly source: string;
   readonly ref: string;
   readonly label: string;
-  readonly appearance?: "session" | "file" | "folder" | "dsh-sticker-board-hidden";
+  readonly appearance?: "session" | "file" | "folder";
   readonly clipboardText: string;
 }
 
@@ -157,9 +157,9 @@ export interface InputZone {
   readonly input: InputStateSnapshot;
 }
 
-export interface Context extends CordisContext {
+export type Context = Omit<CordisContext, "sessions" | "slots"> & {
   sessions: SessionsService;
   slots: SlotsService;
   betterSidebar: BetterSidebarService;
   get(name: string): unknown;
-}
+};

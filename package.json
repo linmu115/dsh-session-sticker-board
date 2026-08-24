@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,10 @@
     "./client": {
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
+    },
+    "./typert": {
+      "types": "./lib/types/remote/typert.d.ts",
+      "default": "./lib/typert.js"
     },
     "./package.json": "./package.json"
   },
@@ -33,6 +37,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1",
     "lucide-react": "0.542.0",
     "zod": "^4.4.3"
   },
@@ -48,15 +53,24 @@
     }
   },
   "peerDependencies": {
-    "cordis": "^4.0.0-rc.7",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.1-rc.2",
+    "dsh-annotation-core": ">=0.1.0 <0.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-api-gateway": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-typert-registry": "0.1.1-rc.2",
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "cordis": "^4.0.0-rc.7",
+    "dsh-annotation-core": "file:D:/AI/DSH-Plugin-Repositories/dsh-annotation-core/dsh-annotation-core-0.1.0.tgz",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.14",

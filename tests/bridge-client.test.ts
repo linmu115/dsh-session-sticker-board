@@ -1,172 +1,150 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createBridgeClient } from "../src/client/bridge-client.ts";
-import type {
-  DeepLinkAction,
-  OpenNoteAction,
-  ResolvedCitation,
-  SessionNoteDocument,
-  StickerBacklink,
-  StickerRecord,
+import { BridgeHttpError, BridgeUnavailableError, createBridgeHttpClient } from "../src/bridge/http-client.ts";
+import {
+  documentHash,
+  selectedTextHash,
+  type DeepLinkAction,
+  type ObsidianReferenceCaptureV2,
+  type SessionNoteDocument,
+  type StickerRecord,
 } from "../src/protocol.ts";
 
-const action: DeepLinkAction = {
-  protocolVersion: 1,
-  type: "deep-link",
-  actionId: "6f09f1be-5dc1-48e4-ac08-e3c05d70ac01",
-  sessionId: "session-demo",
-  anchorId: "user-node-42",
-  quoteHash: "sha256:30101ebf",
-};
+const ORIGIN = "http://127.0.0.1:28473";
 
 function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+function handshake() {
+  return json(200, {
+    token: "token",
+    expiresAt: 20_000,
+    annotationProtocolVersion: 2,
+    stickerProtocolVersion: 1,
+    bridgeOrigin: ORIGIN,
+    capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
   });
 }
 
-describe("DSH bridge client", () => {
-  it("re-handshakes once after 401 and acknowledges an applied action", async () => {
-    const responses = [
-      json(200, { token: "old-token", expiresAt: 20_000 }),
-      json(401, { error: "expired" }),
-      json(200, { token: "new-token", expiresAt: 30_000 }),
-      json(200, { cursor: 1, actions: [{ cursor: 1, message: action }] }),
-      json(200, { acknowledged: true, actionId: action.actionId }),
-    ];
-    const fetch = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => responses.shift() ?? json(500, {}));
-    const client = createBridgeClient({ origin: "http://127.0.0.1:27124", fetch, now: () => 1_000 });
+const deepLink: DeepLinkAction = {
+  protocolVersion: 1,
+  type: "deep-link",
+  actionId: "6f09f1be-5dc1-48e4-ac08-e3c05d70ac01",
+  sessionId: "session-1",
+  anchorId: "user-1",
+};
 
-    const actions = await client.nextActions();
-    expect(actions).toEqual([{ cursor: 1, message: action }]);
-    await client.applyActions(actions, async () => true);
+const capture: ObsidianReferenceCaptureV2 = {
+  annotationProtocolVersion: 2,
+  type: "reference-capture",
+  actionId: "capture-1",
+  referenceId: "reference-1",
+  source: {
+    sourceType: "obsidian-note",
+    selectedText: "引用",
+    locator: {
+      vaultId: "vault-1", notePath: "note.md", blockId: "block-1", occurrence: 0,
+      selectedTextHash: selectedTextHash("引用"),
+    },
+    snapshot: {
+      markdown: "引用 ^block-1\n", documentHash: documentHash("引用 ^block-1\n"),
+      capturedAt: 100, freshness: "captured",
+    },
+  },
+};
 
-    const handshakes = fetch.mock.calls.filter(([url]) => String(url).endsWith("/v1/handshake"));
-    const acknowledgements = fetch.mock.calls.filter(([url]) => String(url).endsWith(`/v1/actions/${action.actionId}/ack`));
-    expect(handshakes).toHaveLength(2);
-    expect(acknowledgements).toHaveLength(1);
-  });
-
-  it("does not acknowledge an action that the DSH UI could not apply", async () => {
+describe("DSH v2 bridge HTTP client", () => {
+  it("preflights the exact Host-selected origin before handshaking", async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
-      if (String(url).endsWith("/v1/handshake")) return json(200, { token: "token", expiresAt: 20_000 });
-      if (String(url).includes("/actions/next")) return json(200, { cursor: 1, actions: [{ cursor: 1, message: action }] });
-      return json(200, {});
-    });
-    const client = createBridgeClient({ origin: "http://127.0.0.1:27124", fetch, now: () => 1_000 });
-    const actions = await client.nextActions();
-
-    const result = await client.applyActions(actions, async () => false);
-
-    expect(result).toEqual({ applied: 0, cursor: 0 });
-    expect(fetch.mock.calls.some(([url]) => String(url).includes("/ack"))).toBe(false);
-  });
-
-  it("aborts in-flight requests after disposal", async () => {
-    let capturedSignal: AbortSignal | undefined;
-    const fetch = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
-      capturedSignal = init?.signal ?? undefined;
-      return new Promise<Response>((_resolve, reject) => {
-        capturedSignal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      if (String(url).endsWith("/v2/health")) return json(200, {
+        annotationProtocolVersion: 2,
+        stickerProtocolVersion: 1,
+        bridgeOrigin: ORIGIN,
+        capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
       });
+      return handshake();
     });
-    const client = createBridgeClient({ origin: "http://127.0.0.1:27124", fetch });
-    const pending = client.nextActions();
-    client.dispose();
-
-    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(capturedSignal?.aborted).toBe(true);
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await client.preflight();
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([`${ORIGIN}/v2/health`, `${ORIGIN}/v2/handshake`]);
   });
 
-  it("uses slower polling while the DSH page is hidden", async () => {
+  it("rejects Host/Client/Obsidian port disagreement before polling", async () => {
+    const fetch = vi.fn(async () => json(200, {
+      annotationProtocolVersion: 2,
+      stickerProtocolVersion: 1,
+      bridgeOrigin: "http://127.0.0.1:18473",
+      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+    }));
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch });
+    await expect(client.preflight()).rejects.toMatchObject({ code: "protocol-mismatch" });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a mismatched handshake even when the Host calls a route without browser preflight", async () => {
+    const fetch = vi.fn(async () => json(200, {
+      token: "token",
+      expiresAt: 20_000,
+      annotationProtocolVersion: 2,
+      stickerProtocolVersion: 1,
+      bridgeOrigin: "http://127.0.0.1:18473",
+      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+    }));
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await expect(client.nextActions(0)).rejects.toMatchObject({ code: "protocol-mismatch" });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("distinguishes an offline bridge from a protocol mismatch", async () => {
+    const client = createBridgeHttpClient({
+      origin: ORIGIN,
+      fetch: vi.fn(async () => { throw new TypeError("fetch failed"); }),
+    });
+    await expect(client.preflight()).rejects.toBeInstanceOf(BridgeUnavailableError);
+  });
+
+  it("parses both v2 captures and historical deep links from one action page", async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
-      if (String(url).endsWith("/v1/handshake")) return json(200, { token: "token", expiresAt: 20_000 });
-      return json(200, { cursor: 0, actions: [] });
+      if (String(url).endsWith("/v2/handshake")) return handshake();
+      return json(200, { cursor: 2, actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }] });
     });
-    const scheduled: Array<{ callback: () => void; delay: number }> = [];
-    const client = createBridgeClient({ origin: "http://127.0.0.1:27124", fetch, now: () => 1_000 });
-    const polling = client.startPolling(async () => true, {
-      visibilityState: () => "hidden",
-      schedule: (callback, delay) => {
-        scheduled.push({ callback, delay });
-        return () => undefined;
-      },
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await expect(client.nextActions(0)).resolves.toEqual({
+      cursor: 2,
+      actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }],
     });
-
-    await polling.firstCycle;
-    expect(scheduled[0]?.delay).toBe(3_000);
-    polling.stop();
   });
 
-  it("reads and saves session notes, resolves citations and opens notes", async () => {
-    const document: SessionNoteDocument = {
-      protocolVersion: 1,
-      type: "session-note",
-      sessionId: "session-demo",
-      revision: "sha256:one",
-      stickers: [],
-    };
-    const requests: Array<{ url: string; init?: RequestInit }> = [];
-    const backlinks: StickerBacklink[] = [{
-      notePath: "项目/架构.md",
-      line: 12,
-      column: 4,
-      blockId: "sticker-reference",
-      heading: "插件架构",
-      excerpt: "回到贴纸",
-    }];
-    const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      requests.push({ url: String(url), ...(init ? { init } : {}) });
-      if (String(url).endsWith("/v1/handshake")) return json(200, { token: "token", expiresAt: 20_000 });
-      if (init?.method === "PUT") return json(200, { revision: "sha256:two" });
-      if (String(url).endsWith("/v1/citations/resolve")) return json(200, { notePath: "note.md", blockId: "dsh-ref-a17" });
-      if (String(url).endsWith("/v1/obsidian/open-note")) return json(200, { opened: true });
-      if (String(url).includes("/v1/sticker-backlinks?")) return json(200, { backlinks });
-      return json(200, document);
+  it("preserves typed bridge conflicts", async () => {
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith("/v2/handshake")) return handshake();
+      return json(409, { code: "SOURCE_CHANGED", error: "Known snapshot does not match" });
     });
-    const client = createBridgeClient({ origin: "http://127.0.0.1:27124", fetch, now: () => 1_000 });
-    const resolved: ResolvedCitation = {
-      protocolVersion: 1,
-      type: "resolved-citation",
-      citationId: "76213b70-7f6e-41be-b2e3-1b195cbf1268",
-      sessionId: "session-demo",
-      anchorId: "user-node-42",
-      role: "user",
-      quoteHash: "sha256:30101ebf",
-    };
-    const openNote: OpenNoteAction = {
-      protocolVersion: 1,
-      type: "open-note",
-      actionId: "1378702f-84d2-4e73-9f74-c08d269b2c7f",
-      notePath: "note.md",
-      blockId: "dsh-ref-a17",
-      line: 12,
-      column: 4,
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await expect(client.refreshReference("reference-1", `sha256:${"1".repeat(64)}`))
+      .rejects.toEqual(new BridgeHttpError(409, "source-changed", "Known snapshot does not match"));
+  });
+
+  it("retains session-note and sticker-backlink v1 operations", async () => {
+    const document: SessionNoteDocument = {
+      protocolVersion: 1, type: "session-note", sessionId: "session-1", revision: "sha256:one", stickers: [],
     };
     const sticker: StickerRecord = {
       stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
-      sessionId: "session-demo",
-      anchorId: "user-node-42",
-      role: "user",
-      quote: "完整组合",
-      quoteHash: "sha256:30101ebf",
-      occurrence: 0,
-      markdown: "",
-      tags: [],
-      color: "yellow",
+      sessionId: "session-1", anchorId: "user-1", role: "user", quote: "引用", quoteHash: "sha256:quote",
+      occurrence: 0, markdown: "", tags: [], color: "yellow",
     };
-
-    expect(await client.readSessionNote("session-demo")).toEqual(document);
-    expect(await client.saveSessionNote(document, "sha256:one")).toEqual({ revision: "sha256:two" });
-    expect(await client.resolveCitation(resolved)).toEqual({ notePath: "note.md", blockId: "dsh-ref-a17" });
-    expect(await client.listBacklinks(sticker)).toEqual(backlinks);
-    await client.openNote(openNote);
-
-    const put = requests.find((request) => request.init?.method === "PUT");
-    expect(JSON.parse(String(put?.init?.body))).toEqual({ document, expectedRevision: "sha256:one" });
-    expect(requests.some((request) => request.url.endsWith("/v1/obsidian/open-note"))).toBe(true);
-    const backlinkRequest = requests.find((request) => request.url.includes("/v1/sticker-backlinks?"));
-    expect(backlinkRequest?.url).toContain(`stickerId=${sticker.stickerId}`);
+    const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const value = String(url);
+      if (value.endsWith("/v2/handshake")) return handshake();
+      if (init?.method === "PUT") return json(200, { revision: "sha256:two" });
+      if (value.includes("/v1/sticker-backlinks?")) return json(200, { backlinks: [] });
+      return json(200, document);
+    });
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await expect(client.readSessionNote("session-1")).resolves.toEqual(document);
+    await expect(client.saveSessionNote(document, "sha256:one")).resolves.toEqual({ revision: "sha256:two" });
+    await expect(client.listBacklinks(sticker)).resolves.toEqual([]);
   });
 });

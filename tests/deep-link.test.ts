@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { conversationContextKey } from "@deepseek-ai/dsh-client-runtime/client";
+
+vi.mock("@deepseek-ai/dsh-client-runtime/client", () => ({
+  conversationContextKey: (kind: string, id: string) => `${kind}:${id}`,
+}));
 
 import { hashQuote } from "../src/client/anchor.ts";
 import { applyDeepLink } from "../src/client/deep-link.ts";
@@ -105,5 +110,22 @@ describe("DSH deep links", () => {
       sessionId: "session-demo",
     });
     expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
+  });
+
+  it("maps a Core user-message ID through conversationContextKey and opens its annotation", async () => {
+    const userMessageId = "019d-user-message";
+    const contextKey = conversationContextKey("input-message", userMessageId);
+    const fixture = context([snapshot([{ key: contextKey, seq: 42, text: "带引用的提问" }], false)]);
+    const locate = vi.fn(() => true);
+    const openAnnotation = vi.fn();
+    const result = await applyDeepLink(fixture.ctx as never, {
+      ...action,
+      anchorId: userMessageId,
+      setId: "set-1",
+      referenceId: "reference-1",
+    }, { locate, openAnnotation });
+    expect(result.status).toBe("located");
+    expect(locate).toHaveBeenCalledWith(contextKey);
+    expect(openAnnotation).toHaveBeenCalledWith("set-1", "reference-1");
   });
 });

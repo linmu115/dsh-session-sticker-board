@@ -1,3 +1,5 @@
+import { conversationContextKey } from "@deepseek-ai/dsh-client-runtime/client";
+
 import { hashQuote } from "./anchor.ts";
 import type { Context, ConversationSnapshotLike, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
@@ -12,6 +14,7 @@ export type DeepLinkResult =
 export interface ApplyDeepLinkOptions {
   readonly quote?: string;
   readonly locate?: (anchorId: string) => boolean;
+  readonly openAnnotation?: (setId: string, referenceId?: string) => void;
   readonly waitForBinding?: (ctx: Context, sessionId: string) => Promise<SessionFace | undefined>;
 }
 
@@ -28,6 +31,19 @@ function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | n
     })
     .join("\n");
   return text;
+}
+
+function anchorCandidates(anchorId: string): readonly string[] {
+  const contextKey = conversationContextKey("input-message", anchorId);
+  return contextKey === anchorId ? [anchorId] : [anchorId, contextKey];
+}
+
+function locatedNode(snapshot: ConversationSnapshotLike, candidates: readonly string[]): { key: string; text: string } | null {
+  for (const key of candidates) {
+    const text = textOfNode(snapshot, key);
+    if (text !== null) return { key, text };
+  }
+  return null;
 }
 
 async function defaultWaitForBinding(ctx: Context, sessionId: string): Promise<SessionFace | undefined> {
@@ -83,23 +99,25 @@ export async function applyDeepLink(
   const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, action.sessionId);
   if (!session) return { status: "missing-session", sessionId: action.sessionId };
 
+  const candidates = anchorCandidates(action.anchorId);
   let snapshot = session.getSnapshot();
-  let text = textOfNode(snapshot, action.anchorId);
+  let located = locatedNode(snapshot, candidates);
   let pages = 0;
-  while (text === null && snapshot.hasMore === true && pages < 50) {
+  while (located === null && snapshot.hasMore === true && pages < 50) {
     await session.loadOlder();
     pages += 1;
     snapshot = session.getSnapshot();
-    text = textOfNode(snapshot, action.anchorId);
+    located = locatedNode(snapshot, candidates);
   }
-  if (text === null) {
+  if (located === null) {
     return { status: "missing-anchor", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (action.quoteHash && !await contentMatches(text, action.quoteHash, options.quote)) {
+  if (action.quoteHash && !await contentMatches(located.text, action.quoteHash, options.quote)) {
     return { status: "content-changed", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (!(options.locate ?? defaultLocate)(action.anchorId)) {
+  if (!(options.locate ?? defaultLocate)(located.key)) {
     return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
   }
+  if (action.setId !== undefined) options.openAnnotation?.(action.setId, action.referenceId);
   return { status: "located", sessionId: action.sessionId, anchorId: action.anchorId };
 }

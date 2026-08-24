@@ -2,3 +2,5 @@
 - insert:
     - id: session-sticker-board
       name: 'dsh-session-sticker-board'
+      config:
+        bridgeOrigin: 'http://127.0.0.1:18473'
