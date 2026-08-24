@@ -52,6 +52,10 @@
       "platform": "web"
     }
   },
+  "dshKnowledge": {
+    "annotationProtocolVersion": 2,
+    "stickerProtocolVersion": 1
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",

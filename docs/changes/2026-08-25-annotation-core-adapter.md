@@ -28,6 +28,7 @@ Baseline commit: `c1100e1` (`feat: emit native WikiLinks for stickers`).
 - Package version: `0.2.0`.
 - Required peer: `dsh-annotation-core >=0.1.0 <0.2.0`.
 - Added the `./typert` export and one `stickerBoard/getBridgeConfig` descriptor.
+- Package metadata declares annotation protocol 2 and sticker protocol 1 for Maintenance preflight.
 - Consumer bundles may inline the pure Core protocol only. Tests reject a copied Core store, Host service, submission coordinator or annotation UI, and reject unresolved runtime Core imports.
 - README now lists compatible versions, dependencies, installation order, first-run configuration and normal usage.
 
