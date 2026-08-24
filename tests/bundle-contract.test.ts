@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -10,8 +11,10 @@ interface PackageJson {
   dshKnowledge: { annotationProtocolVersion: number; stickerProtocolVersion: number };
 }
 
+const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+
 async function text(path: string): Promise<string> {
-  return readFile(join(process.cwd(), path), "utf8");
+  return readFile(join(repositoryRoot, path), "utf8");
 }
 
 describe("sticker-board 0.2 package boundary", () => {
