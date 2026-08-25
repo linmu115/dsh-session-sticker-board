@@ -1,6 +1,7 @@
 {
   "name": "dsh-session-sticker-board",
   "version": "0.2.0",
+  "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
   "license": "MIT",
@@ -32,9 +33,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && tsdown",
+    "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && tsdown --config-loader unrun --config tsdown.config.ts",
+    "prepack": "pnpm build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "check": "pnpm typecheck && pnpm test && pnpm pack --dry-run --json"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1",
@@ -56,6 +59,47 @@
     "annotationProtocolVersion": 2,
     "stickerProtocolVersion": 1
   },
+  "dshWorkshop": {
+    "schema": "omdsh-workshop-package/v1",
+    "type": "plugin",
+    "integration": {
+      "protocol": "harness-profile",
+      "artifact": "cordis.patch.yml"
+    },
+    "install": {
+      "mode": "transactional",
+      "adapter": "profile-bundle",
+      "failurePolicy": "generation-rollback",
+      "touchesCurrentBeforeActivation": false
+    },
+    "lifecycle": {
+      "activation": "restart-profile",
+      "dispose": "supported"
+    },
+    "permissions": [
+      "network:loopback",
+      "session:read",
+      "session:write",
+      "ui:modify"
+    ],
+    "compatibility": {
+      "dshVersions": [
+        "0.1.1-rc.2"
+      ]
+    },
+    "capability": {
+      "id": "session-sticker-board",
+      "kind": "ui",
+      "invocation": "select text in a DSH message and add a sticker",
+      "expected": "the sticker is persisted and can open its Obsidian backlinks"
+    },
+    "evidence": {
+      "install": "docs/release/verification.md",
+      "failureIsolation": null,
+      "hotReload": null,
+      "remove": null
+    }
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
@@ -74,16 +118,20 @@
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "file:D:/AI/DSH-Plugin-Repositories/dsh-annotation-core/dsh-annotation-core-0.1.0.tgz",
+    "dsh-annotation-core": "https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/99616f128d7beb175b023714ed906e976ac6f827",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.14",
     "typescript": "^5.9.3",
+    "unrun": "^0.3.1",
     "vitest": "^4.1.11"
   },
   "packageManager": "pnpm@11.19.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/linmu115/dsh-session-sticker-board.git"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
