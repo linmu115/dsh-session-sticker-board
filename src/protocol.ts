@@ -1,6 +1,32 @@
 import { z } from "zod";
 
-export const PROTOCOL_VERSION = 1 as const;
+export {
+  ANNOTATION_PROTOCOL_VERSION,
+  BacklinkCommitV2Schema,
+  BacklinkReceiptV2Schema,
+  ObsidianNoteReferenceSourceSchema,
+  ObsidianReferenceCaptureV2Schema,
+  ReferenceClaimV2Schema,
+  ReferenceDiscardV2Schema,
+  ReferenceRefreshRequestV2Schema,
+  ReferenceRefreshResultV2Schema,
+  canonicalSha256,
+  documentHash,
+  selectedTextHash,
+} from "dsh-annotation-core/protocol";
+export type {
+  BacklinkCommitV2,
+  BacklinkReceiptV2,
+  ObsidianNoteReferenceSource,
+  ObsidianReferenceCaptureV2,
+  ReferenceClaimV2,
+  ReferenceDiscardV2,
+  ReferenceRefreshRequestV2,
+  ReferenceRefreshResultV2,
+} from "dsh-annotation-core/protocol";
+
+export const STICKER_PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = STICKER_PROTOCOL_VERSION;
 
 export const stickerSchema = z.object({
   stickerId: z.string().uuid(),
@@ -24,6 +50,8 @@ export const deepLinkActionSchema = z.object({
   sessionId: z.string().min(1),
   anchorId: z.string().min(1),
   quoteHash: z.string().optional(),
+  setId: z.string().min(1).optional(),
+  referenceId: z.string().min(1).optional(),
 });
 
 export const openNoteActionSchema = z.object({
@@ -36,13 +64,6 @@ export const openNoteActionSchema = z.object({
   column: z.number().int().nonnegative().optional(),
 });
 
-export const stickerBacklinkTargetSchema = z.object({
-  stickerId: z.string().uuid(),
-  sessionId: z.string().min(1),
-  anchorId: z.string().min(1),
-  quoteHash: z.string().min(1),
-});
-
 export const stickerBacklinkSchema = z.object({
   notePath: z.string().min(1),
   line: z.number().int().nonnegative(),
@@ -50,27 +71,6 @@ export const stickerBacklinkSchema = z.object({
   blockId: z.string().min(1).optional(),
   heading: z.string().min(1).optional(),
   excerpt: z.string(),
-});
-
-export const pendingCitationSchema = z.object({
-  protocolVersion: z.literal(PROTOCOL_VERSION),
-  type: z.literal("pending-citation"),
-  citationId: z.string().uuid(),
-  notePath: z.string().min(1),
-  blockId: z.string().min(1),
-  heading: z.string().optional(),
-  text: z.string().min(1),
-  contentHash: z.string().min(1),
-});
-
-export const resolvedCitationSchema = z.object({
-  protocolVersion: z.literal(PROTOCOL_VERSION),
-  type: z.literal("resolved-citation"),
-  citationId: z.string().uuid(),
-  sessionId: z.string().min(1),
-  anchorId: z.string().min(1),
-  role: z.literal("user"),
-  quoteHash: z.string().min(1),
 });
 
 export const sessionNoteDocumentSchema = z.object({
@@ -84,18 +84,13 @@ export const sessionNoteDocumentSchema = z.object({
 export const bridgeMessageSchema = z.discriminatedUnion("type", [
   deepLinkActionSchema,
   openNoteActionSchema,
-  pendingCitationSchema,
-  resolvedCitationSchema,
   sessionNoteDocumentSchema,
 ]);
 
 export type StickerRecord = z.infer<typeof stickerSchema>;
 export type DeepLinkAction = z.infer<typeof deepLinkActionSchema>;
 export type OpenNoteAction = z.infer<typeof openNoteActionSchema>;
-export type StickerBacklinkTarget = z.infer<typeof stickerBacklinkTargetSchema>;
 export type StickerBacklink = z.infer<typeof stickerBacklinkSchema>;
-export type PendingCitation = z.infer<typeof pendingCitationSchema>;
-export type ResolvedCitation = z.infer<typeof resolvedCitationSchema>;
 export type SessionNoteDocument = z.infer<typeof sessionNoteDocumentSchema>;
 export type BridgeMessage = z.infer<typeof bridgeMessageSchema>;
 
