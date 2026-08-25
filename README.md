@@ -22,6 +22,16 @@
 
 按 `dsh-annotation-core → dsh-session-sticker-board → dsh-better-sidebar（可选）` 的顺序安装 DSH 插件，然后安装并启用 Obsidian 伴侣插件，最后重启 DSH 和 Obsidian。
 
+正式 npm 包发布后，使用标准 Profile Bundle 命令安装：
+
+```sh
+dsh plugin --profile web add dsh-annotation-core
+dsh plugin --profile web add dsh-session-sticker-board
+dsh plugin --profile web add dsh-better-sidebar
+```
+
+`dsh-better-sidebar` 是可选项；前两个包是完整引用与贴纸工作流的必需组件。
+
 ## 首次设置
 
 1. 在 Obsidian 的 `DeepHarness Bridge` 设置中确认 Bridge 已启动。
