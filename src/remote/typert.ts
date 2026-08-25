@@ -2,26 +2,13 @@ import type { InvocationDescriptor, TypertRemoteContribution } from "@deepseek-a
 import type { TypertContribution } from "@deepseek-ai/dsh-typert-registry/types";
 import { z } from "zod";
 
-const AgentParameter = {
-  name: "agent",
-  wire: "agentId",
-  source: "lookup" as const,
-  lookup: "agent",
-  codec: {
-    mode: "strict" as const,
-    typeSymbol: "@deepseek-ai/dsh-session/types#SessionId",
-    schema: z.string().min(1),
-  },
-};
-
 export const STICKER_REMOTE_DESCRIPTORS: readonly InvocationDescriptor[] = [{
   id: "dsh-session-sticker-board#stickerBoard/getBridgeConfig",
   service: "stickerBoard",
   namespace: "stickerBoard",
   method: "getBridgeConfig",
   invocation: { kind: "direct" },
-  scope: { context: "agent", wire: "agentId" },
-  parameters: [AgentParameter],
+  parameters: [],
   result: {
     mode: "strict",
     typeSymbol: "dsh-session-sticker-board#BridgeConfig",
@@ -41,7 +28,7 @@ export const TYPERT: TypertContribution = {
       members: [],
       types: [],
       tags: [],
-      description: "Agent-scoped Obsidian bridge configuration boundary.",
+      description: "Profile-scoped Obsidian bridge configuration boundary.",
     }],
     events: [],
     objects: [],

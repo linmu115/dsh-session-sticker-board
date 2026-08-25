@@ -12,7 +12,7 @@ Baseline commit: `c1100e1` (`feat: emit native WikiLinks for stickers`).
 - The Bridge capture is acknowledged only after Core has durably accepted the exact `referenceId` and full-note snapshot.
 - Sent references keep their stable numbering, become durable conversation context and can write a backlink bound to the real DSH user-message ID and text hash.
 - DSH deep links can carry `setId` and `referenceId`, locate the rc.2 input-message node and open the matching Core annotation detail.
-- The Bridge origin is selected once by the Host and delivered to the Client through an Agent-scoped Remote. Health and handshake responses must report the same origin before captures are polled.
+- The Bridge origin is selected once by the Host and delivered to the Client through a profile-scoped Remote. Health and handshake responses must report the same origin before captures are polled.
 - If Obsidian is offline, the plugin remains loaded and Core can prepare a saved snapshot. A protocol/port mismatch still blocks the integration instead of silently connecting to another local service.
 - If Core is missing, ordinary stickers and highlights still load, while Obsidian annotation capture stays pending and the console reports the missing dependency.
 

@@ -11,7 +11,7 @@ export class StickerBoardRemoteService extends TypertRemoteService {
     this.origin = normalizeBridgeOrigin(origin);
   }
 
-  getBridgeConfig(_agent: unknown): { origin: string } {
+  getBridgeConfig(): { origin: string } {
     return { origin: this.origin };
   }
 }
