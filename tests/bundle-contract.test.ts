@@ -9,6 +9,7 @@ interface PackageJson {
   exports: Record<string, unknown>;
   peerDependencies: Record<string, string>;
   dshKnowledge: { annotationProtocolVersion: number; stickerProtocolVersion: number };
+  dshWorkshop: { compatibility?: unknown };
 }
 
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -18,10 +19,12 @@ async function text(path: string): Promise<string> {
 }
 
 describe("sticker-board 0.2 package boundary", () => {
-  it("declares the shared Core and typert release contract", async () => {
+  it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.2.0");
-    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe(">=0.1.0 <0.2.0");
+    expect(packageJson.version).toBe("0.2.1");
+    expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
+    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
+    expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
     expect(packageJson.exports).toHaveProperty("./typert");
     expect(packageJson.dshKnowledge).toEqual({ annotationProtocolVersion: 2, stickerProtocolVersion: 1 });
   });

@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
@@ -83,11 +83,6 @@
       "session:write",
       "ui:modify"
     ],
-    "compatibility": {
-      "dshVersions": [
-        "0.1.1-rc.2"
-      ]
-    },
     "capability": {
       "id": "session-sticker-board",
       "kind": "ui",
@@ -102,12 +97,12 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.1-rc.2",
-    "dsh-annotation-core": ">=0.1.0 <0.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-client-runtime": "*",
+    "@deepseek-ai/dsh-typert-protocol": "*",
+    "dsh-annotation-core": "*",
+    "react": "*",
+    "react-dom": "*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
