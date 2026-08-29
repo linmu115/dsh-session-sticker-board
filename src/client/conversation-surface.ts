@@ -14,8 +14,10 @@ export async function revealConversationSurface(
   sidebar: Pick<BetterSidebarService, "getSnapshot"> | undefined,
   root: Document = document,
 ): Promise<boolean> {
-  const panelOpen = sidebar?.getSnapshot().state?.panelOpen;
-  if (panelOpen === false || root.body.hasAttribute("data-dsh-sidebar-collapsed")) return false;
+  // The injected service can briefly report the previous session while DSH is
+  // switching sessions. The body attribute is maintained by the mounted
+  // sidebar itself, so it is the authoritative visual state for a deep link.
+  if (root.body.hasAttribute("data-dsh-sidebar-collapsed")) return false;
 
   const cluster = root.querySelector<HTMLElement>("[data-dsh-toggle-cluster]");
   const toggles = cluster === null
@@ -26,8 +28,7 @@ export async function revealConversationSurface(
 
   panelToggle.click();
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (sidebar?.getSnapshot().state?.panelOpen === false
-      || root.body.hasAttribute("data-dsh-sidebar-collapsed")) return true;
+    if (root.body.hasAttribute("data-dsh-sidebar-collapsed")) return true;
     await pause(25);
   }
   return false;
