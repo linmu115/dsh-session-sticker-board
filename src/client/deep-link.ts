@@ -58,11 +58,17 @@ async function defaultWaitForBinding(ctx: Context, sessionId: string): Promise<S
   return undefined;
 }
 
+export function renderedAnchorMatches(renderedKey: string | null, anchorId: string): boolean {
+  return renderedKey === anchorId || renderedKey?.endsWith(anchorId) === true;
+}
+
 function defaultLocate(anchorId: string): boolean {
   try {
-    const root = document.querySelector<HTMLElement>(
+    const exact = document.querySelector<HTMLElement>(
       `[data-chat-anchor-key="${CSS.escape(anchorId)}"]`,
     );
+    const root = exact ?? [...document.querySelectorAll<HTMLElement>("[data-chat-anchor-key]")]
+      .find((candidate) => renderedAnchorMatches(candidate.dataset.chatAnchorKey ?? null, anchorId));
     if (!root) return false;
     root.scrollIntoView({ block: "center", behavior: "smooth" });
     root.classList.remove("dsh-sticker-board-deep-link-flash");

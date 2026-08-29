@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { hashQuote } from "../src/client/anchor.ts";
-import { applyDeepLink } from "../src/client/deep-link.ts";
+import { applyDeepLink, renderedAnchorMatches } from "../src/client/deep-link.ts";
 import type { DeepLinkAction } from "../src/protocol.ts";
 
 const action: DeepLinkAction = {
@@ -59,6 +59,14 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
 }
 
 describe("DSH deep links", () => {
+  it("matches alpha.1 composite DOM anchor keys by their durable message ID", () => {
+    const durableId = "c11b0e9b-b9d1-4c07-8312-d2806e3f6e10";
+    expect(renderedAnchorMatches(`13:input-message${durableId}`, durableId)).toBe(true);
+    expect(renderedAnchorMatches(durableId, durableId)).toBe(true);
+    expect(renderedAnchorMatches("13:input-messageanother-id", durableId)).toBe(false);
+    expect(renderedAnchorMatches(null, durableId)).toBe(false);
+  });
+
   it("opens the session, loads older history and locates the target anchor", async () => {
     const fixture = context([
       snapshot([{ key: "message:user-99", seq: 99, text: "较新的消息" }], true),
