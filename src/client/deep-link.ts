@@ -12,7 +12,8 @@ export type DeepLinkResult =
 export interface ApplyDeepLinkOptions {
   readonly quote?: string;
   readonly locate?: (anchorId: string) => boolean | Promise<boolean>;
-  readonly openAnnotation?: (setId: string, referenceId?: string) => void;
+  readonly openAnnotation?: (setId: string, referenceId?: string) => void | boolean | Promise<void | boolean>;
+  readonly revealConversation?: (sessionId: string) => void | Promise<void>;
   readonly waitForBinding?: (ctx: Context, sessionId: string) => Promise<SessionFace | undefined>;
 }
 
@@ -112,6 +113,8 @@ export async function applyDeepLink(
   const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, action.sessionId);
   if (!session) return { status: "missing-session", sessionId: action.sessionId };
 
+  await options.revealConversation?.(action.sessionId);
+
   let snapshot = session.getSnapshot();
   let located = locatedNode(snapshot, action.anchorId);
   let pages = 0;
@@ -130,6 +133,6 @@ export async function applyDeepLink(
   if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key)) {
     return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (action.setId !== undefined) options.openAnnotation?.(action.setId, action.referenceId);
+  if (action.setId !== undefined) await options.openAnnotation?.(action.setId, action.referenceId);
   return { status: "located", sessionId: action.sessionId, anchorId: action.anchorId };
 }

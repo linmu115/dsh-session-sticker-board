@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
@@ -120,7 +120,7 @@
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/4bd5a042d403983e244c125f2f42512559d0e067",
+    "dsh-annotation-core": "https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/a5f921df009d1479031d73db10b192e5d44f4c30",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.14",
