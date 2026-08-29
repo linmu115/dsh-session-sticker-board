@@ -10,6 +10,7 @@ export interface ObservableSnapshot<T> {
 
 export interface ChatNodeLike {
   key: string;
+  id: string;
   kind: string;
   data: unknown;
 }

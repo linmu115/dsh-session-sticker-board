@@ -9,7 +9,6 @@ const CLIENT_EXTERNALS = [
   "react-dom",
   "react-dom/client",
   "@deepseek-ai/cordis",
-  "@deepseek-ai/dsh-client-runtime/client",
 ];
 const NODE_BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 const CSS_PREFIX = "\0dsh-sticker-css:";

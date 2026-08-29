@@ -1,9 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { conversationContextKey } from "@deepseek-ai/dsh-client-runtime/client";
-
-vi.mock("@deepseek-ai/dsh-client-runtime/client", () => ({
-  conversationContextKey: (kind: string, id: string) => `${kind}:${id}`,
-}));
 
 import { hashQuote } from "../src/client/anchor.ts";
 import { applyDeepLink } from "../src/client/deep-link.ts";
@@ -17,9 +12,10 @@ const action: DeepLinkAction = {
   anchorId: "message:user-42",
 };
 
-function snapshot(entries: Array<{ key: string; kind?: string; seq: number; text: string }>, hasMore: boolean) {
+function snapshot(entries: Array<{ key: string; id?: string; kind?: string; seq: number; text: string }>, hasMore: boolean) {
   const nodes = new Map(entries.map((entry) => [entry.key, {
     key: entry.key,
+    id: entry.id ?? entry.key,
     kind: entry.kind ?? "user",
     data: { seq: entry.seq, content: [{ type: "text", text: entry.text }] },
   }]));
@@ -112,10 +108,10 @@ describe("DSH deep links", () => {
     expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
   });
 
-  it("maps a Core user-message ID through conversationContextKey and opens its annotation", async () => {
+  it("maps a durable message ID through the native Conversation node identity and opens its annotation", async () => {
     const userMessageId = "019d-user-message";
-    const contextKey = conversationContextKey("input-message", userMessageId);
-    const fixture = context([snapshot([{ key: contextKey, seq: 42, text: "带引用的提问" }], false)]);
+    const contextKey = `13:input-message${userMessageId}`;
+    const fixture = context([snapshot([{ key: contextKey, id: userMessageId, seq: 42, text: "带引用的提问" }], false)]);
     const locate = vi.fn(() => true);
     const openAnnotation = vi.fn();
     const result = await applyDeepLink(fixture.ctx as never, {

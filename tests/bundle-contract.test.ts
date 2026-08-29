@@ -18,10 +18,10 @@ async function text(path: string): Promise<string> {
   return readFile(join(repositoryRoot, path), "utf8");
 }
 
-describe("sticker-board 0.2 package boundary", () => {
+describe("sticker-board 0.3 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.2.1");
+    expect(packageJson.version).toBe("0.3.0");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();

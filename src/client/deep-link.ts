@@ -1,5 +1,3 @@
-import { conversationContextKey } from "@deepseek-ai/dsh-client-runtime/client";
-
 import { hashQuote } from "./anchor.ts";
 import type { Context, ConversationSnapshotLike, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
@@ -33,13 +31,12 @@ function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | n
   return text;
 }
 
-function anchorCandidates(anchorId: string): readonly string[] {
-  const contextKey = conversationContextKey("input-message", anchorId);
-  return contextKey === anchorId ? [anchorId] : [anchorId, contextKey];
-}
-
-function locatedNode(snapshot: ConversationSnapshotLike, candidates: readonly string[]): { key: string; text: string } | null {
-  for (const key of candidates) {
+function locatedNode(snapshot: ConversationSnapshotLike, anchorId: string): { key: string; text: string } | null {
+  const direct = textOfNode(snapshot, anchorId);
+  if (direct !== null) return { key: anchorId, text: direct };
+  for (const key of snapshot.chat.order) {
+    const node = snapshot.chat.nodes.get(key);
+    if (node?.id !== anchorId) continue;
     const text = textOfNode(snapshot, key);
     if (text !== null) return { key, text };
   }
@@ -99,15 +96,14 @@ export async function applyDeepLink(
   const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, action.sessionId);
   if (!session) return { status: "missing-session", sessionId: action.sessionId };
 
-  const candidates = anchorCandidates(action.anchorId);
   let snapshot = session.getSnapshot();
-  let located = locatedNode(snapshot, candidates);
+  let located = locatedNode(snapshot, action.anchorId);
   let pages = 0;
   while (located === null && snapshot.hasMore === true && pages < 50) {
     await session.loadOlder();
     pages += 1;
     snapshot = session.getSnapshot();
-    located = locatedNode(snapshot, candidates);
+    located = locatedNode(snapshot, action.anchorId);
   }
   if (located === null) {
     return { status: "missing-anchor", sessionId: action.sessionId, anchorId: action.anchorId };

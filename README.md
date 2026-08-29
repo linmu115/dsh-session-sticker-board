@@ -4,7 +4,7 @@
 
 ## 兼容版本
 
-- DeepSeek Harness（当前测试基线为官方 `0.1.1-rc.2`，安装不限制版本）
+- DeepSeek Harness（当前客户端基线为官方 `0.1.2-alpha.1`，安装不限制版本）
 - `dsh-session-sticker-board` `0.2.x`
 - `dsh-annotation-core` `0.1.x`
 
