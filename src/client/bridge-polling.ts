@@ -6,7 +6,7 @@ export interface BridgeActionProcessor {
 }
 
 export function createBridgeActionProcessor(
-  bridge: Pick<BridgeHttpClient, "acknowledgeDeepLink">,
+  bridge: Pick<BridgeHttpClient, "acknowledgeDeepLink" | "acknowledgeAction">,
   apply: (message: BridgeAction) => Promise<boolean>,
 ): BridgeActionProcessor {
   let cursor = 0;
@@ -25,6 +25,8 @@ export function createBridgeActionProcessor(
           }
           if (entry.message.type === "deep-link") {
             await bridge.acknowledgeDeepLink(entry.message.actionId);
+          } else if (entry.message.type === "reference-delete-request") {
+            await bridge.acknowledgeAction(entry.message.actionId);
           }
           completed.add(entry.cursor);
           applied += 1;
@@ -51,7 +53,7 @@ export interface BridgePollingHandle {
 }
 
 export function startBridgePolling(
-  bridge: Pick<BridgeHttpClient, "nextActions" | "acknowledgeDeepLink">,
+  bridge: Pick<BridgeHttpClient, "nextActions" | "acknowledgeDeepLink" | "acknowledgeAction">,
   apply: (message: BridgeAction) => Promise<boolean>,
   options: BridgePollingOptions = {},
 ): BridgePollingHandle {

@@ -128,6 +128,11 @@ export function apply(ctx: Context): void {
     );
 
     const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
+      if (action.type === "reference-delete-request") {
+        if (annotationCore === undefined || action.profileId !== PROFILE_ID) return false;
+        await annotationCore.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
+        return true;
+      }
       if (action.type === "reference-capture") {
         if (annotationCore === undefined) return false;
         const sessionId = ready.sessions.list.getSnapshot().current;

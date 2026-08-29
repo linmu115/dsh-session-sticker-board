@@ -49,7 +49,9 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
         getSnapshot: () => listSnapshot,
         subscribe: () => () => undefined,
       },
-      open: vi.fn(),
+      open: vi.fn((sessionId: string) => {
+        listSnapshot = { ...listSnapshot, current: sessionId };
+      }),
       binding: () => ({ session }),
     },
   };
@@ -123,5 +125,15 @@ describe("DSH deep links", () => {
     expect(result.status).toBe("located");
     expect(locate).toHaveBeenCalledWith(contextKey);
     expect(openAnnotation).toHaveBeenCalledWith("set-1", "reference-1");
+  });
+
+  it("waits for the switched session DOM to render before locating the anchor", async () => {
+    const fixture = context([snapshot([{ key: "message:user-42", seq: 42, text: "目标问题" }], false)]);
+    let attempts = 0;
+    const result = await applyDeepLink(fixture.ctx as never, action, {
+      locate: () => ++attempts >= 3,
+    });
+    expect(result.status).toBe("located");
+    expect(attempts).toBe(3);
   });
 });

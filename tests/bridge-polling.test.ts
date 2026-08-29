@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createBridgeActionProcessor } from "../src/client/bridge-polling.ts";
-import { documentHash, selectedTextHash, type DeepLinkAction, type ObsidianReferenceCaptureV2 } from "../src/protocol.ts";
+import { documentHash, selectedTextHash, type DeepLinkAction, type ObsidianReferenceCaptureV2, type ReferenceDeleteRequestV2 } from "../src/protocol.ts";
 
 const capture: ObsidianReferenceCaptureV2 = {
   annotationProtocolVersion: 2,
@@ -28,12 +28,23 @@ const deepLink: DeepLinkAction = {
   sessionId: "session-1",
   anchorId: "user-1",
 };
+const deletion: ReferenceDeleteRequestV2 = {
+  annotationProtocolVersion: 2,
+  type: "reference-delete-request",
+  actionId: "delete-action",
+  referenceId: "reference-1",
+  profileId: "web",
+  sessionId: "session-1",
+  setId: "set-1",
+  requestedAt: 100,
+};
 
 describe("bridge action processor", () => {
   it("keeps a failed capture behind the cursor while processing an unrelated deep link", async () => {
     const acknowledgeDeepLink = vi.fn(async () => undefined);
+    const acknowledgeAction = vi.fn(async () => undefined);
     let captureAttempts = 0;
-    const processor = createBridgeActionProcessor({ acknowledgeDeepLink }, async (message) => {
+    const processor = createBridgeActionProcessor({ acknowledgeDeepLink, acknowledgeAction }, async (message) => {
       if (message.type === "reference-capture") return ++captureAttempts > 1;
       return true;
     });
@@ -44,5 +55,14 @@ describe("bridge action processor", () => {
     expect(acknowledgeDeepLink).toHaveBeenCalledWith(deepLink.actionId);
     await expect(processor.process({ cursor: 2, actions: [{ cursor: 1, message: capture }] }))
       .resolves.toEqual({ applied: 1, failed: 0, cursor: 2 });
+  });
+
+  it("acknowledges a completed bidirectional deletion action", async () => {
+    const acknowledgeDeepLink = vi.fn(async () => undefined);
+    const acknowledgeAction = vi.fn(async () => undefined);
+    const processor = createBridgeActionProcessor({ acknowledgeDeepLink, acknowledgeAction }, async () => true);
+    await processor.process({ cursor: 1, actions: [{ cursor: 1, message: deletion }] });
+    expect(acknowledgeAction).toHaveBeenCalledWith("delete-action");
+    expect(acknowledgeDeepLink).not.toHaveBeenCalled();
   });
 });

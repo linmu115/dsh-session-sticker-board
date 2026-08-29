@@ -1,9 +1,9 @@
-import type { HostSourceAdapter, SentReferenceBinding } from "dsh-annotation-core/host-api";
+import type { DeletedReferenceBinding, HostSourceAdapter, SentReferenceBinding } from "dsh-annotation-core/host-api";
 
 import { BridgeHttpError, BridgeUnavailableError, type BridgeHttpClient } from "../bridge/http-client.ts";
 import { ANNOTATION_PROTOCOL_VERSION } from "../protocol.ts";
 
-type SourceBridge = Pick<BridgeHttpClient, "refreshReference" | "discardReference" | "commitBacklink">;
+type SourceBridge = Pick<BridgeHttpClient, "refreshReference" | "discardReference" | "commitBacklink" | "deleteCommittedReference">;
 type ReferenceItem = SentReferenceBinding["item"];
 
 type SourcePreparationErrorCode =
@@ -75,6 +75,18 @@ export function createObsidianSourceAdapter(bridge: SourceBridge): HostSourceAda
         userMessageId: binding.userMessageId,
         userAnchorId: binding.userAnchorId,
         userTextHash: binding.userTextHash,
+      });
+    },
+    async deleteCommitted(binding: DeletedReferenceBinding) {
+      obsidianItem(binding.item);
+      await bridge.deleteCommittedReference({
+        annotationProtocolVersion: ANNOTATION_PROTOCOL_VERSION,
+        type: "reference-delete-commit",
+        referenceId: binding.referenceId,
+        profileId: binding.profileId,
+        sessionId: binding.sessionId,
+        setId: binding.setId,
+        deletedAt: binding.deletedAt,
       });
     },
   };

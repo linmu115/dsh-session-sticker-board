@@ -8,6 +8,8 @@ export {
   ObsidianReferenceCaptureV2Schema,
   ReferenceClaimV2Schema,
   ReferenceDiscardV2Schema,
+  ReferenceDeleteCommitV2Schema,
+  ReferenceDeleteRequestV2Schema,
   ReferenceRefreshRequestV2Schema,
   ReferenceRefreshResultV2Schema,
   canonicalSha256,
@@ -21,6 +23,8 @@ export type {
   ObsidianReferenceCaptureV2,
   ReferenceClaimV2,
   ReferenceDiscardV2,
+  ReferenceDeleteCommitV2,
+  ReferenceDeleteRequestV2,
   ReferenceRefreshRequestV2,
   ReferenceRefreshResultV2,
 } from "dsh-annotation-core/protocol";

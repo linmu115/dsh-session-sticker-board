@@ -11,9 +11,13 @@ export type DeepLinkResult =
 
 export interface ApplyDeepLinkOptions {
   readonly quote?: string;
-  readonly locate?: (anchorId: string) => boolean;
+  readonly locate?: (anchorId: string) => boolean | Promise<boolean>;
   readonly openAnnotation?: (setId: string, referenceId?: string) => void;
   readonly waitForBinding?: (ctx: Context, sessionId: string) => Promise<SessionFace | undefined>;
+}
+
+function pause(milliseconds: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | null {
@@ -44,10 +48,11 @@ function locatedNode(snapshot: ConversationSnapshotLike, anchorId: string): { ke
 }
 
 async function defaultWaitForBinding(ctx: Context, sessionId: string): Promise<SessionFace | undefined> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     const binding = ctx.sessions.binding(sessionId);
-    if (binding) return binding.session;
-    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    const current = ctx.sessions.list.getSnapshot().current;
+    if (binding && (current === undefined || current === sessionId)) return binding.session;
+    await pause(25);
   }
   return undefined;
 }
@@ -82,6 +87,17 @@ async function contentMatches(text: string, hash: string, quote?: string): Promi
   return await hashQuote(text) === hash;
 }
 
+async function locateWhenRendered(
+  locate: (anchorId: string) => boolean | Promise<boolean>,
+  anchorId: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await locate(anchorId)) return true;
+    await pause(25);
+  }
+  return false;
+}
+
 export async function applyDeepLink(
   ctx: Context,
   action: DeepLinkAction,
@@ -111,7 +127,7 @@ export async function applyDeepLink(
   if (action.quoteHash && !await contentMatches(located.text, action.quoteHash, options.quote)) {
     return { status: "content-changed", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (!(options.locate ?? defaultLocate)(located.key)) {
+  if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key)) {
     return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
   }
   if (action.setId !== undefined) options.openAnnotation?.(action.setId, action.referenceId);

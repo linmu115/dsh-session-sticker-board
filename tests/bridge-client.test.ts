@@ -23,7 +23,7 @@ function handshake() {
     annotationProtocolVersion: 2,
     stickerProtocolVersion: 1,
     bridgeOrigin: ORIGIN,
-    capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+    capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
   });
 }
 
@@ -61,7 +61,7 @@ describe("DSH v2 bridge HTTP client", () => {
         annotationProtocolVersion: 2,
         stickerProtocolVersion: 1,
         bridgeOrigin: ORIGIN,
-        capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+        capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
       });
       return handshake();
     });
@@ -75,7 +75,7 @@ describe("DSH v2 bridge HTTP client", () => {
       annotationProtocolVersion: 2,
       stickerProtocolVersion: 1,
       bridgeOrigin: "http://127.0.0.1:18473",
-      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
     }));
     const client = createBridgeHttpClient({ origin: ORIGIN, fetch });
     await expect(client.preflight()).rejects.toMatchObject({ code: "protocol-mismatch" });
@@ -89,7 +89,7 @@ describe("DSH v2 bridge HTTP client", () => {
       annotationProtocolVersion: 2,
       stickerProtocolVersion: 1,
       bridgeOrigin: "http://127.0.0.1:18473",
-      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
     }));
     const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
     await expect(client.nextActions(0)).rejects.toMatchObject({ code: "protocol-mismatch" });
