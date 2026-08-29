@@ -99,10 +99,13 @@ export function apply(ctx: Context): void {
 
     const stickers = createStickerWorkspace(bridge);
     const stickerSidebar = createStickerSidebarController();
+    let betterSidebar: BetterSidebarService | undefined;
     const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
       const injected = sidebarContext as unknown as Context;
       injected.effect(() => {
-        stickerSidebar.attach(injected.betterSidebar);
+        const service = injected.betterSidebar;
+        betterSidebar = service;
+        stickerSidebar.attach(service);
         const unregister = registerStickerSidebar(
           injected,
           stickers,
@@ -111,7 +114,8 @@ export function apply(ctx: Context): void {
         );
         return () => {
           unregister();
-          stickerSidebar.detach(injected.betterSidebar);
+          stickerSidebar.detach(service);
+          if (betterSidebar === service) betterSidebar = undefined;
         };
       }, "dsh-session-sticker-board: sidebar tab");
     });
@@ -163,7 +167,7 @@ export function apply(ctx: Context): void {
       const result = await applyDeepLink(ready, action, {
         ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
         revealConversation: async () => {
-          await revealConversationSurface(ready.get("betterSidebar") as BetterSidebarService | undefined);
+          await revealConversationSurface(betterSidebar ?? (ready.get("betterSidebar") as BetterSidebarService | undefined));
         },
         ...(annotationCore === undefined ? {} : {
           openAnnotation: async (setId: string, referenceId?: string) => {

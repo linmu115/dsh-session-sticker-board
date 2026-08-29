@@ -14,7 +14,8 @@ export async function revealConversationSurface(
   sidebar: Pick<BetterSidebarService, "getSnapshot"> | undefined,
   root: Document = document,
 ): Promise<boolean> {
-  if (sidebar?.getSnapshot().state?.panelOpen !== true) return false;
+  const panelOpen = sidebar?.getSnapshot().state?.panelOpen;
+  if (panelOpen === false || root.body.hasAttribute("data-dsh-sidebar-collapsed")) return false;
 
   const cluster = root.querySelector<HTMLElement>("[data-dsh-toggle-cluster]");
   const toggles = cluster === null
@@ -25,7 +26,8 @@ export async function revealConversationSurface(
 
   panelToggle.click();
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (sidebar.getSnapshot().state?.panelOpen !== true) return true;
+    if (sidebar?.getSnapshot().state?.panelOpen === false
+      || root.body.hasAttribute("data-dsh-sidebar-collapsed")) return true;
     await pause(25);
   }
   return false;
