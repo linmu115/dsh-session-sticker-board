@@ -34,6 +34,7 @@ export interface SessionsService {
   list: ObservableSnapshot<{
     current?: SessionId;
     byId?: Record<string, { title?: string; archived?: boolean } | undefined>;
+    phase?: "pending" | "ready";
   }>;
   binding(id: SessionId): { session: SessionFace } | undefined;
   scope(id: SessionId): Context | undefined;

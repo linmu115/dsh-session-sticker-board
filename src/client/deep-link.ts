@@ -62,6 +62,14 @@ export function renderedAnchorMatches(renderedKey: string | null, anchorId: stri
   return renderedKey === anchorId || renderedKey?.endsWith(anchorId) === true;
 }
 
+async function waitForSessionCatalog(ctx: Context): Promise<boolean> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (ctx.sessions.list.getSnapshot().phase !== "pending") return true;
+    await pause(25);
+  }
+  return ctx.sessions.list.getSnapshot().phase !== "pending";
+}
+
 function defaultLocate(anchorId: string): boolean {
   try {
     const exact = document.querySelector<HTMLElement>(
@@ -110,6 +118,9 @@ export async function applyDeepLink(
   action: DeepLinkAction,
   options: ApplyDeepLinkOptions = {},
 ): Promise<DeepLinkResult> {
+  if (!await waitForSessionCatalog(ctx)) {
+    return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
+  }
   const list = ctx.sessions.list.getSnapshot();
   if (list.byId && !list.byId[action.sessionId]) {
     return { status: "missing-session", sessionId: action.sessionId };
