@@ -32,6 +32,18 @@ describe("conversation surface reveal", () => {
     expect(input.root.querySelector).not.toHaveBeenCalled();
   });
 
+  it("trusts the mounted DOM when an injected service still reports the previous session", async () => {
+    let collapsed = false;
+    const click = vi.fn(() => { collapsed = true; });
+    const root = {
+      body: { hasAttribute: () => collapsed },
+      querySelector: () => ({ querySelectorAll: () => [{ click: vi.fn() }, { click }] }),
+    } as unknown as Document;
+    const staleSidebar = { getSnapshot: () => ({ state: { panelOpen: false } }) };
+    await expect(revealConversationSurface(staleSidebar, root)).resolves.toBe(true);
+    expect(click).toHaveBeenCalledOnce();
+  });
+
   it("uses Better Sidebar's stable DOM contract when its service is not exposed by the host context", async () => {
     let collapsed = false;
     const click = vi.fn(() => { collapsed = true; });

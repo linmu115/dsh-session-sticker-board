@@ -92,10 +92,26 @@ export function apply(ctx: Context): void {
       }
       console.warn("[dsh-session-sticker-board] Obsidian bridge is offline; saved snapshots remain usable", error);
     }
-    const annotationCore = ready.get("annotationCore") as SessionOpeningAnnotationCore | undefined;
-    if (annotationCore === undefined) {
-      console.warn("[dsh-session-sticker-board] dsh-annotation-core is unavailable; annotation capture is disabled");
-    }
+    let annotationCore: SessionOpeningAnnotationCore | undefined;
+    let unregisterObsidianSource = (): void => undefined;
+    const annotationFiber = ready.inject(["annotationCore"], (annotationContext) => {
+      const injected = annotationContext as unknown as { annotationCore: SessionOpeningAnnotationCore; effect: Context["effect"] };
+      injected.effect(() => {
+        const service = injected.annotationCore;
+        annotationCore = service;
+        unregisterObsidianSource = service.registerSourceAdapter("obsidian-note", {
+          async openSource(item) {
+            if (item.sourceType !== "obsidian-note") throw new TypeError("Expected an Obsidian reference");
+            await bridge.openNote(openSourceAction(item.locator.notePath, item.locator.blockId));
+          },
+        });
+        return () => {
+          unregisterObsidianSource();
+          unregisterObsidianSource = (): void => undefined;
+          if (annotationCore === service) annotationCore = undefined;
+        };
+      }, "dsh-session-sticker-board: annotation core");
+    });
 
     const stickers = createStickerWorkspace(bridge);
     const stickerSidebar = createStickerSidebarController();
@@ -120,13 +136,6 @@ export function apply(ctx: Context): void {
       }, "dsh-session-sticker-board: sidebar tab");
     });
 
-    const unregisterObsidianSource = annotationCore?.registerSourceAdapter("obsidian-note", {
-      async openSource(item) {
-        if (item.sourceType !== "obsidian-note") throw new TypeError("Expected an Obsidian reference");
-        await bridge.openNote(openSourceAction(item.locator.notePath, item.locator.blockId));
-      },
-    }) ?? (() => undefined);
-
     const overlayHost = document.createElement("div");
     overlayHost.dataset.dshStickerBoard = "";
     document.body.appendChild(overlayHost);
@@ -141,24 +150,26 @@ export function apply(ctx: Context): void {
     );
 
     const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
+      const core = annotationCore;
       if (action.type === "reference-delete-request") {
-        if (annotationCore === undefined || action.profileId !== PROFILE_ID) return false;
-        await annotationCore.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
+        if (core === undefined || action.profileId !== PROFILE_ID) return false;
+        await core.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
         return true;
       }
       if (action.type === "reference-capture") {
-        if (annotationCore === undefined) return false;
+        if (core === undefined) return false;
         const sessionId = ready.sessions.list.getSnapshot().current;
         if (!sessionId) return false;
         await consumeObsidianReferenceCapture({
           capture: action,
           sessionId,
           profileId: PROFILE_ID,
-          annotationCore,
+          annotationCore: core,
           bridge,
         });
         return true;
       }
+      if (action.setId !== undefined && core === undefined) return false;
       await stickers.ensure(action.sessionId).catch(() => undefined);
       const matchingSticker = stickers.list(action.sessionId).find((view) => (
         view.record.anchorId === action.anchorId
@@ -169,13 +180,14 @@ export function apply(ctx: Context): void {
         revealConversation: async () => {
           await revealConversationSurface(betterSidebar ?? (ready.get("betterSidebar") as BetterSidebarService | undefined));
         },
-        ...(annotationCore === undefined ? {} : {
+        ...(core === undefined ? {} : {
           openAnnotation: async (setId: string, referenceId?: string) => {
-            if (typeof annotationCore.openAnnotationInSession === "function") {
-              await annotationCore.openAnnotationInSession(action.sessionId, setId, referenceId);
+            if (typeof core.openAnnotationInSession === "function") {
+              const opened = await core.openAnnotationInSession(action.sessionId, setId, referenceId);
+              if (!opened) throw new Error(`Annotation set was not found: ${setId}`);
               return;
             }
-            annotationCore.openAnnotation(setId, referenceId);
+            core.openAnnotation(setId, referenceId);
           },
         }),
       });
@@ -190,6 +202,7 @@ export function apply(ctx: Context): void {
 
     ready.effect(() => () => {
       polling.stop();
+      void annotationFiber.dispose();
       void sidebarFiber.dispose();
       unregisterObsidianSource();
       bridge.dispose();
