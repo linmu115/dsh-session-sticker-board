@@ -5,8 +5,8 @@
 ## 兼容版本
 
 - DeepSeek Harness（当前客户端基线为官方 `0.1.2-alpha.1`，安装不限制版本）
-- `dsh-session-sticker-board` `0.2.x`
-- `dsh-annotation-core` `0.1.x`
+- `dsh-session-sticker-board` `0.4.x`
+- `dsh-annotation-core`（按运行时能力探测，不锁定版本）
 
 ## 安装依赖
 
@@ -61,7 +61,7 @@ dsh plugin --profile web add dsh-better-sidebar
 
 ## 常见问题
 
-- 看不到统一注释气泡：确认 `dsh-annotation-core` 已安装、启用且版本为 `0.1.x`，然后重启 DSH。
+- 看不到统一注释气泡：确认 `dsh-annotation-core` 已安装并启用，然后重启 DSH；版本组合由运行时能力探测和实测结果决定。
 - 看不到右侧贴纸页：安装并启用 `dsh-better-sidebar`；不安装时可使用贴纸浮层菜单。
 - Obsidian 引用没有到达 DSH：检查两边的 `Bridge Origin` 是否完全一致，并确认 Obsidian Bridge 状态为已启动。
 - 端口被占用：在 Obsidian 中换一个本机端口，再把同一地址填入 DSH 插件设置并重启。

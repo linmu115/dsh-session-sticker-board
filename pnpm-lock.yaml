@@ -43,8 +43,8 @@ importers:
         specifier: ~18.3.1
         version: 18.3.7(@types/react@18.3.31)
       dsh-annotation-core:
-        specifier: https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/4bd5a042d403983e244c125f2f42512559d0e067
-        version: https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/4bd5a042d403983e244c125f2f42512559d0e067(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-session@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/a5f921df009d1479031d73db10b192e5d44f4c30
+        version: https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/a5f921df009d1479031d73db10b192e5d44f4c30(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-session@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -441,9 +441,9 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  dsh-annotation-core@https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/4bd5a042d403983e244c125f2f42512559d0e067:
-    resolution: {gitHosted: true, integrity: sha512-hz4KCbgh+gU8TBAi+xGDR790Yy7e9i5l4LXej2BME/UQE1fMpnLmHgN+TXKO6+0o6VuBTE4JZcRTYN6HyzPfQw==, tarball: https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/4bd5a042d403983e244c125f2f42512559d0e067}
-    version: 0.3.0
+  dsh-annotation-core@https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/a5f921df009d1479031d73db10b192e5d44f4c30:
+    resolution: {gitHosted: true, integrity: sha512-XJm0JAJRfFWWZZgxXKC+U2HaXSwt52+EQgJdmCIstjuYgElS6T8ng/jSrNb61U/Hy0Czb8+TycFz9DKtBddusA==, tarball: https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/a5f921df009d1479031d73db10b192e5d44f4c30}
+    version: 0.3.1
     engines: {node: '>=20'}
     peerDependencies:
       '@deepseek-ai/cordis': '*'
@@ -1124,7 +1124,7 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  dsh-annotation-core@https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/4bd5a042d403983e244c125f2f42512559d0e067(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-session@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  dsh-annotation-core@https://codeload.github.com/linmu115/dsh-annotation-core/tar.gz/a5f921df009d1479031d73db10b192e5d44f4c30(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-session@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-typert-protocol@0.1.1-rc.2(@deepseek-ai/cordis@4.0.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@deepseek-ai/schemastery': 3.18.1
       zod: 4.4.3

@@ -3,10 +3,11 @@ import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from "re
 import { createRoot } from "react-dom/client";
 
 import { BridgeUnavailableError, createBridgeHttpClient } from "../bridge/http-client.ts";
-import type { Context } from "../context-types.ts";
+import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
+import { revealConversationSurface } from "./conversation-surface.ts";
 import { applyDeepLink } from "./deep-link.ts";
 import { StickerOverlay } from "./overlay.tsx";
 import { mountStickerRemote } from "./remote.ts";
@@ -18,6 +19,14 @@ import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspa
 import "./styles.css";
 
 const PROFILE_ID = "web";
+
+type SessionOpeningAnnotationCore = Omit<AnnotationCoreClient, "openAnnotationInSession"> & {
+  openAnnotationInSession?: (
+    sessionId: string,
+    setId: string,
+    referenceId?: string,
+  ) => Promise<boolean>;
+};
 
 export const inject = ["sessions", "remote"] as const;
 
@@ -83,7 +92,7 @@ export function apply(ctx: Context): void {
       }
       console.warn("[dsh-session-sticker-board] Obsidian bridge is offline; saved snapshots remain usable", error);
     }
-    const annotationCore = ready.get("annotationCore") as AnnotationCoreClient | undefined;
+    const annotationCore = ready.get("annotationCore") as SessionOpeningAnnotationCore | undefined;
     if (annotationCore === undefined) {
       console.warn("[dsh-session-sticker-board] dsh-annotation-core is unavailable; annotation capture is disabled");
     }
@@ -153,8 +162,17 @@ export function apply(ctx: Context): void {
       ));
       const result = await applyDeepLink(ready, action, {
         ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
+        revealConversation: async () => {
+          await revealConversationSurface(ready.get("betterSidebar") as BetterSidebarService | undefined);
+        },
         ...(annotationCore === undefined ? {} : {
-          openAnnotation: (setId: string, referenceId?: string) => annotationCore.openAnnotation(setId, referenceId),
+          openAnnotation: async (setId: string, referenceId?: string) => {
+            if (typeof annotationCore.openAnnotationInSession === "function") {
+              await annotationCore.openAnnotationInSession(action.sessionId, setId, referenceId);
+              return;
+            }
+            annotationCore.openAnnotation(setId, referenceId);
+          },
         }),
       });
       if (result.status !== "located") {

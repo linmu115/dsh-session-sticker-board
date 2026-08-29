@@ -68,6 +68,7 @@ export interface SidebarTab {
 export interface SidebarState {
   splits?: unknown;
   bottomSplits?: unknown;
+  panelOpen?: boolean;
 }
 
 export interface SidebarSnapshot {
@@ -108,6 +109,7 @@ export interface BetterSidebarService {
   updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
   isTabEnabled(id: string): boolean;
   getSnapshot(): SidebarSnapshot;
+  subscribeState?(listener: () => void): () => void;
 }
 
 export interface ReferenceOccurrence {

@@ -114,17 +114,21 @@ describe("DSH deep links", () => {
     const userMessageId = "019d-user-message";
     const contextKey = `13:input-message${userMessageId}`;
     const fixture = context([snapshot([{ key: contextKey, id: userMessageId, seq: 42, text: "带引用的提问" }], false)]);
-    const locate = vi.fn(() => true);
-    const openAnnotation = vi.fn();
+    const order: string[] = [];
+    const revealConversation = vi.fn(async () => { order.push("reveal"); });
+    const locate = vi.fn(() => { order.push("locate"); return true; });
+    const openAnnotation = vi.fn(async () => { order.push("annotation"); });
     const result = await applyDeepLink(fixture.ctx as never, {
       ...action,
       anchorId: userMessageId,
       setId: "set-1",
       referenceId: "reference-1",
-    }, { locate, openAnnotation });
+    }, { locate, openAnnotation, revealConversation });
     expect(result.status).toBe("located");
+    expect(revealConversation).toHaveBeenCalledWith("session-demo");
     expect(locate).toHaveBeenCalledWith(contextKey);
     expect(openAnnotation).toHaveBeenCalledWith("set-1", "reference-1");
+    expect(order).toEqual(["reveal", "locate", "annotation"]);
   });
 
   it("waits for the switched session DOM to render before locating the anchor", async () => {
