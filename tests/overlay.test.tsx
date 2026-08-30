@@ -7,6 +7,8 @@ import {
   createStickerCommands,
   isEligibleMessageSelection,
   placeSelectionAction,
+  resolveDurableAnchorId,
+  resolveRenderedAnchorKey,
   spreadDotPoint,
 } from "../src/client/overlay.tsx";
 import type { StickerRecord } from "../src/protocol.ts";
@@ -48,6 +50,21 @@ describe("sticker overlay commands", () => {
       hasSession: true,
       hasAnchor: true,
     })).toBe(false);
+  });
+
+  it("maps rendered Conversation keys to durable node IDs and back", () => {
+    const renderedKey = "13:input-message019d-user-message";
+    const nodes = new Map([[renderedKey, { id: "019d-user-message" }]]);
+    const snapshot = {
+      chat: {
+        order: [renderedKey],
+        nodes: { get: (key: string) => nodes.get(key) },
+      },
+    };
+
+    expect(resolveDurableAnchorId(snapshot, renderedKey)).toBe("019d-user-message");
+    expect(resolveRenderedAnchorKey(snapshot, "019d-user-message")).toBe(renderedKey);
+    expect(resolveDurableAnchorId(snapshot, "unknown-key")).toBe("unknown-key");
   });
 
   it("moves colliding red dots in stable 24 pixel steps", () => {

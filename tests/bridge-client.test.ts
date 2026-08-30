@@ -33,6 +33,7 @@ const deepLink: DeepLinkAction = {
   actionId: "6f09f1be-5dc1-48e4-ac08-e3c05d70ac01",
   sessionId: "session-1",
   anchorId: "user-1",
+  stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
 };
 
 const capture: ObsidianReferenceCaptureV2 = {

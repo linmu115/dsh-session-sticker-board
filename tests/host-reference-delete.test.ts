@@ -34,19 +34,19 @@ describe("host reference deletion", () => {
     expect(discardReference).toHaveBeenCalledWith("reference-1");
   });
 
-  it("advances past actions that belong to the browser or another profile", async () => {
+  it("leaves browser actions and other profiles for their owning consumer", async () => {
     const deleteReferenceLink = vi.fn(async () => ({ deleted: true, scope: "sent" as const }));
     const discardReference = vi.fn(async () => undefined);
     const apply = createHostBridgeActionHandler({ deleteReferenceLink }, { discardReference }, "web");
 
-    await expect(apply({ ...deletion, profileId: "other" })).resolves.toBe(true);
+    await expect(apply({ ...deletion, profileId: "other" })).resolves.toBe(false);
     await expect(apply({
       protocolVersion: 1,
       type: "deep-link",
       actionId: "deep-link-action",
       sessionId: "session-1",
       anchorId: "anchor-1",
-    })).resolves.toBe(true);
+    })).resolves.toBe(false);
     expect(deleteReferenceLink).not.toHaveBeenCalled();
     expect(discardReference).not.toHaveBeenCalled();
   });

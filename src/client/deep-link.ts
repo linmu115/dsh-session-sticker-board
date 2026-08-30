@@ -7,7 +7,8 @@ export type DeepLinkResult =
   | { status: "missing-session"; sessionId: string }
   | { status: "missing-anchor"; sessionId: string; anchorId: string }
   | { status: "content-changed"; sessionId: string; anchorId: string }
-  | { status: "dom-unavailable"; sessionId: string; anchorId: string };
+  | { status: "dom-unavailable"; sessionId: string; anchorId: string }
+  | { status: "annotation-missing"; sessionId: string; anchorId: string; setId: string };
 
 export interface ApplyDeepLinkOptions {
   readonly quote?: string;
@@ -150,6 +151,16 @@ export async function applyDeepLink(
   if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key)) {
     return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (action.setId !== undefined) await options.openAnnotation?.(action.setId, action.referenceId);
+  if (action.setId !== undefined) {
+    const opened = await options.openAnnotation?.(action.setId, action.referenceId);
+    if (opened === false) {
+      return {
+        status: "annotation-missing",
+        sessionId: action.sessionId,
+        anchorId: action.anchorId,
+        setId: action.setId,
+      };
+    }
+  }
   return { status: "located", sessionId: action.sessionId, anchorId: action.anchorId };
 }

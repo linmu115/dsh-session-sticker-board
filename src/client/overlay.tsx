@@ -15,6 +15,30 @@ import { PROTOCOL_VERSION, type StickerRecord } from "../protocol.ts";
 
 const MESSAGE_KINDS = new Set(["user", "steering", "assistant-step"]);
 
+export interface StickerConversationSnapshotLike {
+  readonly chat: {
+    readonly order: readonly string[];
+    readonly nodes: { get(key: string): { readonly id?: string } | undefined };
+  };
+}
+
+/** Convert the current renderer key into the stable Conversation node identity. */
+export function resolveDurableAnchorId(
+  snapshot: StickerConversationSnapshotLike,
+  renderedKey: string,
+): string {
+  return snapshot.chat.nodes.get(renderedKey)?.id ?? renderedKey;
+}
+
+/** Resolve a stored Conversation node identity back to this render's DOM key. */
+export function resolveRenderedAnchorKey(
+  snapshot: StickerConversationSnapshotLike,
+  anchorId: string,
+): string {
+  if (snapshot.chat.nodes.get(anchorId)) return anchorId;
+  return snapshot.chat.order.find((key) => snapshot.chat.nodes.get(key)?.id === anchorId) ?? anchorId;
+}
+
 export function isEligibleMessageSelection(input: {
   kind: string;
   sameMessage: boolean;
@@ -147,10 +171,10 @@ export function captureMessageSelection(sessionId: string): MessageSelectionSnap
   };
 }
 
-function rangeOfSticker(sticker: StickerRecord): Range | null {
+function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
   try {
     const root = document.querySelector<HTMLElement>(
-      `[data-chat-anchor-key="${CSS.escape(sticker.anchorId)}"]`,
+      `[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`,
     );
     if (!root || !root.isConnected || !sticker.quote) return null;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -210,6 +234,8 @@ export interface StickerOverlayProps {
   readonly onDelete: (stickerId: string) => Promise<void>;
   readonly onOpenNote: StickerCommandDependencies["openNote"];
   readonly onOpenSticker?: (record: StickerRecord) => boolean;
+  readonly resolveAnchorId: (renderedKey: string) => string;
+  readonly resolveAnchorKey: (anchorId: string) => string;
 }
 
 interface EditorState {
@@ -286,7 +312,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const geometry = useMemo(() => {
     const placed: OverlayPoint[] = [];
     return props.stickers.map((view) => {
-      const range = rangeOfSticker(view.record as StickerRecord);
+      const range = rangeOfSticker(
+        view.record as StickerRecord,
+        props.resolveAnchorKey(view.record.anchorId),
+      );
       const rects = range ? rangeRects(range) : [];
       if (!rects.length) return { view, rects, point: null };
       const last = rects.at(-1)!;
@@ -294,7 +323,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       placed.push(point);
       return { view, rects, point };
     });
-  }, [props.stickers, geometryVersion]);
+  }, [props.stickers, props.resolveAnchorKey, geometryVersion]);
 
   const selectionAction = useMemo(() => {
     if (!selection) return null;
@@ -313,7 +342,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     if (!selection) return;
     const anchor = await createMessageAnchor({
       sessionId: selection.sessionId,
-      nodeId: selection.anchorId,
+      nodeId: props.resolveAnchorId(selection.anchorId),
       role: selection.role,
       quote: selection.quote,
       occurrence: selection.occurrence,
@@ -338,7 +367,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
-  }, [selection]);
+  }, [props.resolveAnchorId, selection]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;
@@ -384,7 +413,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
           key={view.record.stickerId}
           type="button"
           className="dsh-sticker-board-dot"
-          data-dsh-sticker-anchor-id={view.record.anchorId}
+          data-dsh-sticker-anchor-id={props.resolveAnchorKey(view.record.anchorId)}
           style={{ left: point.x, top: point.y }}
           title={`打开贴纸：${view.record.markdown || view.record.quote}`}
           aria-label="打开贴纸"

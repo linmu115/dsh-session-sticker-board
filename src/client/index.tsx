@@ -8,7 +8,11 @@ import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
 import { applyDeepLink } from "./deep-link.ts";
-import { StickerOverlay } from "./overlay.tsx";
+import {
+  resolveDurableAnchorId,
+  resolveRenderedAnchorKey,
+  StickerOverlay,
+} from "./overlay.tsx";
 import { mountStickerRemote } from "./remote.ts";
 import {
   createStickerSidebarController,
@@ -46,6 +50,14 @@ function StickerBoardRoot(props: {
     () => props.workspace.getSnapshot(),
   );
   const sessionId = sessionList.current ?? "";
+  const resolveAnchorId = useCallback((renderedKey: string): string => {
+    const snapshot = props.ctx.sessions.binding(sessionId)?.session.getSnapshot();
+    return snapshot ? resolveDurableAnchorId(snapshot, renderedKey) : renderedKey;
+  }, [props.ctx, sessionId]);
+  const resolveAnchorKey = useCallback((anchorId: string): string => {
+    const snapshot = props.ctx.sessions.binding(sessionId)?.session.getSnapshot();
+    return snapshot ? resolveRenderedAnchorKey(snapshot, anchorId) : anchorId;
+  }, [props.ctx, sessionId]);
   useEffect(() => {
     if (sessionId) void props.workspace.ensure(sessionId).catch((error) => {
       console.warn("[dsh-session-sticker-board] session-note load failed", error);
@@ -62,6 +74,8 @@ function StickerBoardRoot(props: {
       onDelete={(stickerId) => props.workspace.remove(sessionId, stickerId)}
       onOpenNote={props.openNote}
       onOpenSticker={props.openSticker}
+      resolveAnchorId={resolveAnchorId}
+      resolveAnchorKey={resolveAnchorKey}
     />
   );
 }
@@ -169,28 +183,48 @@ export function apply(ctx: Context): void {
         return true;
       }
       if (action.setId !== undefined && core === undefined) return false;
-      await stickers.ensure(action.sessionId).catch(() => undefined);
-      const matchingSticker = stickers.list(action.sessionId).find((view) => (
-        view.record.anchorId === action.anchorId
-        && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
+      const isStickerAction = action.stickerId !== undefined
+        || (action.setId === undefined && action.quoteHash !== undefined);
+      if (isStickerAction) {
+        try {
+          await stickers.ensure(action.sessionId);
+        } catch (error) {
+          console.warn("[dsh-session-sticker-board] sticker deep-link load failed", error);
+          return true;
+        }
+      }
+      const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => (
+        action.stickerId !== undefined
+          ? view.record.stickerId === action.stickerId
+          : view.record.anchorId === action.anchorId
+            && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
       ));
+      if (isStickerAction && matchingSticker === undefined) {
+        console.warn("[dsh-session-sticker-board] sticker deep-link target no longer exists", {
+          sessionId: action.sessionId,
+          stickerId: action.stickerId,
+          anchorId: action.anchorId,
+        });
+        return true;
+      }
       const result = await applyDeepLink(ready, action, {
         ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
         ...(core === undefined ? {} : {
           openAnnotation: async (setId: string, referenceId?: string) => {
             if (typeof core.openAnnotationInSession === "function") {
-              const opened = await core.openAnnotationInSession(action.sessionId, setId, referenceId);
-              if (!opened) throw new Error(`Annotation set was not found: ${setId}`);
-              return;
+              return core.openAnnotationInSession(action.sessionId, setId, referenceId);
             }
             core.openAnnotation(setId, referenceId);
+            return true;
           },
         }),
       });
       if (result.status !== "located") {
         console.warn("[dsh-session-sticker-board] deep-link was not located", result);
       }
-      return result.status !== "dom-unavailable";
+      // Every parsed deep link is a one-shot UI command. Even a missing DOM or
+      // deleted target is terminal; replaying it would reopen the same session.
+      return true;
     };
     const polling = startBridgePolling(bridge, applyAction, {
       onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),

@@ -19,7 +19,7 @@ export function createHostBridgeActionHandler(
   profileId: string,
 ): (action: BridgeAction) => Promise<boolean> {
   return async (action) => {
-    if (action.type !== "reference-delete-request" || action.profileId !== profileId) return true;
+    if (action.type !== "reference-delete-request" || action.profileId !== profileId) return false;
     const result = await core.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
     if (result.scope === "pending") await bridge.discardReference(action.referenceId);
     return true;

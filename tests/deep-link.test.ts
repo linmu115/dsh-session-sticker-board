@@ -161,6 +161,29 @@ describe("DSH deep links", () => {
     expect(order).toEqual(["reveal", "locate", "annotation"]);
   });
 
+  it("reports a deleted annotation target as terminal after locating its message", async () => {
+    const userMessageId = "019d-deleted-reference";
+    const contextKey = `13:input-message${userMessageId}`;
+    const fixture = context([snapshot([{ key: contextKey, id: userMessageId, seq: 42, text: "已删除引用" }], false)]);
+
+    const result = await applyDeepLink(fixture.ctx as never, {
+      ...action,
+      anchorId: userMessageId,
+      setId: "set-deleted",
+      referenceId: "reference-deleted",
+    }, {
+      locate: () => true,
+      openAnnotation: async () => false,
+    });
+
+    expect(result).toEqual({
+      status: "annotation-missing",
+      sessionId: "session-demo",
+      anchorId: userMessageId,
+      setId: "set-deleted",
+    });
+  });
+
   it("waits for the switched session DOM to render before locating the anchor", async () => {
     const fixture = context([snapshot([{ key: "message:user-42", seq: 42, text: "目标问题" }], false)]);
     let attempts = 0;
