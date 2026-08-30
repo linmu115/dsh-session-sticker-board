@@ -256,45 +256,62 @@ export function resolveSelectionForStickerAction(
   return capture(sessionId) ?? trackedSelection;
 }
 
-function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
+interface SearchCharacter {
+  readonly value: string;
+  readonly node: Text;
+  readonly startOffset: number;
+  readonly endOffset: number;
+}
+
+function isIgnoredSearchCharacter(value: string): boolean {
+  return /[\s\u200b-\u200d\u2060\ufeff]/u.test(value);
+}
+
+function normalizedSearchCharacters(root: HTMLElement): SearchCharacter[] {
+  const characters: SearchCharacter[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    const node = current as Text;
+    const text = node.data;
+    let offset = 0;
+    for (const value of text) {
+      const startOffset = offset;
+      offset += value.length;
+      if (isIgnoredSearchCharacter(value)) continue;
+      characters.push({ value, node, startOffset, endOffset: offset });
+    }
+  }
+  return characters;
+}
+
+function normalizedSearchText(value: string): string {
+  return [...value].filter((character) => !isIgnoredSearchCharacter(character)).join("");
+}
+
+export function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
   try {
     const root = document.querySelector<HTMLElement>(
       `[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`,
     );
     if (!root || !root.isConnected || !sticker.quote) return null;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const text = root.textContent ?? "";
+    const characters = normalizedSearchCharacters(root);
+    const text = characters.map((character) => character.value).join("");
+    const quote = normalizedSearchText(sticker.quote);
+    if (!quote) return null;
     let start = -1;
     let cursor = 0;
     for (let index = 0; index <= sticker.occurrence; index += 1) {
-      start = text.indexOf(sticker.quote, cursor);
+      start = text.indexOf(quote, cursor);
       if (start < 0) return null;
-      cursor = start + Math.max(1, sticker.quote.length);
+      cursor = start + quote.length;
     }
-    const end = start + sticker.quote.length;
-    let absolute = 0;
-    let startNode: Text | null = null;
-    let startOffset = 0;
-    let endNode: Text | null = null;
-    let endOffset = 0;
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const length = node.textContent?.length ?? 0;
-      const next = absolute + length;
-      if (!startNode && start < next) {
-        startNode = node as Text;
-        startOffset = start - absolute;
-      }
-      if (startNode && end <= next) {
-        endNode = node as Text;
-        endOffset = end - absolute;
-        break;
-      }
-      absolute = next;
-    }
-    if (!startNode || !endNode) return null;
+    const first = characters[start];
+    const last = characters[start + quote.length - 1];
+    if (!first || !last) return null;
     const range = document.createRange();
-    range.setStart(startNode, startOffset);
-    range.setEnd(endNode, endOffset);
+    range.setStart(first.node, first.startOffset);
+    range.setEnd(last.node, last.endOffset);
+    if (normalizedSearchText(range.toString()) !== quote) return null;
     return range;
   } catch {
     return null;
@@ -669,15 +686,29 @@ export function buildStickerWikiLink(sticker: StickerRecord): string {
   return `[[${sessionPath}#^${blockId}|贴纸来源]]`;
 }
 
+export function buildManagedStickerBacklink(sticker: StickerRecord, body: string): string {
+  const metadata = {
+    stickerId: sticker.stickerId,
+    sessionId: sticker.sessionId,
+    anchorId: sticker.anchorId,
+    quoteHash: sticker.quoteHash,
+  };
+  return [
+    `<!-- dsh-sticker-backlink:${JSON.stringify(metadata)} -->`,
+    body,
+    "<!-- /dsh-sticker-backlink -->",
+  ].join("\n");
+}
+
 export function buildReferenceMarkdown(sticker: StickerRecord, sessionTitle: string): string {
   const label = `回到 DSH：${sessionTitle}`;
-  return [
+  return buildManagedStickerBacklink(sticker, [
     `> [!dsh-reference]`,
     `> 来源：${buildStickerWikiLink(sticker)}`,
     `> [${label}](${buildDshLogicalLink(sticker)})`,
     `> 引用内容：${sticker.quote}`,
     ...(sticker.markdown ? [`> 贴纸：${sticker.markdown}`] : []),
-  ].join("\n");
+  ].join("\n"));
 }
 
 export interface StickerCommandDependencies {
@@ -697,10 +728,10 @@ export interface StickerCommandDependencies {
 export function createStickerCommands(sticker: StickerRecord, dependencies: StickerCommandDependencies) {
   return {
     copyLogicalLink: () => dependencies.clipboard.writeText(
-      [
+      buildManagedStickerBacklink(sticker, [
         buildStickerWikiLink(sticker),
         `[回到 DSH：${dependencies.sessionTitle}](${buildDshLogicalLink(sticker)})`,
-      ].join("\n"),
+      ].join("\n")),
     ),
     copyReferenceMarkdown: () => dependencies.clipboard.writeText(
       buildReferenceMarkdown(sticker, dependencies.sessionTitle),

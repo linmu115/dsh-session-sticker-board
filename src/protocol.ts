@@ -79,6 +79,18 @@ export const stickerBacklinkSchema = z.object({
   excerpt: z.string(),
 });
 
+export const stickerBacklinkTargetSchema = z.object({
+  stickerId: z.string().uuid(),
+  sessionId: z.string().min(1),
+  anchorId: z.string().min(1),
+  quoteHash: z.string().min(1),
+});
+
+export const stickerBacklinkDeleteResultSchema = z.object({
+  notesChanged: z.number().int().nonnegative(),
+  linksRemoved: z.number().int().nonnegative(),
+});
+
 export const sessionNoteDocumentSchema = z.object({
   protocolVersion: z.literal(PROTOCOL_VERSION),
   type: z.literal("session-note"),
@@ -97,6 +109,8 @@ export type StickerRecord = z.infer<typeof stickerSchema>;
 export type DeepLinkAction = z.infer<typeof deepLinkActionSchema>;
 export type OpenNoteAction = z.infer<typeof openNoteActionSchema>;
 export type StickerBacklink = z.infer<typeof stickerBacklinkSchema>;
+export type StickerBacklinkTarget = z.infer<typeof stickerBacklinkTargetSchema>;
+export type StickerBacklinkDeleteResult = z.infer<typeof stickerBacklinkDeleteResultSchema>;
 export type SessionNoteDocument = z.infer<typeof sessionNoteDocumentSchema>;
 export type BridgeMessage = z.infer<typeof bridgeMessageSchema>;
 

@@ -32,6 +32,7 @@ function handshake(surfaceId?: string) {
     capabilities: [
       "reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2",
       "targeted-deep-link-v1",
+      "sticker-backlink-delete-v1",
     ],
     ...(surfaceId === undefined ? {} : { surfaceId }),
   });
@@ -68,7 +69,12 @@ const capture: ObsidianReferenceCaptureV2 = {
 describe("DSH v2 bridge HTTP client", () => {
   it("reads the dedicated Obsidian Web Viewer surface from the launch URL", () => {
     expect(bridgeSurfaceIdFromUrl(
-      `http://127.0.0.1:3080/?token=secret&dshBridgeSurface=${SURFACE_ID}`,
+      `http://127.0.0.1:3080/?token=secret#dshBridgeSurface=${SURFACE_ID}`,
+    )).toBe(SURFACE_ID);
+    // Older Bridge builds used a query parameter; keep it readable during a
+    // rolling update, but new launch URLs use the redirect-safe fragment.
+    expect(bridgeSurfaceIdFromUrl(
+      `http://127.0.0.1:3080/?dshBridgeSurface=${SURFACE_ID}`,
     )).toBe(SURFACE_ID);
     expect(bridgeSurfaceIdFromUrl("http://127.0.0.1:3080/?dshBridgeSurface=invalid")).toBeUndefined();
   });
@@ -101,7 +107,10 @@ describe("DSH v2 bridge HTTP client", () => {
         annotationProtocolVersion: 2,
         stickerProtocolVersion: 1,
         bridgeOrigin: ORIGIN,
-        capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
+        capabilities: [
+          "reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2",
+          "sticker-backlink-delete-v1",
+        ],
       });
       return handshake();
     });
@@ -193,6 +202,7 @@ describe("DSH v2 bridge HTTP client", () => {
     const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const value = String(url);
       if (value.endsWith("/v2/handshake")) return handshake();
+      if (value.endsWith("/v1/sticker-backlinks/delete")) return json(200, { notesChanged: 1, linksRemoved: 2 });
       if (init?.method === "PUT") return json(200, { revision: "sha256:two" });
       if (value.includes("/v1/sticker-backlinks?")) return json(200, { backlinks: [] });
       return json(200, document);
@@ -201,5 +211,6 @@ describe("DSH v2 bridge HTTP client", () => {
     await expect(client.readSessionNote("session-1")).resolves.toEqual(document);
     await expect(client.saveSessionNote(document, "sha256:one")).resolves.toEqual({ revision: "sha256:two" });
     await expect(client.listBacklinks(sticker)).resolves.toEqual([]);
+    await expect(client.deleteStickerBacklinks(sticker)).resolves.toEqual({ notesChanged: 1, linksRemoved: 2 });
   });
 });

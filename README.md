@@ -44,7 +44,9 @@ dsh plugin --profile web add dsh-better-sidebar
 
 在用户或助手消息内选择文字，点击“添加贴纸”。消息旁会出现无编号的贴纸按钮；点击它可在右侧栏查看和编辑 Markdown、标签与高亮颜色。
 
-“复制笔记链接”会生成可粘贴到 Obsidian 的链接。Obsidian 笔记引用该贴纸后，贴纸详情下方会出现反向链接；点击后只切换 Obsidian 主编辑区的 Markdown 笔记，不会关闭 DSH Web Viewer 页签。
+“复制笔记链接”会生成可粘贴到 Obsidian 的受管链接。Obsidian 笔记引用该贴纸后，贴纸详情下方会出现反向链接；点击后只切换 Obsidian 主编辑区的 Markdown 笔记，不会关闭 DSH Web Viewer 页签。删除贴纸时，Bridge 会先删除这些回链，再删除 DSH 贴纸记录；旧版本生成的两行链接和引用 callout 也会一并清理。
+
+多行、列表及跨加粗节点的选择使用规范化文字映射恢复到真实 DOM 范围，因此保存完成后仍会在原文位置显示高亮和贴纸按钮。
 
 ### 从 Obsidian 引用到 DSH
 

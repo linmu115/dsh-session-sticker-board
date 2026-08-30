@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { JSDOM } from "jsdom";
 
 import {
   buildDshLogicalLink,
+  buildManagedStickerBacklink,
   buildReferenceMarkdown,
   buildStickerWikiLink,
   createSelectionRecomputeHandlers,
@@ -10,6 +12,7 @@ import {
   isEligibleMessageSelection,
   mountNativeSelectionAction,
   placeSelectionAction,
+  rangeOfSticker,
   resolveSelectionForStickerAction,
   resolveDurableAnchorId,
   resolveRenderedAnchorKey,
@@ -68,6 +71,38 @@ describe("sticker overlay commands", () => {
     expect(resolveDurableAnchorId(snapshot, renderedKey)).toBe("019d-user-message");
     expect(resolveRenderedAnchorKey(snapshot, "019d-user-message")).toBe(renderedKey);
     expect(resolveDurableAnchorId(snapshot, "unknown-key")).toBe("unknown-key");
+  });
+
+  it("restores a multiline Markdown selection across rendered block and inline nodes", () => {
+    const dom = new JSDOM(`
+      <article data-chat-anchor-key="assistant-9:1">
+        <p>第一行 <strong>加粗内容</strong></p>
+        <ul><li>第二行列表</li></ul>
+      </article>
+    `);
+    const previous = {
+      document: globalThis.document,
+      NodeFilter: globalThis.NodeFilter,
+      CSS: globalThis.CSS,
+    };
+    Object.assign(globalThis, {
+      document: dom.window.document,
+      NodeFilter: dom.window.NodeFilter,
+      CSS: { escape: (value: string) => value },
+    });
+    try {
+      const range = rangeOfSticker({
+        ...sticker,
+        anchorId: "assistant-9:1",
+        quote: "第一行 加粗内容\n第二行列表",
+      });
+      expect(range).not.toBeNull();
+      expect(range?.startContainer.textContent).toContain("第一行");
+      expect(range?.endContainer.textContent).toContain("第二行列表");
+    } finally {
+      Object.assign(globalThis, previous);
+      dom.window.close();
+    }
   });
 
   it("moves colliding red dots in stable 24 pixel steps", () => {
@@ -225,7 +260,8 @@ describe("sticker overlay commands", () => {
     await commands.copyReferenceMarkdown();
 
     expect(writeText.mock.calls[0]?.[0]).toBe(
-      "[[DeepHarness/Sessions/session-demo#^dsh-sticker-9bb3a80e|贴纸来源]]\n[回到 DSH：插件维护系统的用户提问](obsidian://deepharness?session=session-demo&anchor=user-node-42&quoteHash=sha256%3A30101ebf&sticker=9bb3a80e-230d-44d1-a37c-f7b79d2bf315)",
+      buildManagedStickerBacklink(sticker,
+        "[[DeepHarness/Sessions/session-demo#^dsh-sticker-9bb3a80e|贴纸来源]]\n[回到 DSH：插件维护系统的用户提问](obsidian://deepharness?session=session-demo&anchor=user-node-42&quoteHash=sha256%3A30101ebf&sticker=9bb3a80e-230d-44d1-a37c-f7b79d2bf315)"),
     );
     expect(writeText.mock.calls[1]?.[0]).toBe(buildReferenceMarkdown(sticker, "插件维护系统的用户提问"));
     expect(buildDshLogicalLink(sticker)).toBe(
@@ -237,6 +273,7 @@ describe("sticker overlay commands", () => {
     expect(writeText.mock.calls[1]?.[0]).toContain(
       "> 来源：[[DeepHarness/Sessions/session-demo#^dsh-sticker-9bb3a80e|贴纸来源]]",
     );
+    expect(writeText.mock.calls[1]?.[0]).toContain("<!-- dsh-sticker-backlink:");
   });
 
   it("requires confirmation before deleting a linked sticker", async () => {

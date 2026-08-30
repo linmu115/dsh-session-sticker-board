@@ -8,6 +8,7 @@ import {
   deepLinkActionSchema,
   parseBridgeMessage,
   stickerBacklinkSchema,
+  stickerBacklinkDeleteResultSchema,
   type BacklinkCommitV2,
   type BacklinkReceiptV2,
   type DeepLinkAction,
@@ -19,6 +20,7 @@ import {
   type ReferenceDeleteRequestV2,
   type SessionNoteDocument,
   type StickerBacklink,
+  type StickerBacklinkDeleteResult,
   type StickerRecord,
 } from "../protocol.ts";
 
@@ -88,6 +90,7 @@ export interface BridgeHttpClient {
   saveSessionNote(document: SessionNoteDocument, expectedRevision: string): Promise<{ revision: string }>;
   openNote(action: OpenNoteAction): Promise<void>;
   listBacklinks(sticker: StickerRecord): Promise<StickerBacklink[]>;
+  deleteStickerBacklinks(sticker: StickerRecord): Promise<StickerBacklinkDeleteResult>;
   dispose(): void;
 }
 
@@ -106,7 +109,13 @@ export const DSH_BRIDGE_SURFACE_PARAMETER = "dshBridgeSurface";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function bridgeSurfaceIdFromUrl(value: string): string | undefined {
-  const surfaceId = new URL(value).searchParams.get(DSH_BRIDGE_SURFACE_PARAMETER)?.trim();
+  const url = new URL(value);
+  const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
+  const surfaceId = (
+    fragment.get(DSH_BRIDGE_SURFACE_PARAMETER)
+    ?? url.searchParams.get(DSH_BRIDGE_SURFACE_PARAMETER)
+    ?? undefined
+  )?.trim();
   return surfaceId !== undefined && UUID_PATTERN.test(surfaceId) ? surfaceId : undefined;
 }
 
@@ -137,6 +146,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     "reference-refresh",
     "backlink-commit-v2",
     "reference-delete-v2",
+    "sticker-backlink-delete-v1",
     ...(surfaceId === undefined ? [] : ["targeted-deep-link-v1"]),
   ];
   const controllers = new Set<AbortController>();
@@ -340,6 +350,15 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       const response = await authenticated(`/v1/sticker-backlinks?${query.toString()}`);
       const body = await response.json() as { backlinks?: unknown };
       return stickerBacklinkSchema.array().parse(body.backlinks);
+    },
+    async deleteStickerBacklinks(sticker) {
+      const response = await post("/v1/sticker-backlinks/delete", {
+        stickerId: sticker.stickerId,
+        sessionId: sticker.sessionId,
+        anchorId: sticker.anchorId,
+        quoteHash: sticker.quoteHash,
+      });
+      return stickerBacklinkDeleteResultSchema.parse(await response.json());
     },
     dispose() {
       if (disposed) return;
