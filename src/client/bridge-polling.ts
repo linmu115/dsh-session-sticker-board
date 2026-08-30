@@ -6,34 +6,99 @@ export interface BridgeActionProcessor {
 }
 
 export function createBridgeActionProcessor(
-  bridge: Pick<BridgeHttpClient, "acknowledgeDeepLink">,
+  bridge: Pick<BridgeHttpClient, "acknowledgeDeepLink" | "acknowledgeAction">,
   apply: (message: BridgeAction) => Promise<boolean>,
+  onApplyError?: (error: unknown, message: BridgeAction) => void,
 ): BridgeActionProcessor {
   let cursor = 0;
+  let queueId: string | undefined;
   const completed = new Set<number>();
+  const deepLinkOutcomes = new Map<number, { accepted: boolean; applyError?: unknown }>();
   return {
     get cursor() { return cursor; },
     async process(page) {
+      const queueChanged = page.queueId !== undefined
+        && page.queueId !== queueId
+        && (queueId !== undefined || cursor > 0);
+      const queueReset = queueChanged || page.cursor < cursor;
+      if (queueReset) {
+        cursor = 0;
+        completed.clear();
+        deepLinkOutcomes.clear();
+      }
+      if (page.queueId !== undefined) queueId = page.queueId;
       let applied = 0;
       let failed = 0;
-      for (const entry of [...page.actions].sort((left, right) => left.cursor - right.cursor)) {
+      const ordered = [...page.actions].sort((left, right) => left.cursor - right.cursor);
+      const deletingReferences = new Set(ordered.flatMap((entry) => (
+        entry.message.type === "reference-delete-request" ? [entry.message.referenceId] : []
+      )));
+      const latestNavigation = ordered.findLast((entry) => (
+        entry.message.type === "deep-link"
+        && (entry.message.referenceId === undefined || !deletingReferences.has(entry.message.referenceId))
+      ));
+      for (const entry of ordered) {
         if (entry.cursor <= cursor || completed.has(entry.cursor)) continue;
         try {
+          if (
+            entry.message.type === "deep-link"
+            && (
+              entry !== latestNavigation
+              || (entry.message.referenceId !== undefined && deletingReferences.has(entry.message.referenceId))
+            )
+          ) {
+            // Navigation is ephemeral. Consume superseded requests without
+            // applying them so a reconnect cannot replay an entire click
+            // history or reopen a reference that is being deleted.
+            await bridge.acknowledgeDeepLink(entry.message.actionId);
+            completed.add(entry.cursor);
+            applied += 1;
+            continue;
+          }
+          if (entry.message.type === "deep-link") {
+            // Targeted deep links have one owning DSH surface. Let that surface
+            // take over the navigation before globally removing the one-shot
+            // request, otherwise a faster unrelated browser can steal it.
+            let outcome = deepLinkOutcomes.get(entry.cursor);
+            if (outcome === undefined) {
+              try {
+                outcome = { accepted: await apply(entry.message) };
+              } catch (applyError) {
+                outcome = { accepted: false, applyError };
+              }
+              deepLinkOutcomes.set(entry.cursor, outcome);
+            }
+            await bridge.acknowledgeDeepLink(entry.message.actionId);
+            deepLinkOutcomes.delete(entry.cursor);
+            completed.add(entry.cursor);
+            if ("applyError" in outcome) {
+              failed += 1;
+              onApplyError?.(outcome.applyError, entry.message);
+              continue;
+            }
+            if (!outcome.accepted) {
+              failed += 1;
+              continue;
+            }
+            applied += 1;
+            continue;
+          }
           if (!await apply(entry.message)) {
             failed += 1;
             continue;
           }
-          if (entry.message.type === "deep-link") {
-            await bridge.acknowledgeDeepLink(entry.message.actionId);
+          if (entry.message.type === "reference-delete-request") {
+            await bridge.acknowledgeAction(entry.message.actionId);
           }
           completed.add(entry.cursor);
           applied += 1;
-        } catch {
+        } catch (error) {
           failed += 1;
+          onApplyError?.(error, entry.message);
         }
       }
       while (completed.delete(cursor + 1)) cursor += 1;
-      if (page.actions.length === 0 && page.cursor > cursor) cursor = page.cursor;
+      if (!queueReset && page.actions.length === 0 && page.cursor > cursor) cursor = page.cursor;
       return { applied, failed, cursor };
     },
   };
@@ -41,8 +106,10 @@ export function createBridgeActionProcessor(
 
 export interface BridgePollingOptions {
   visibilityState?: () => DocumentVisibilityState;
+  subscribeVisibility?: (listener: () => void) => () => void;
   schedule?: (callback: () => void, delay: number) => () => void;
   onError?: (error: unknown) => void;
+  onActionError?: (error: unknown, message: BridgeAction) => void;
 }
 
 export interface BridgePollingHandle {
@@ -51,18 +118,25 @@ export interface BridgePollingHandle {
 }
 
 export function startBridgePolling(
-  bridge: Pick<BridgeHttpClient, "nextActions" | "acknowledgeDeepLink">,
+  bridge: Pick<BridgeHttpClient, "nextActions" | "acknowledgeDeepLink" | "acknowledgeAction">,
   apply: (message: BridgeAction) => Promise<boolean>,
   options: BridgePollingOptions = {},
 ): BridgePollingHandle {
-  const processor = createBridgeActionProcessor(bridge, apply);
+  const processor = createBridgeActionProcessor(bridge, apply, options.onActionError);
   const schedule = options.schedule ?? ((callback, delay) => {
     const timer = globalThis.setTimeout(callback, delay);
     return () => globalThis.clearTimeout(timer);
   });
   const visibilityState = options.visibilityState
     ?? (() => typeof document === "undefined" ? "visible" : document.visibilityState);
+  const subscribeVisibility = options.subscribeVisibility ?? ((listener: () => void) => {
+    if (typeof document === "undefined") return () => undefined;
+    document.addEventListener("visibilitychange", listener);
+    return () => document.removeEventListener("visibilitychange", listener);
+  });
   let stopped = false;
+  let running = false;
+  let wakeRequested = false;
   let cancelScheduled: (() => void) | undefined;
   let networkDelay = 1_000;
   let resolveFirst!: () => void;
@@ -70,6 +144,12 @@ export function startBridgePolling(
 
   const cycle = async (): Promise<void> => {
     if (stopped) return;
+    if (running) {
+      wakeRequested = true;
+      return;
+    }
+    running = true;
+    cancelScheduled = undefined;
     let delay: number;
     try {
       const page = await bridge.nextActions(processor.cursor);
@@ -81,9 +161,23 @@ export function startBridgePolling(
       delay = networkDelay;
       networkDelay = Math.min(networkDelay * 2, 10_000);
     }
+    running = false;
     resolveFirst();
-    if (!stopped) cancelScheduled = schedule(() => { void cycle(); }, delay);
+    if (stopped) return;
+    if (wakeRequested) {
+      wakeRequested = false;
+      void cycle();
+      return;
+    }
+    cancelScheduled = schedule(() => { void cycle(); }, delay);
   };
+  const unsubscribeVisibility = subscribeVisibility(() => {
+    if (stopped || visibilityState() === "hidden") return;
+    cancelScheduled?.();
+    cancelScheduled = undefined;
+    if (running) wakeRequested = true;
+    else void cycle();
+  });
   void cycle();
   return {
     firstCycle,
@@ -91,6 +185,7 @@ export function startBridgePolling(
       if (stopped) return;
       stopped = true;
       cancelScheduled?.();
+      unsubscribeVisibility();
     },
   };
 }

@@ -3,10 +3,12 @@ import {
   BacklinkReceiptV2Schema,
   ObsidianReferenceCaptureV2Schema,
   ReferenceRefreshResultV2Schema,
+  ReferenceDeleteRequestV2Schema,
   STICKER_PROTOCOL_VERSION,
   deepLinkActionSchema,
   parseBridgeMessage,
   stickerBacklinkSchema,
+  stickerBacklinkDeleteResultSchema,
   type BacklinkCommitV2,
   type BacklinkReceiptV2,
   type DeepLinkAction,
@@ -14,8 +16,11 @@ import {
   type OpenNoteAction,
   type ReferenceClaimV2,
   type ReferenceRefreshResultV2,
+  type ReferenceDeleteCommitV2,
+  type ReferenceDeleteRequestV2,
   type SessionNoteDocument,
   type StickerBacklink,
+  type StickerBacklinkDeleteResult,
   type StickerRecord,
 } from "../protocol.ts";
 
@@ -48,7 +53,7 @@ export class BridgeUnavailableError extends Error {
   }
 }
 
-export type BridgeAction = DeepLinkAction | ObsidianReferenceCaptureV2;
+export type BridgeAction = DeepLinkAction | ObsidianReferenceCaptureV2 | ReferenceDeleteRequestV2;
 
 export interface QueuedBridgeAction {
   cursor: number;
@@ -56,6 +61,7 @@ export interface QueuedBridgeAction {
 }
 
 export interface BridgeActionPage {
+  queueId?: string;
   cursor: number;
   actions: readonly QueuedBridgeAction[];
 }
@@ -65,6 +71,7 @@ export interface BridgeHttpClientOptions {
   fetch?: typeof globalThis.fetch;
   now?: () => number;
   clientId?: string;
+  surfaceId?: string;
   requestOrigin?: string;
 }
 
@@ -73,14 +80,17 @@ export interface BridgeHttpClient {
   preflight(): Promise<void>;
   nextActions(after: number): Promise<BridgeActionPage>;
   acknowledgeDeepLink(actionId: string): Promise<void>;
+  acknowledgeAction(actionId: string): Promise<void>;
   claimReference(actionId: string, claim: ReferenceClaimV2): Promise<void>;
   refreshReference(referenceId: string, knownDocumentHash: string, signal?: AbortSignal): Promise<ReferenceRefreshResultV2>;
   discardReference(referenceId: string): Promise<void>;
   commitBacklink(commit: BacklinkCommitV2): Promise<BacklinkReceiptV2>;
+  deleteCommittedReference(commit: ReferenceDeleteCommitV2): Promise<void>;
   readSessionNote(sessionId: string): Promise<SessionNoteDocument>;
   saveSessionNote(document: SessionNoteDocument, expectedRevision: string): Promise<{ revision: string }>;
   openNote(action: OpenNoteAction): Promise<void>;
   listBacklinks(sticker: StickerRecord): Promise<StickerBacklink[]>;
+  deleteStickerBacklinks(sticker: StickerRecord): Promise<StickerBacklinkDeleteResult>;
   dispose(): void;
 }
 
@@ -93,6 +103,20 @@ export function normalizeBridgeOrigin(value: string): string {
     throw new TypeError("Obsidian bridge origin cannot contain a path, query or fragment");
   }
   return url.origin;
+}
+
+export const DSH_BRIDGE_SURFACE_PARAMETER = "dshBridgeSurface";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function bridgeSurfaceIdFromUrl(value: string): string | undefined {
+  const url = new URL(value);
+  const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
+  const surfaceId = (
+    fragment.get(DSH_BRIDGE_SURFACE_PARAMETER)
+    ?? url.searchParams.get(DSH_BRIDGE_SURFACE_PARAMETER)
+    ?? undefined
+  )?.trim();
+  return surfaceId !== undefined && UUID_PATTERN.test(surfaceId) ? surfaceId : undefined;
 }
 
 async function responseError(response: Response): Promise<BridgeHttpError> {
@@ -113,6 +137,18 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
   const fetchImplementation = options.fetch ?? globalThis.fetch.bind(globalThis);
   const now = options.now ?? Date.now;
   const clientId = options.clientId ?? `dsh-sticker-${crypto.randomUUID()}`;
+  const surfaceId = options.surfaceId?.trim();
+  if (surfaceId !== undefined && !UUID_PATTERN.test(surfaceId)) {
+    throw new TypeError("DSH bridge surface ID must be a UUID");
+  }
+  const requiredCapabilities = [
+    "reference-capture-v2",
+    "reference-refresh",
+    "backlink-commit-v2",
+    "reference-delete-v2",
+    "sticker-backlink-delete-v1",
+    ...(surfaceId === undefined ? [] : ["targeted-deep-link-v1"]),
+  ];
   const controllers = new Set<AbortController>();
   let token: string | null = null;
   let tokenExpiresAt = 0;
@@ -145,7 +181,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     const response = await request("/v2/handshake", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId }),
+      body: JSON.stringify({ clientId, ...(surfaceId === undefined ? {} : { surfaceId }) }),
     });
     if (!response.ok) throw await responseError(response);
     const body = await response.json() as {
@@ -154,6 +190,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       annotationProtocolVersion?: unknown;
       stickerProtocolVersion?: unknown;
       bridgeOrigin?: unknown;
+      surfaceId?: unknown;
       capabilities?: unknown;
     };
     const capabilities = Array.isArray(body.capabilities) ? body.capabilities : [];
@@ -162,7 +199,8 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       || body.annotationProtocolVersion !== ANNOTATION_PROTOCOL_VERSION
       || body.stickerProtocolVersion !== STICKER_PROTOCOL_VERSION
       || body.bridgeOrigin !== origin
-      || !["reference-capture-v2", "reference-refresh", "backlink-commit-v2"].every((item) => capabilities.includes(item))
+      || (surfaceId !== undefined && body.surfaceId !== surfaceId)
+      || !requiredCapabilities.every((item) => capabilities.includes(item))
     ) {
       throw new BridgeHttpError(409, "protocol-mismatch", "Obsidian bridge does not provide the required protocol v2 capabilities");
     }
@@ -194,6 +232,18 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     });
   }
 
+  async function acknowledgeOneShot(actionId: string): Promise<void> {
+    try {
+      await post(`/v1/actions/${encodeURIComponent(actionId)}/ack`, {});
+    } catch (error) {
+      // Another live DSH surface may have consumed the same one-shot action
+      // after this client fetched it. Historical Bridge versions return 404
+      // for that harmless race, which must not turn into an infinite retry.
+      if (error instanceof BridgeHttpError && error.status === 404) return;
+      throw error;
+    }
+  }
+
   return {
     origin,
     async preflight() {
@@ -210,7 +260,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
         body.annotationProtocolVersion !== ANNOTATION_PROTOCOL_VERSION
         || body.stickerProtocolVersion !== STICKER_PROTOCOL_VERSION
         || body.bridgeOrigin !== origin
-        || !["reference-capture-v2", "reference-refresh", "backlink-commit-v2"].every((item) => capabilities.includes(item))
+        || !requiredCapabilities.every((item) => capabilities.includes(item))
       ) {
         throw new BridgeHttpError(409, "protocol-mismatch", "Host, Client and Obsidian bridge configuration do not agree");
       }
@@ -219,20 +269,31 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     async nextActions(after) {
       if (!Number.isInteger(after) || after < 0) throw new TypeError("Bridge cursor must be a non-negative integer");
       const response = await authenticated(`/v2/actions/pending?after=${after}`);
-      const body = await response.json() as { cursor?: unknown; actions?: unknown };
+      const body = await response.json() as { queueId?: unknown; cursor?: unknown; actions?: unknown };
       if (!Number.isInteger(body.cursor) || !Array.isArray(body.actions)) throw new Error("Bridge action page is invalid");
+      if (body.queueId !== undefined && (typeof body.queueId !== "string" || body.queueId === "")) {
+        throw new Error("Bridge queue ID is invalid");
+      }
       const actions = body.actions.map((value): QueuedBridgeAction => {
         if (typeof value !== "object" || value === null) throw new Error("Bridge queue entry is invalid");
         const entry = value as { cursor?: unknown; message?: unknown };
         if (!Number.isInteger(entry.cursor) || (entry.cursor as number) < 0) throw new Error("Bridge action cursor is invalid");
         const capture = ObsidianReferenceCaptureV2Schema.safeParse(entry.message);
-        const message = capture.success ? capture.data : deepLinkActionSchema.parse(entry.message);
+        const deletion = ReferenceDeleteRequestV2Schema.safeParse(entry.message);
+        const message = capture.success ? capture.data : deletion.success ? deletion.data : deepLinkActionSchema.parse(entry.message);
         return { cursor: entry.cursor as number, message };
       });
-      return { cursor: body.cursor as number, actions };
+      return {
+        ...(typeof body.queueId === "string" ? { queueId: body.queueId } : {}),
+        cursor: body.cursor as number,
+        actions,
+      };
     },
     async acknowledgeDeepLink(actionId) {
-      await post(`/v1/actions/${encodeURIComponent(actionId)}/ack`, {});
+      await acknowledgeOneShot(actionId);
+    },
+    async acknowledgeAction(actionId) {
+      await acknowledgeOneShot(actionId);
     },
     async claimReference(actionId, claim) {
       await post(`/v2/actions/${encodeURIComponent(actionId)}/ack`, claim);
@@ -256,6 +317,9 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     async commitBacklink(commit) {
       const response = await post("/v2/backlinks/commit", commit);
       return BacklinkReceiptV2Schema.parse(await response.json());
+    },
+    async deleteCommittedReference(commit) {
+      await post(`/v2/references/${encodeURIComponent(commit.referenceId)}/delete-commit`, commit);
     },
     async readSessionNote(sessionId) {
       const response = await authenticated(`/v1/session-notes/${encodeURIComponent(sessionId)}`);
@@ -286,6 +350,15 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       const response = await authenticated(`/v1/sticker-backlinks?${query.toString()}`);
       const body = await response.json() as { backlinks?: unknown };
       return stickerBacklinkSchema.array().parse(body.backlinks);
+    },
+    async deleteStickerBacklinks(sticker) {
+      const response = await post("/v1/sticker-backlinks/delete", {
+        stickerId: sticker.stickerId,
+        sessionId: sticker.sessionId,
+        anchorId: sticker.anchorId,
+        quoteHash: sticker.quoteHash,
+      });
+      return stickerBacklinkDeleteResultSchema.parse(await response.json());
     },
     dispose() {
       if (disposed) return;

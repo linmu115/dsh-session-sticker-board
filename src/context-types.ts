@@ -10,22 +10,32 @@ export interface ObservableSnapshot<T> {
 
 export interface ChatNodeLike {
   key: string;
+  id: string;
   kind: string;
   data: unknown;
 }
 
-export interface ConversationSnapshotLike {
+export interface SessionSnapshotLike {
   sessionId: SessionId;
   running: boolean;
   hasMore?: boolean;
   loadingOlder?: boolean;
-  chat: {
-    order: readonly string[];
-    nodes: { get(key: string): ChatNodeLike | undefined };
-  };
 }
 
-export interface SessionFace extends ObservableSnapshot<ConversationSnapshotLike> {
+export interface ChatSnapshotLike {
+  readonly order: readonly string[];
+  readonly nodes: { get(key: string): ChatNodeLike | undefined };
+}
+
+export interface ConversationBindingLike {
+  target(target: "chat"): ObservableSnapshot<ChatSnapshotLike | undefined>;
+}
+
+export interface UiConversationService {
+  binding(sessionId: SessionId): ConversationBindingLike;
+}
+
+export interface SessionFace extends ObservableSnapshot<SessionSnapshotLike> {
   loadOlder(): Promise<void>;
 }
 
@@ -33,6 +43,7 @@ export interface SessionsService {
   list: ObservableSnapshot<{
     current?: SessionId;
     byId?: Record<string, { title?: string; archived?: boolean } | undefined>;
+    phase?: "pending" | "ready";
   }>;
   binding(id: SessionId): { session: SessionFace } | undefined;
   scope(id: SessionId): Context | undefined;
@@ -67,6 +78,7 @@ export interface SidebarTab {
 export interface SidebarState {
   splits?: unknown;
   bottomSplits?: unknown;
+  panelOpen?: boolean;
 }
 
 export interface SidebarSnapshot {
@@ -107,6 +119,7 @@ export interface BetterSidebarService {
   updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
   isTabEnabled(id: string): boolean;
   getSnapshot(): SidebarSnapshot;
+  subscribeState?(listener: () => void): () => void;
 }
 
 export interface ReferenceOccurrence {
@@ -153,13 +166,14 @@ export interface InputTriggerService {
 }
 
 export interface InputZone {
-  readonly session: ConversationSnapshotLike;
+  readonly session: SessionSnapshotLike;
   readonly input: InputStateSnapshot;
 }
 
 export type Context = Omit<CordisContext, "sessions" | "slots"> & {
   sessions: SessionsService;
   slots: SlotsService;
+  uiConversation: UiConversationService;
   betterSidebar: BetterSidebarService;
   get(name: string): unknown;
 };

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { BridgeHttpError, BridgeUnavailableError, createBridgeHttpClient } from "../src/bridge/http-client.ts";
+import {
+  BridgeHttpError,
+  BridgeUnavailableError,
+  bridgeSurfaceIdFromUrl,
+  createBridgeHttpClient,
+} from "../src/bridge/http-client.ts";
 import {
   documentHash,
   selectedTextHash,
@@ -11,19 +16,25 @@ import {
 } from "../src/protocol.ts";
 
 const ORIGIN = "http://127.0.0.1:28473";
+const SURFACE_ID = "7b31f255-d087-4f8e-bdd6-d09a61860819";
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-function handshake() {
+function handshake(surfaceId?: string) {
   return json(200, {
     token: "token",
     expiresAt: 20_000,
     annotationProtocolVersion: 2,
     stickerProtocolVersion: 1,
     bridgeOrigin: ORIGIN,
-    capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+    capabilities: [
+      "reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2",
+      "targeted-deep-link-v1",
+      "sticker-backlink-delete-v1",
+    ],
+    ...(surfaceId === undefined ? {} : { surfaceId }),
   });
 }
 
@@ -33,6 +44,7 @@ const deepLink: DeepLinkAction = {
   actionId: "6f09f1be-5dc1-48e4-ac08-e3c05d70ac01",
   sessionId: "session-1",
   anchorId: "user-1",
+  stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
 };
 
 const capture: ObsidianReferenceCaptureV2 = {
@@ -55,13 +67,50 @@ const capture: ObsidianReferenceCaptureV2 = {
 };
 
 describe("DSH v2 bridge HTTP client", () => {
+  it("reads the dedicated Obsidian Web Viewer surface from the launch URL", () => {
+    expect(bridgeSurfaceIdFromUrl(
+      `http://127.0.0.1:3080/?token=secret#dshBridgeSurface=${SURFACE_ID}`,
+    )).toBe(SURFACE_ID);
+    // Older Bridge builds used a query parameter; keep it readable during a
+    // rolling update, but new launch URLs use the redirect-safe fragment.
+    expect(bridgeSurfaceIdFromUrl(
+      `http://127.0.0.1:3080/?dshBridgeSurface=${SURFACE_ID}`,
+    )).toBe(SURFACE_ID);
+    expect(bridgeSurfaceIdFromUrl("http://127.0.0.1:3080/?dshBridgeSurface=invalid")).toBeUndefined();
+  });
+
+  it("binds its handshake to the Web Viewer surface", async () => {
+    const fetch = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+      if (String(url).endsWith("/v2/handshake")) return handshake(SURFACE_ID);
+      return json(200, { queueId: "bridge-queue-1", cursor: 0, actions: [] });
+    });
+    const client = createBridgeHttpClient({
+      origin: ORIGIN,
+      fetch,
+      now: () => 1_000,
+      clientId: "dsh-obsidian-viewer",
+      surfaceId: SURFACE_ID,
+    });
+
+    await client.nextActions(0);
+
+    const handshakeCall = fetch.mock.calls.find(([url]) => String(url).endsWith("/v2/handshake"));
+    expect(JSON.parse(String(handshakeCall?.[1]?.body))).toEqual({
+      clientId: "dsh-obsidian-viewer",
+      surfaceId: SURFACE_ID,
+    });
+  });
+
   it("preflights the exact Host-selected origin before handshaking", async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
       if (String(url).endsWith("/v2/health")) return json(200, {
         annotationProtocolVersion: 2,
         stickerProtocolVersion: 1,
         bridgeOrigin: ORIGIN,
-        capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+        capabilities: [
+          "reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2",
+          "sticker-backlink-delete-v1",
+        ],
       });
       return handshake();
     });
@@ -75,7 +124,7 @@ describe("DSH v2 bridge HTTP client", () => {
       annotationProtocolVersion: 2,
       stickerProtocolVersion: 1,
       bridgeOrigin: "http://127.0.0.1:18473",
-      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
     }));
     const client = createBridgeHttpClient({ origin: ORIGIN, fetch });
     await expect(client.preflight()).rejects.toMatchObject({ code: "protocol-mismatch" });
@@ -89,7 +138,7 @@ describe("DSH v2 bridge HTTP client", () => {
       annotationProtocolVersion: 2,
       stickerProtocolVersion: 1,
       bridgeOrigin: "http://127.0.0.1:18473",
-      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2"],
+      capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
     }));
     const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
     await expect(client.nextActions(0)).rejects.toMatchObject({ code: "protocol-mismatch" });
@@ -107,10 +156,15 @@ describe("DSH v2 bridge HTTP client", () => {
   it("parses both v2 captures and historical deep links from one action page", async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
       if (String(url).endsWith("/v2/handshake")) return handshake();
-      return json(200, { cursor: 2, actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }] });
+      return json(200, {
+        queueId: "bridge-queue-1",
+        cursor: 2,
+        actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }],
+      });
     });
     const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
     await expect(client.nextActions(0)).resolves.toEqual({
+      queueId: "bridge-queue-1",
       cursor: 2,
       actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }],
     });
@@ -126,6 +180,16 @@ describe("DSH v2 bridge HTTP client", () => {
       .rejects.toEqual(new BridgeHttpError(409, "source-changed", "Known snapshot does not match"));
   });
 
+  it("treats an already-consumed one-shot action as acknowledged", async () => {
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith("/v2/handshake")) return handshake();
+      return json(404, { error: "Action was not found" });
+    });
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await expect(client.acknowledgeDeepLink(deepLink.actionId)).resolves.toBeUndefined();
+    await expect(client.acknowledgeAction("delete-action")).resolves.toBeUndefined();
+  });
+
   it("retains session-note and sticker-backlink v1 operations", async () => {
     const document: SessionNoteDocument = {
       protocolVersion: 1, type: "session-note", sessionId: "session-1", revision: "sha256:one", stickers: [],
@@ -138,6 +202,7 @@ describe("DSH v2 bridge HTTP client", () => {
     const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const value = String(url);
       if (value.endsWith("/v2/handshake")) return handshake();
+      if (value.endsWith("/v1/sticker-backlinks/delete")) return json(200, { notesChanged: 1, linksRemoved: 2 });
       if (init?.method === "PUT") return json(200, { revision: "sha256:two" });
       if (value.includes("/v1/sticker-backlinks?")) return json(200, { backlinks: [] });
       return json(200, document);
@@ -146,5 +211,6 @@ describe("DSH v2 bridge HTTP client", () => {
     await expect(client.readSessionNote("session-1")).resolves.toEqual(document);
     await expect(client.saveSessionNote(document, "sha256:one")).resolves.toEqual({ revision: "sha256:two" });
     await expect(client.listBacklinks(sticker)).resolves.toEqual([]);
+    await expect(client.deleteStickerBacklinks(sticker)).resolves.toEqual({ notesChanged: 1, linksRemoved: 2 });
   });
 });

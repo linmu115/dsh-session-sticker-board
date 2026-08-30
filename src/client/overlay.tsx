@@ -14,6 +14,107 @@ import type { StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type StickerRecord } from "../protocol.ts";
 
 const MESSAGE_KINDS = new Set(["user", "steering", "assistant-step"]);
+const SHARED_SELECTION_TOOLBAR =
+  '[role="toolbar"][aria-label="划选注释"], [role="toolbar"][aria-label="Selection annotations"]';
+
+export interface SelectionToolbarQuery {
+  querySelector(selectors: string): Element | null;
+}
+
+export function findSharedSelectionToolbar(root: SelectionToolbarQuery = document): HTMLElement | null {
+  return root.querySelector(SHARED_SELECTION_TOOLBAR) as HTMLElement | null;
+}
+
+export function mountNativeSelectionAction(
+  sharedSelectionToolbar: HTMLElement,
+  activate: () => void,
+  documentLike: Pick<Document, "createElement"> = document,
+): () => void {
+  const button = documentLike.createElement("button");
+  button.type = "button";
+  button.className = "dsh-sticker-board-selection-action-shared";
+  button.textContent = "添加贴纸";
+
+  const preserveSelection = (event: Event): void => event.preventDefault();
+  const onClick = (event: Event): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    activate();
+  };
+
+  button.addEventListener("pointerdown", preserveSelection);
+  button.addEventListener("mousedown", preserveSelection);
+  button.addEventListener("click", onClick);
+  sharedSelectionToolbar.appendChild(button);
+
+  return () => {
+    button.removeEventListener("pointerdown", preserveSelection);
+    button.removeEventListener("mousedown", preserveSelection);
+    button.removeEventListener("click", onClick);
+    button.remove();
+  };
+}
+
+export interface SelectionTimerHost {
+  setTimeout(callback: () => void, delay: number): number;
+  clearTimeout(timer: number): void;
+}
+
+export function createSelectionRecomputeHandlers(
+  recompute: () => void,
+  timerHost: SelectionTimerHost,
+  delay: number,
+): {
+  onSelectionChange(): void;
+  onMouseUp(): void;
+  onKeyUp(): void;
+  dispose(): void;
+} {
+  let timer: number | undefined;
+  const clear = (): void => {
+    if (timer === undefined) return;
+    timerHost.clearTimeout(timer);
+    timer = undefined;
+  };
+  const delayed = (): void => {
+    clear();
+    timer = timerHost.setTimeout(() => {
+      timer = undefined;
+      recompute();
+    }, delay);
+  };
+  const immediate = (): void => {
+    recompute();
+  };
+  return {
+    onSelectionChange: delayed,
+    onMouseUp: immediate,
+    onKeyUp: delayed,
+    dispose: clear,
+  };
+}
+
+export interface StickerChatSnapshotLike {
+  readonly order: readonly string[];
+  readonly nodes: { get(key: string): { readonly id?: string } | undefined };
+}
+
+/** Convert the current renderer key into the stable Conversation node identity. */
+export function resolveDurableAnchorId(
+  snapshot: StickerChatSnapshotLike,
+  renderedKey: string,
+): string {
+  return snapshot.nodes.get(renderedKey)?.id ?? renderedKey;
+}
+
+/** Resolve a stored Conversation node identity back to this render's DOM key. */
+export function resolveRenderedAnchorKey(
+  snapshot: StickerChatSnapshotLike,
+  anchorId: string,
+): string {
+  if (snapshot.nodes.get(anchorId)) return anchorId;
+  return snapshot.order.find((key) => snapshot.nodes.get(key)?.id === anchorId) ?? anchorId;
+}
 
 export function isEligibleMessageSelection(input: {
   kind: string;
@@ -147,45 +248,70 @@ export function captureMessageSelection(sessionId: string): MessageSelectionSnap
   };
 }
 
-function rangeOfSticker(sticker: StickerRecord): Range | null {
+export function resolveSelectionForStickerAction(
+  trackedSelection: MessageSelectionSnapshot | null,
+  sessionId: string,
+  capture: (activeSessionId: string) => MessageSelectionSnapshot | null = captureMessageSelection,
+): MessageSelectionSnapshot | null {
+  return capture(sessionId) ?? trackedSelection;
+}
+
+interface SearchCharacter {
+  readonly value: string;
+  readonly node: Text;
+  readonly startOffset: number;
+  readonly endOffset: number;
+}
+
+function isIgnoredSearchCharacter(value: string): boolean {
+  return /[\s\u200b-\u200d\u2060\ufeff]/u.test(value);
+}
+
+function normalizedSearchCharacters(root: HTMLElement): SearchCharacter[] {
+  const characters: SearchCharacter[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    const node = current as Text;
+    const text = node.data;
+    let offset = 0;
+    for (const value of text) {
+      const startOffset = offset;
+      offset += value.length;
+      if (isIgnoredSearchCharacter(value)) continue;
+      characters.push({ value, node, startOffset, endOffset: offset });
+    }
+  }
+  return characters;
+}
+
+function normalizedSearchText(value: string): string {
+  return [...value].filter((character) => !isIgnoredSearchCharacter(character)).join("");
+}
+
+export function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
   try {
     const root = document.querySelector<HTMLElement>(
-      `[data-chat-anchor-key="${CSS.escape(sticker.anchorId)}"]`,
+      `[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`,
     );
     if (!root || !root.isConnected || !sticker.quote) return null;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const text = root.textContent ?? "";
+    const characters = normalizedSearchCharacters(root);
+    const text = characters.map((character) => character.value).join("");
+    const quote = normalizedSearchText(sticker.quote);
+    if (!quote) return null;
     let start = -1;
     let cursor = 0;
     for (let index = 0; index <= sticker.occurrence; index += 1) {
-      start = text.indexOf(sticker.quote, cursor);
+      start = text.indexOf(quote, cursor);
       if (start < 0) return null;
-      cursor = start + Math.max(1, sticker.quote.length);
+      cursor = start + quote.length;
     }
-    const end = start + sticker.quote.length;
-    let absolute = 0;
-    let startNode: Text | null = null;
-    let startOffset = 0;
-    let endNode: Text | null = null;
-    let endOffset = 0;
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const length = node.textContent?.length ?? 0;
-      const next = absolute + length;
-      if (!startNode && start < next) {
-        startNode = node as Text;
-        startOffset = start - absolute;
-      }
-      if (startNode && end <= next) {
-        endNode = node as Text;
-        endOffset = end - absolute;
-        break;
-      }
-      absolute = next;
-    }
-    if (!startNode || !endNode) return null;
+    const first = characters[start];
+    const last = characters[start + quote.length - 1];
+    if (!first || !last) return null;
     const range = document.createRange();
-    range.setStart(startNode, startOffset);
-    range.setEnd(endNode, endOffset);
+    range.setStart(first.node, first.startOffset);
+    range.setEnd(last.node, last.endOffset);
+    if (normalizedSearchText(range.toString()) !== quote) return null;
     return range;
   } catch {
     return null;
@@ -210,6 +336,8 @@ export interface StickerOverlayProps {
   readonly onDelete: (stickerId: string) => Promise<void>;
   readonly onOpenNote: StickerCommandDependencies["openNote"];
   readonly onOpenSticker?: (record: StickerRecord) => boolean;
+  readonly resolveAnchorId: (renderedKey: string) => string;
+  readonly resolveAnchorKey: (anchorId: string) => string;
 }
 
 interface EditorState {
@@ -248,17 +376,22 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const [geometryVersion, setGeometryVersion] = useState(0);
 
   useEffect(() => {
-    let timer = 0;
-    const update = (): void => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => setSelection(captureMessageSelection(props.sessionId)), 80);
-    };
-    document.addEventListener("selectionchange", update);
-    document.addEventListener("mouseup", update);
+    const handlers = createSelectionRecomputeHandlers(
+      () => setSelection(captureMessageSelection(props.sessionId)),
+      {
+        setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+        clearTimeout: (timer) => window.clearTimeout(timer),
+      },
+      80,
+    );
+    document.addEventListener("selectionchange", handlers.onSelectionChange);
+    document.addEventListener("mouseup", handlers.onMouseUp);
+    document.addEventListener("keyup", handlers.onKeyUp);
     return () => {
-      document.removeEventListener("selectionchange", update);
-      document.removeEventListener("mouseup", update);
-      window.clearTimeout(timer);
+      document.removeEventListener("selectionchange", handlers.onSelectionChange);
+      document.removeEventListener("mouseup", handlers.onMouseUp);
+      document.removeEventListener("keyup", handlers.onKeyUp);
+      handlers.dispose();
     };
   }, [props.sessionId]);
 
@@ -286,7 +419,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const geometry = useMemo(() => {
     const placed: OverlayPoint[] = [];
     return props.stickers.map((view) => {
-      const range = rangeOfSticker(view.record as StickerRecord);
+      const range = rangeOfSticker(
+        view.record as StickerRecord,
+        props.resolveAnchorKey(view.record.anchorId),
+      );
       const rects = range ? rangeRects(range) : [];
       if (!rects.length) return { view, rects, point: null };
       const last = rects.at(-1)!;
@@ -294,34 +430,39 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       placed.push(point);
       return { view, rects, point };
     });
-  }, [props.stickers, geometryVersion]);
+  }, [props.stickers, props.resolveAnchorKey, geometryVersion]);
+
+  const sharedSelectionToolbar = useMemo(
+    () => findSharedSelectionToolbar(),
+    [geometryVersion],
+  );
 
   const selectionAction = useMemo(() => {
     if (!selection) return null;
-    const sidechatToolbar = document.querySelector<HTMLElement>(
-      '[data-dsh-sidechat] [role="toolbar"]',
-    );
-    const sidechatRect = sidechatToolbar?.getBoundingClientRect() ?? null;
     return placeSelectionAction(
       selection.rect,
-      sidechatRect && sidechatRect.width > 0 && sidechatRect.height > 0 ? sidechatRect : null,
+      sharedSelectionToolbar?.getBoundingClientRect() ?? null,
       window.innerHeight,
     );
-  }, [selection, geometryVersion]);
+  }, [selection, sharedSelectionToolbar, geometryVersion]);
 
   const beginCreate = useCallback(async () => {
-    if (!selection) return;
+    const activeSelection = resolveSelectionForStickerAction(selection, props.sessionId);
+    if (!activeSelection) return;
     const anchor = await createMessageAnchor({
-      sessionId: selection.sessionId,
-      nodeId: selection.anchorId,
-      role: selection.role,
-      quote: selection.quote,
-      occurrence: selection.occurrence,
+      sessionId: activeSelection.sessionId,
+      nodeId: props.resolveAnchorId(activeSelection.anchorId),
+      role: activeSelection.role,
+      quote: activeSelection.quote,
+      occurrence: activeSelection.occurrence,
     });
     const stickerId = crypto.randomUUID();
     setEditor({
       isNew: true,
-      point: { x: selection.rect.left + selection.rect.width, y: selection.rect.top },
+      point: {
+        x: activeSelection.rect.left + activeSelection.rect.width,
+        y: activeSelection.rect.top,
+      },
       record: {
         stickerId,
         sessionId: anchor.sessionId,
@@ -338,7 +479,12 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
-  }, [selection]);
+  }, [props.resolveAnchorId, props.sessionId, selection]);
+
+  useEffect(() => {
+    if (editor || menu || !sharedSelectionToolbar) return;
+    return mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
+  }, [beginCreate, editor, menu, sharedSelectionToolbar]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;
@@ -359,19 +505,22 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     confirm: (message) => window.confirm(message),
   });
 
+  const selectionButton = selection && selectionAction && !sharedSelectionToolbar && !editor && !menu ? (
+    <button
+      type="button"
+      className={`dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
+      style={{ left: selectionAction.x, top: selectionAction.y }}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => void beginCreate()}
+    >
+      添加贴纸
+    </button>
+  ) : null;
+
   return (
     <>
-      {selection && selectionAction && !editor && !menu && (
-        <button
-          type="button"
-          className={`dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
-          style={{ left: selectionAction.x, top: selectionAction.y }}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => void beginCreate()}
-        >
-          添加贴纸
-        </button>
-      )}
+      {/* The shared toolbar action is a native node; Web Viewer drops cross-root React Portal clicks. */}
+      {selectionButton}
       {geometry.flatMap(({ view, rects }) => rects.map((rect, index) => (
         <span
           key={`${view.record.stickerId}-highlight-${index}`}
@@ -384,7 +533,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
           key={view.record.stickerId}
           type="button"
           className="dsh-sticker-board-dot"
-          data-dsh-sticker-anchor-id={view.record.anchorId}
+          data-dsh-sticker-anchor-id={props.resolveAnchorKey(view.record.anchorId)}
           style={{ left: point.x, top: point.y }}
           title={`打开贴纸：${view.record.markdown || view.record.quote}`}
           aria-label="打开贴纸"
@@ -537,15 +686,29 @@ export function buildStickerWikiLink(sticker: StickerRecord): string {
   return `[[${sessionPath}#^${blockId}|贴纸来源]]`;
 }
 
+export function buildManagedStickerBacklink(sticker: StickerRecord, body: string): string {
+  const metadata = {
+    stickerId: sticker.stickerId,
+    sessionId: sticker.sessionId,
+    anchorId: sticker.anchorId,
+    quoteHash: sticker.quoteHash,
+  };
+  return [
+    `<!-- dsh-sticker-backlink:${JSON.stringify(metadata)} -->`,
+    body,
+    "<!-- /dsh-sticker-backlink -->",
+  ].join("\n");
+}
+
 export function buildReferenceMarkdown(sticker: StickerRecord, sessionTitle: string): string {
   const label = `回到 DSH：${sessionTitle}`;
-  return [
+  return buildManagedStickerBacklink(sticker, [
     `> [!dsh-reference]`,
     `> 来源：${buildStickerWikiLink(sticker)}`,
     `> [${label}](${buildDshLogicalLink(sticker)})`,
     `> 引用内容：${sticker.quote}`,
     ...(sticker.markdown ? [`> 贴纸：${sticker.markdown}`] : []),
-  ].join("\n");
+  ].join("\n"));
 }
 
 export interface StickerCommandDependencies {
@@ -565,10 +728,10 @@ export interface StickerCommandDependencies {
 export function createStickerCommands(sticker: StickerRecord, dependencies: StickerCommandDependencies) {
   return {
     copyLogicalLink: () => dependencies.clipboard.writeText(
-      [
+      buildManagedStickerBacklink(sticker, [
         buildStickerWikiLink(sticker),
         `[回到 DSH：${dependencies.sessionTitle}](${buildDshLogicalLink(sticker)})`,
-      ].join("\n"),
+      ].join("\n")),
     ),
     copyReferenceMarkdown: () => dependencies.clipboard.writeText(
       buildReferenceMarkdown(sticker, dependencies.sessionTitle),

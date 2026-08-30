@@ -4,9 +4,9 @@
 
 ## 兼容版本
 
-- DeepSeek Harness（当前测试基线为官方 `0.1.1-rc.2`，安装不限制版本）
-- `dsh-session-sticker-board` `0.2.x`
-- `dsh-annotation-core` `0.1.x`
+- DeepSeek Harness（当前客户端基线为官方 `0.1.2-alpha.1`，安装不限制版本）
+- `dsh-session-sticker-board` `0.4.x`
+- `dsh-annotation-core`（按运行时能力探测，不锁定版本）
 
 ## 安装依赖
 
@@ -44,7 +44,9 @@ dsh plugin --profile web add dsh-better-sidebar
 
 在用户或助手消息内选择文字，点击“添加贴纸”。消息旁会出现无编号的贴纸按钮；点击它可在右侧栏查看和编辑 Markdown、标签与高亮颜色。
 
-“复制笔记链接”会生成可粘贴到 Obsidian 的链接。Obsidian 笔记引用该贴纸后，贴纸详情下方会出现反向链接；点击后只切换 Obsidian 主编辑区的 Markdown 笔记，不会关闭 DSH Web Viewer 页签。
+“复制笔记链接”会生成可粘贴到 Obsidian 的受管链接。Obsidian 笔记引用该贴纸后，贴纸详情下方会出现反向链接；点击后只切换 Obsidian 主编辑区的 Markdown 笔记，不会关闭 DSH Web Viewer 页签。删除贴纸时，Bridge 会先删除这些回链，再删除 DSH 贴纸记录；旧版本生成的两行链接和引用 callout 也会一并清理。
+
+多行、列表及跨加粗节点的选择使用规范化文字映射恢复到真实 DOM 范围，因此保存完成后仍会在原文位置显示高亮和贴纸按钮。
 
 ### 从 Obsidian 引用到 DSH
 
@@ -61,7 +63,7 @@ dsh plugin --profile web add dsh-better-sidebar
 
 ## 常见问题
 
-- 看不到统一注释气泡：确认 `dsh-annotation-core` 已安装、启用且版本为 `0.1.x`，然后重启 DSH。
+- 看不到统一注释气泡：确认 `dsh-annotation-core` 已安装并启用，然后重启 DSH；版本组合由运行时能力探测和实测结果决定。
 - 看不到右侧贴纸页：安装并启用 `dsh-better-sidebar`；不安装时可使用贴纸浮层菜单。
 - Obsidian 引用没有到达 DSH：检查两边的 `Bridge Origin` 是否完全一致，并确认 Obsidian Bridge 状态为已启动。
 - 端口被占用：在 Obsidian 中换一个本机端口，再把同一地址填入 DSH 插件设置并重启。

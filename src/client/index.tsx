@@ -1,14 +1,22 @@
 import type { AnnotationCoreClient } from "dsh-annotation-core/client-api";
-import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { BridgeUnavailableError, createBridgeHttpClient } from "../bridge/http-client.ts";
-import type { Context } from "../context-types.ts";
+import {
+  BridgeUnavailableError,
+  bridgeSurfaceIdFromUrl,
+  createBridgeHttpClient,
+} from "../bridge/http-client.ts";
+import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
 import { applyDeepLink } from "./deep-link.ts";
-import { StickerOverlay } from "./overlay.tsx";
+import {
+  resolveDurableAnchorId,
+  resolveRenderedAnchorKey,
+  StickerOverlay,
+} from "./overlay.tsx";
 import { mountStickerRemote } from "./remote.ts";
 import {
   createStickerSidebarController,
@@ -19,7 +27,15 @@ import "./styles.css";
 
 const PROFILE_ID = "web";
 
-export const inject = ["sessions", "remote"] as const;
+type SessionOpeningAnnotationCore = Omit<AnnotationCoreClient, "openAnnotationInSession"> & {
+  openAnnotationInSession?: (
+    sessionId: string,
+    setId: string,
+    referenceId?: string,
+  ) => Promise<boolean>;
+};
+
+export const inject = ["sessions", "remote", "uiConversation"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;
@@ -38,6 +54,24 @@ function StickerBoardRoot(props: {
     () => props.workspace.getSnapshot(),
   );
   const sessionId = sessionList.current ?? "";
+  const chatSource = useMemo(
+    () => sessionId ? props.ctx.uiConversation.binding(sessionId).target("chat") : undefined,
+    [props.ctx, sessionId],
+  );
+  const chatSnapshot = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => chatSource?.subscribe(listener) ?? (() => undefined),
+      [chatSource],
+    ),
+    () => chatSource?.getSnapshot(),
+    () => chatSource?.getSnapshot(),
+  );
+  const resolveAnchorId = useCallback((renderedKey: string): string => {
+    return chatSnapshot ? resolveDurableAnchorId(chatSnapshot, renderedKey) : renderedKey;
+  }, [chatSnapshot]);
+  const resolveAnchorKey = useCallback((anchorId: string): string => {
+    return chatSnapshot ? resolveRenderedAnchorKey(chatSnapshot, anchorId) : anchorId;
+  }, [chatSnapshot]);
   useEffect(() => {
     if (sessionId) void props.workspace.ensure(sessionId).catch((error) => {
       console.warn("[dsh-session-sticker-board] session-note load failed", error);
@@ -54,6 +88,8 @@ function StickerBoardRoot(props: {
       onDelete={(stickerId) => props.workspace.remove(sessionId, stickerId)}
       onOpenNote={props.openNote}
       onOpenSticker={props.openSticker}
+      resolveAnchorId={resolveAnchorId}
+      resolveAnchorKey={resolveAnchorKey}
     />
   );
 }
@@ -69,106 +105,169 @@ function openSourceAction(notePath: string, blockId?: string): OpenNoteAction {
 }
 
 export function apply(ctx: Context): void {
-  ctx.inject(inject, async (injectedContext) => {
-    const ready = injectedContext as unknown as Context;
-    const mountedRemote = await mountStickerRemote(ready);
-    const bridge = createBridgeHttpClient({ origin: mountedRemote.origin });
-    try {
-      await bridge.preflight();
-    } catch (error) {
-      if (!(error instanceof BridgeUnavailableError)) {
-        bridge.dispose();
-        await mountedRemote.dispose();
+  try {
+    ctx.inject(inject, async (injectedContext) => {
+      try {
+        const ready = injectedContext as unknown as Context;
+        const mountedRemote = await mountStickerRemote(ready);
+        const surfaceId = typeof location === "undefined"
+          ? undefined
+          : bridgeSurfaceIdFromUrl(location.href);
+        const bridge = createBridgeHttpClient({
+          origin: mountedRemote.origin,
+          ...(surfaceId === undefined ? {} : { surfaceId }),
+        });
+        try {
+          await bridge.preflight();
+        } catch (error) {
+          if (!(error instanceof BridgeUnavailableError)) {
+            bridge.dispose();
+            await mountedRemote.dispose();
+            throw error;
+          }
+          console.warn("[dsh-session-sticker-board] Obsidian bridge is offline; saved snapshots remain usable", error);
+        }
+        let annotationCore: SessionOpeningAnnotationCore | undefined;
+        let unregisterObsidianSource = (): void => undefined;
+        const annotationFiber = ready.inject(["annotationCore"], (annotationContext) => {
+          const injected = annotationContext as unknown as { annotationCore: SessionOpeningAnnotationCore; effect: Context["effect"] };
+          injected.effect(() => {
+            const service = injected.annotationCore;
+            annotationCore = service;
+            unregisterObsidianSource = service.registerSourceAdapter("obsidian-note", {
+              async openSource(item) {
+                if (item.sourceType !== "obsidian-note") throw new TypeError("Expected an Obsidian reference");
+                await bridge.openNote(openSourceAction(item.locator.notePath, item.locator.blockId));
+              },
+            });
+            return () => {
+              unregisterObsidianSource();
+              unregisterObsidianSource = (): void => undefined;
+              if (annotationCore === service) annotationCore = undefined;
+            };
+          }, "dsh-session-sticker-board: annotation core");
+        });
+
+        const stickers = createStickerWorkspace(bridge);
+        const stickerSidebar = createStickerSidebarController();
+        let betterSidebar: BetterSidebarService | undefined;
+        const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
+          const injected = sidebarContext as unknown as Context;
+          injected.effect(() => {
+            const service = injected.betterSidebar;
+            betterSidebar = service;
+            stickerSidebar.attach(service);
+            const unregister = registerStickerSidebar(
+              injected,
+              stickers,
+              (action) => bridge.openNote(action),
+              (record) => bridge.listBacklinks(record),
+            );
+            return () => {
+              unregister();
+              stickerSidebar.detach(service);
+              if (betterSidebar === service) betterSidebar = undefined;
+            };
+          }, "dsh-session-sticker-board: sidebar tab");
+        });
+
+        const overlayHost = document.createElement("div");
+        overlayHost.dataset.dshStickerBoard = "";
+        document.body.appendChild(overlayHost);
+        const root = createRoot(overlayHost);
+        root.render(
+          <StickerBoardRoot
+            ctx={ready}
+            workspace={stickers}
+            openNote={(action) => bridge.openNote(action)}
+            openSticker={(record) => stickerSidebar.openSticker(record)}
+          />,
+        );
+
+        const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
+          const core = annotationCore;
+          if (action.type === "reference-delete-request") {
+            if (core === undefined || action.profileId !== PROFILE_ID) return false;
+            await core.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
+            return true;
+          }
+          if (action.type === "reference-capture") {
+            if (core === undefined) return false;
+            const sessionId = ready.sessions.list.getSnapshot().current;
+            if (!sessionId) return false;
+            await consumeObsidianReferenceCapture({
+              capture: action,
+              sessionId,
+              profileId: PROFILE_ID,
+              annotationCore: core,
+              bridge,
+            });
+            return true;
+          }
+          if (action.setId !== undefined && core === undefined) return false;
+          const isStickerAction = action.stickerId !== undefined
+            || (action.setId === undefined && action.quoteHash !== undefined);
+          if (isStickerAction) {
+            try {
+              await stickers.ensure(action.sessionId);
+            } catch (error) {
+              console.warn("[dsh-session-sticker-board] sticker deep-link load failed", error);
+              return true;
+            }
+          }
+          const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => (
+            action.stickerId !== undefined
+              ? view.record.stickerId === action.stickerId
+              : view.record.anchorId === action.anchorId
+                && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
+          ));
+          if (isStickerAction && matchingSticker === undefined) {
+            console.warn("[dsh-session-sticker-board] sticker deep-link target no longer exists", {
+              sessionId: action.sessionId,
+              stickerId: action.stickerId,
+              anchorId: action.anchorId,
+            });
+            return true;
+          }
+          const result = await applyDeepLink(ready, action, {
+            ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
+            ...(core === undefined ? {} : {
+              openAnnotation: async (setId: string, referenceId?: string) => {
+                if (typeof core.openAnnotationInSession === "function") {
+                  return core.openAnnotationInSession(action.sessionId, setId, referenceId);
+                }
+                core.openAnnotation(setId, referenceId);
+                return true;
+              },
+            }),
+          });
+          if (result.status !== "located") {
+            console.warn("[dsh-session-sticker-board] deep-link was not located", result);
+          }
+          return true;
+        };
+        const polling = startBridgePolling(bridge, applyAction, {
+          onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
+          onActionError: (error, action) => console.warn(
+            "[dsh-session-sticker-board] Obsidian bridge action failed",
+            { actionId: action.actionId, type: action.type, error },
+          ),
+        });
+        ready.effect(() => () => {
+          polling.stop();
+          void annotationFiber.dispose();
+          void sidebarFiber.dispose();
+          unregisterObsidianSource();
+          bridge.dispose();
+          void mountedRemote.dispose();
+          setTimeout(() => root.unmount());
+          overlayHost.remove();
+        }, "dsh-session-sticker-board: client");
+      } catch (error) {
         throw error;
       }
-      console.warn("[dsh-session-sticker-board] Obsidian bridge is offline; saved snapshots remain usable", error);
-    }
-    const annotationCore = ready.get("annotationCore") as AnnotationCoreClient | undefined;
-    if (annotationCore === undefined) {
-      console.warn("[dsh-session-sticker-board] dsh-annotation-core is unavailable; annotation capture is disabled");
-    }
-
-    const stickers = createStickerWorkspace(bridge);
-    const stickerSidebar = createStickerSidebarController();
-    const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
-      const injected = sidebarContext as unknown as Context;
-      injected.effect(() => {
-        stickerSidebar.attach(injected.betterSidebar);
-        const unregister = registerStickerSidebar(
-          injected,
-          stickers,
-          (action) => bridge.openNote(action),
-          (record) => bridge.listBacklinks(record),
-        );
-        return () => {
-          unregister();
-          stickerSidebar.detach(injected.betterSidebar);
-        };
-      }, "dsh-session-sticker-board: sidebar tab");
     });
-
-    const unregisterObsidianSource = annotationCore?.registerSourceAdapter("obsidian-note", {
-      async openSource(item) {
-        if (item.sourceType !== "obsidian-note") throw new TypeError("Expected an Obsidian reference");
-        await bridge.openNote(openSourceAction(item.locator.notePath, item.locator.blockId));
-      },
-    }) ?? (() => undefined);
-
-    const overlayHost = document.createElement("div");
-    overlayHost.dataset.dshStickerBoard = "";
-    document.body.appendChild(overlayHost);
-    const root = createRoot(overlayHost);
-    root.render(
-      <StickerBoardRoot
-        ctx={ready}
-        workspace={stickers}
-        openNote={(action) => bridge.openNote(action)}
-        openSticker={(record) => stickerSidebar.openSticker(record)}
-      />,
-    );
-
-    const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
-      if (action.type === "reference-capture") {
-        if (annotationCore === undefined) return false;
-        const sessionId = ready.sessions.list.getSnapshot().current;
-        if (!sessionId) return false;
-        await consumeObsidianReferenceCapture({
-          capture: action,
-          sessionId,
-          profileId: PROFILE_ID,
-          annotationCore,
-          bridge,
-        });
-        return true;
-      }
-      await stickers.ensure(action.sessionId).catch(() => undefined);
-      const matchingSticker = stickers.list(action.sessionId).find((view) => (
-        view.record.anchorId === action.anchorId
-        && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
-      ));
-      const result = await applyDeepLink(ready, action, {
-        ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
-        ...(annotationCore === undefined ? {} : {
-          openAnnotation: (setId: string, referenceId?: string) => annotationCore.openAnnotation(setId, referenceId),
-        }),
-      });
-      if (result.status !== "located") {
-        console.warn("[dsh-session-sticker-board] deep-link was not located", result);
-      }
-      return result.status !== "dom-unavailable";
-    };
-    const polling = startBridgePolling(bridge, applyAction, {
-      onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
-    });
-
-    ready.effect(() => () => {
-      polling.stop();
-      void sidebarFiber.dispose();
-      unregisterObsidianSource();
-      bridge.dispose();
-      void mountedRemote.dispose();
-      setTimeout(() => root.unmount());
-      overlayHost.remove();
-    }, "dsh-session-sticker-board: client");
-  });
+  } catch (error) {
+    throw error;
+  }
 }

@@ -28,6 +28,7 @@ describe("sticker workspace", () => {
         stickers: [sticker],
       })),
       saveSessionNote,
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 1, linksRemoved: 1 })),
     };
     const workspace = createStickerWorkspace(bridge);
 
@@ -53,11 +54,34 @@ describe("sticker workspace", () => {
         stickers: [sticker],
       })),
       saveSessionNote: vi.fn(async () => { throw new Error("REVISION_CONFLICT"); }),
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 1, linksRemoved: 1 })),
     };
     const workspace = createStickerWorkspace(bridge);
     await workspace.ensure("session-demo");
 
     await expect(workspace.remove("session-demo", sticker.stickerId)).rejects.toThrow("REVISION_CONFLICT");
+    expect(workspace.list("session-demo")).toHaveLength(1);
+    expect(bridge.deleteStickerBacklinks).toHaveBeenCalledWith(sticker);
+  });
+
+  it("does not delete the DSH sticker when Obsidian backlink cleanup fails", async () => {
+    const saveSessionNote = vi.fn(async () => ({ revision: "sha256:next" }));
+    const bridge = {
+      readSessionNote: vi.fn(async () => ({
+        protocolVersion: 1 as const,
+        type: "session-note" as const,
+        sessionId: "session-demo",
+        revision: "sha256:base",
+        stickers: [sticker],
+      })),
+      saveSessionNote,
+      deleteStickerBacklinks: vi.fn(async () => { throw new Error("VAULT_WRITE_FAILED"); }),
+    };
+    const workspace = createStickerWorkspace(bridge);
+    await workspace.ensure("session-demo");
+
+    await expect(workspace.remove("session-demo", sticker.stickerId)).rejects.toThrow("VAULT_WRITE_FAILED");
+    expect(saveSessionNote).not.toHaveBeenCalled();
     expect(workspace.list("session-demo")).toHaveLength(1);
   });
 });

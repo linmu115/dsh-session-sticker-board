@@ -2,7 +2,7 @@ import type { BridgeClient } from "./bridge-client.ts";
 import { createStickerStore, type StickerStore, type StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type SessionNoteDocument, type StickerRecord } from "../protocol.ts";
 
-type StickerBridge = Pick<BridgeClient, "readSessionNote" | "saveSessionNote">;
+type StickerBridge = Pick<BridgeClient, "readSessionNote" | "saveSessionNote" | "deleteStickerBacklinks">;
 
 export interface StickerWorkspace {
   getSnapshot(): number;
@@ -121,6 +121,10 @@ export function createStickerWorkspace(bridge: StickerBridge): StickerWorkspace 
         const snapshot = store.snapshot();
         const current = snapshot.stickers.find((view) => view.record.stickerId === stickerId);
         if (!current) throw new Error(`Sticker was not found: ${stickerId}`);
+        // Remove every Obsidian-side backlink first. This operation is
+        // idempotent, so a later session-note conflict can be retried without
+        // leaving a dead link behind after the DSH sticker disappears.
+        await bridge.deleteStickerBacklinks(current.record as StickerRecord);
         const next = snapshot.stickers
           .filter((view) => view.record.stickerId !== stickerId)
           .map((view) => view.record as StickerRecord);

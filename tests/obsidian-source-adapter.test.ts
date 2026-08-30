@@ -44,6 +44,7 @@ function bridge() {
       referenceId: "reference-1", commitDigest: `sha256:${"1".repeat(64)}`,
       notePath: "note.md", blockId: "dsh-ref-reference", revision: "sha256:new", writtenAt: 100,
     })),
+    deleteCommittedReference: vi.fn(async () => undefined),
   };
 }
 
@@ -103,6 +104,19 @@ describe("Obsidian Host source adapter", () => {
       userMessageId: "user-1",
       userAnchorId: "user-1",
       userTextHash: `sha256:${"2".repeat(64)}`,
+    });
+    await adapter.deleteCommitted?.({
+      profileId: "web", sessionId: "session-1", setId: "set-1", referenceId: "reference-1",
+      deletedAt: 200, item: item(),
+    });
+    expect(client.deleteCommittedReference).toHaveBeenCalledWith({
+      annotationProtocolVersion: 2,
+      type: "reference-delete-commit",
+      referenceId: "reference-1",
+      profileId: "web",
+      sessionId: "session-1",
+      setId: "set-1",
+      deletedAt: 200,
     });
   });
 });

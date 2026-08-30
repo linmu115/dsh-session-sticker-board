@@ -1,7 +1,5 @@
-import { conversationContextKey } from "@deepseek-ai/dsh-client-runtime/client";
-
 import { hashQuote } from "./anchor.ts";
-import type { Context, ConversationSnapshotLike, SessionFace } from "../context-types.ts";
+import type { ChatSnapshotLike, Context, ObservableSnapshot, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
 
 export type DeepLinkResult =
@@ -9,17 +7,23 @@ export type DeepLinkResult =
   | { status: "missing-session"; sessionId: string }
   | { status: "missing-anchor"; sessionId: string; anchorId: string }
   | { status: "content-changed"; sessionId: string; anchorId: string }
-  | { status: "dom-unavailable"; sessionId: string; anchorId: string };
+  | { status: "dom-unavailable"; sessionId: string; anchorId: string }
+  | { status: "annotation-missing"; sessionId: string; anchorId: string; setId: string };
 
 export interface ApplyDeepLinkOptions {
   readonly quote?: string;
-  readonly locate?: (anchorId: string) => boolean;
-  readonly openAnnotation?: (setId: string, referenceId?: string) => void;
+  readonly locate?: (anchorId: string) => boolean | Promise<boolean>;
+  readonly openAnnotation?: (setId: string, referenceId?: string) => void | boolean | Promise<void | boolean>;
+  readonly revealConversation?: (sessionId: string) => void | Promise<void>;
   readonly waitForBinding?: (ctx: Context, sessionId: string) => Promise<SessionFace | undefined>;
 }
 
-function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | null {
-  const node = snapshot.chat.nodes.get(key);
+function pause(milliseconds: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function textOfNode(snapshot: ChatSnapshotLike, key: string): string | null {
+  const node = snapshot.nodes.get(key);
   if (!node || !node.data || typeof node.data !== "object") return null;
   const data = node.data as { content?: unknown; blocks?: unknown };
   const content = Array.isArray(data.content) ? data.content : Array.isArray(data.blocks) ? data.blocks : [];
@@ -33,33 +37,58 @@ function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | n
   return text;
 }
 
-function anchorCandidates(anchorId: string): readonly string[] {
-  const contextKey = conversationContextKey("input-message", anchorId);
-  return contextKey === anchorId ? [anchorId] : [anchorId, contextKey];
-}
-
-function locatedNode(snapshot: ConversationSnapshotLike, candidates: readonly string[]): { key: string; text: string } | null {
-  for (const key of candidates) {
+function locatedNode(snapshot: ChatSnapshotLike, anchorId: string): { key: string; text: string } | null {
+  const direct = textOfNode(snapshot, anchorId);
+  if (direct !== null) return { key: anchorId, text: direct };
+  for (const key of snapshot.order) {
+    const node = snapshot.nodes.get(key);
+    if (node?.id !== anchorId) continue;
     const text = textOfNode(snapshot, key);
     if (text !== null) return { key, text };
   }
   return null;
 }
 
+async function waitForChatSnapshot(
+  source: ObservableSnapshot<ChatSnapshotLike | undefined>,
+): Promise<ChatSnapshotLike | undefined> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const snapshot = source.getSnapshot();
+    if (snapshot !== undefined) return snapshot;
+    await pause(25);
+  }
+  return source.getSnapshot();
+}
+
 async function defaultWaitForBinding(ctx: Context, sessionId: string): Promise<SessionFace | undefined> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     const binding = ctx.sessions.binding(sessionId);
-    if (binding) return binding.session;
-    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    const current = ctx.sessions.list.getSnapshot().current;
+    if (binding && (current === undefined || current === sessionId)) return binding.session;
+    await pause(25);
   }
   return undefined;
 }
 
+export function renderedAnchorMatches(renderedKey: string | null, anchorId: string): boolean {
+  return renderedKey === anchorId || renderedKey?.endsWith(anchorId) === true;
+}
+
+async function waitForSessionCatalog(ctx: Context): Promise<boolean> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (ctx.sessions.list.getSnapshot().phase !== "pending") return true;
+    await pause(25);
+  }
+  return ctx.sessions.list.getSnapshot().phase !== "pending";
+}
+
 function defaultLocate(anchorId: string): boolean {
   try {
-    const root = document.querySelector<HTMLElement>(
+    const exact = document.querySelector<HTMLElement>(
       `[data-chat-anchor-key="${CSS.escape(anchorId)}"]`,
     );
+    const root = exact ?? [...document.querySelectorAll<HTMLElement>("[data-chat-anchor-key]")]
+      .find((candidate) => renderedAnchorMatches(candidate.dataset.chatAnchorKey ?? null, anchorId));
     if (!root) return false;
     root.scrollIntoView({ block: "center", behavior: "smooth" });
     root.classList.remove("dsh-sticker-board-deep-link-flash");
@@ -85,11 +114,25 @@ async function contentMatches(text: string, hash: string, quote?: string): Promi
   return await hashQuote(text) === hash;
 }
 
+async function locateWhenRendered(
+  locate: (anchorId: string) => boolean | Promise<boolean>,
+  anchorId: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await locate(anchorId)) return true;
+    await pause(25);
+  }
+  return false;
+}
+
 export async function applyDeepLink(
   ctx: Context,
   action: DeepLinkAction,
   options: ApplyDeepLinkOptions = {},
 ): Promise<DeepLinkResult> {
+  if (!await waitForSessionCatalog(ctx)) {
+    return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
+  }
   const list = ctx.sessions.list.getSnapshot();
   if (list.byId && !list.byId[action.sessionId]) {
     return { status: "missing-session", sessionId: action.sessionId };
@@ -99,15 +142,17 @@ export async function applyDeepLink(
   const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, action.sessionId);
   if (!session) return { status: "missing-session", sessionId: action.sessionId };
 
-  const candidates = anchorCandidates(action.anchorId);
-  let snapshot = session.getSnapshot();
-  let located = locatedNode(snapshot, candidates);
+  await options.revealConversation?.(action.sessionId);
+
+  const chatSource = ctx.uiConversation.binding(action.sessionId).target("chat");
+  let chatSnapshot = await waitForChatSnapshot(chatSource);
+  let located = chatSnapshot ? locatedNode(chatSnapshot, action.anchorId) : null;
   let pages = 0;
-  while (located === null && snapshot.hasMore === true && pages < 50) {
+  while (located === null && session.getSnapshot().hasMore === true && pages < 50) {
     await session.loadOlder();
     pages += 1;
-    snapshot = session.getSnapshot();
-    located = locatedNode(snapshot, candidates);
+    chatSnapshot = await waitForChatSnapshot(chatSource);
+    located = chatSnapshot ? locatedNode(chatSnapshot, action.anchorId) : null;
   }
   if (located === null) {
     return { status: "missing-anchor", sessionId: action.sessionId, anchorId: action.anchorId };
@@ -115,9 +160,19 @@ export async function applyDeepLink(
   if (action.quoteHash && !await contentMatches(located.text, action.quoteHash, options.quote)) {
     return { status: "content-changed", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (!(options.locate ?? defaultLocate)(located.key)) {
+  if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key)) {
     return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
   }
-  if (action.setId !== undefined) options.openAnnotation?.(action.setId, action.referenceId);
+  if (action.setId !== undefined) {
+    const opened = await options.openAnnotation?.(action.setId, action.referenceId);
+    if (opened === false) {
+      return {
+        status: "annotation-missing",
+        sessionId: action.sessionId,
+        anchorId: action.anchorId,
+        setId: action.setId,
+      };
+    }
+  }
   return { status: "located", sessionId: action.sessionId, anchorId: action.anchorId };
 }

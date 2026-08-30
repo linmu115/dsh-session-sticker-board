@@ -4,7 +4,7 @@ This file records author-side release evidence. Workshop verification and Regist
 
 ## Supported baseline
 
-- DeepSeek Harness: `0.1.1-rc.2`
+- DeepSeek Harness client: `0.1.2-alpha.1`
 - Profile: `web`
 - Annotation protocol: v2
 - Sticker protocol: v1

@@ -18,10 +18,10 @@ async function text(path: string): Promise<string> {
   return readFile(join(repositoryRoot, path), "utf8");
 }
 
-describe("sticker-board 0.2 package boundary", () => {
+describe("sticker-board 0.4 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.2.1");
+    expect(packageJson.version).toBe("0.4.20");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
@@ -41,11 +41,33 @@ describe("sticker-board 0.2 package boundary", () => {
       "dsh-sticker-board-hidden",
       "dsh-sticker-board-citation-dock",
       "dsh-sticker-board-citation-card",
+      "[data-dsh-toggle-cluster]",
+      "data-dsh-sidebar-collapsed",
+      "panelToggle.click",
     ]) {
       expect(source).not.toContain(forbidden);
     }
     expect(source).toContain('export const inject = [] as const');
-    expect(source).toContain('export const inject = ["sessions", "remote"] as const');
+    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation"] as const');
+  });
+
+  it("uses a native shared-toolbar action for Web Viewer selections", async () => {
+    const source = await text("src/client/overlay.tsx");
+    expect(source).not.toContain("createPortal");
+    expect(source).not.toContain('[data-dsh-sidechat] [role="toolbar"]');
+    expect(source).not.toContain("if (!selection || editor || menu || !sharedSelectionToolbar)");
+    expect(source).toContain("mountNativeSelectionAction");
+    expect(source).toContain("resolveSelectionForStickerAction");
+    expect(source).toContain("sharedSelectionToolbar.appendChild(button)");
+  });
+
+  it("reads alpha.1 Chat nodes from the Conversation target without visible diagnostics", async () => {
+    const index = await text("src/client/index.tsx");
+    const deepLink = await text("src/client/deep-link.ts");
+    expect(index).toContain('uiConversation.binding(sessionId).target("chat")');
+    expect(deepLink).toContain('uiConversation.binding(action.sessionId).target("chat")');
+    expect(`${index}\n${deepLink}`).not.toContain("snapshot.chat.nodes");
+    expect(index).not.toContain("dshStickerDiagnostic");
   });
 
   it("inlines only the Core protocol and leaves no runtime Core package import", async () => {
