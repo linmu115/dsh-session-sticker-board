@@ -116,7 +116,7 @@ describe("sticker overlay commands", () => {
     expect(querySelector).toHaveBeenCalledWith('[data-dsh-sidechat] [role="toolbar"]');
   });
 
-  it("captures mouse selections synchronously before an embedded Web Viewer can clear them", () => {
+  it("keeps the delayed selection fallback after the synchronous mouse capture", () => {
     const callbacks = new Map<number, () => void>();
     let nextTimer = 0;
     const timerHost = {
@@ -136,12 +136,18 @@ describe("sticker overlay commands", () => {
 
     handlers.onMouseUp();
     expect(recompute).toHaveBeenCalledTimes(1);
-    expect(callbacks.size).toBe(0);
+    expect(callbacks.size).toBe(1);
+
+    const delayed = callbacks.entries().next().value;
+    expect(delayed).toBeDefined();
+    callbacks.delete(delayed![0]);
+    delayed![1]();
+    expect(recompute).toHaveBeenCalledTimes(2);
 
     handlers.onKeyUp();
-    callbacks.values().next().value?.();
-    expect(recompute).toHaveBeenCalledTimes(2);
+    expect(callbacks.size).toBe(1);
     handlers.dispose();
+    expect(callbacks.size).toBe(0);
   });
 
   it("copies stable logical and Markdown links from a message dot", async () => {

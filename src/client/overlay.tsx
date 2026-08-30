@@ -54,7 +54,6 @@ export function createSelectionRecomputeHandlers(
     }, delay);
   };
   const immediate = (): void => {
-    clear();
     recompute();
   };
   return {
