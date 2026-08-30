@@ -194,6 +194,10 @@ export function apply(ctx: Context): void {
     };
     const polling = startBridgePolling(bridge, applyAction, {
       onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
+      onActionError: (error, action) => console.warn(
+        "[dsh-session-sticker-board] Obsidian bridge action failed",
+        { actionId: action.actionId, type: action.type, error },
+      ),
     });
 
     ready.effect(() => () => {

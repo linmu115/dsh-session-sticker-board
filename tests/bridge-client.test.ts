@@ -107,10 +107,15 @@ describe("DSH v2 bridge HTTP client", () => {
   it("parses both v2 captures and historical deep links from one action page", async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
       if (String(url).endsWith("/v2/handshake")) return handshake();
-      return json(200, { cursor: 2, actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }] });
+      return json(200, {
+        queueId: "bridge-queue-1",
+        cursor: 2,
+        actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }],
+      });
     });
     const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
     await expect(client.nextActions(0)).resolves.toEqual({
+      queueId: "bridge-queue-1",
       cursor: 2,
       actions: [{ cursor: 1, message: capture }, { cursor: 2, message: deepLink }],
     });

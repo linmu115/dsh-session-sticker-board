@@ -65,4 +65,44 @@ describe("bridge action processor", () => {
     expect(acknowledgeAction).toHaveBeenCalledWith("delete-action");
     expect(acknowledgeDeepLink).not.toHaveBeenCalled();
   });
+
+  it("replays low cursors when the Obsidian Bridge queue instance changes", async () => {
+    const acknowledgeDeepLink = vi.fn(async () => undefined);
+    const acknowledgeAction = vi.fn(async () => undefined);
+    const apply = vi.fn(async () => true);
+    const processor = createBridgeActionProcessor({ acknowledgeDeepLink, acknowledgeAction }, apply);
+
+    await processor.process({ queueId: "bridge-before-reload", cursor: 2, actions: [
+      { cursor: 1, message: deepLink },
+      { cursor: 2, message: { ...deepLink, actionId: "before-reload-2" } },
+    ] });
+    expect(processor.cursor).toBe(2);
+
+    await expect(processor.process({
+      queueId: "bridge-after-reload",
+      cursor: 1,
+      actions: [],
+    })).resolves.toEqual({ applied: 0, failed: 0, cursor: 0 });
+
+    await expect(processor.process({
+      queueId: "bridge-after-reload",
+      cursor: 1,
+      actions: [{ cursor: 1, message: deletion }],
+    })).resolves.toEqual({ applied: 1, failed: 0, cursor: 1 });
+    expect(apply).toHaveBeenCalledWith(deletion);
+    expect(acknowledgeAction).toHaveBeenCalledWith(deletion.actionId);
+  });
+
+  it("reports action application errors instead of swallowing them", async () => {
+    const failure = new Error("Core deletion failed");
+    const onApplyError = vi.fn();
+    const processor = createBridgeActionProcessor(
+      { acknowledgeDeepLink: vi.fn(), acknowledgeAction: vi.fn() },
+      async () => { throw failure; },
+      onApplyError,
+    );
+    await expect(processor.process({ cursor: 1, actions: [{ cursor: 1, message: deletion }] }))
+      .resolves.toEqual({ applied: 0, failed: 1, cursor: 0 });
+    expect(onApplyError).toHaveBeenCalledWith(failure, deletion);
+  });
 });

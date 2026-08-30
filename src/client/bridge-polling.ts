@@ -8,12 +8,23 @@ export interface BridgeActionProcessor {
 export function createBridgeActionProcessor(
   bridge: Pick<BridgeHttpClient, "acknowledgeDeepLink" | "acknowledgeAction">,
   apply: (message: BridgeAction) => Promise<boolean>,
+  onApplyError?: (error: unknown, message: BridgeAction) => void,
 ): BridgeActionProcessor {
   let cursor = 0;
+  let queueId: string | undefined;
   const completed = new Set<number>();
   return {
     get cursor() { return cursor; },
     async process(page) {
+      const queueChanged = page.queueId !== undefined
+        && page.queueId !== queueId
+        && (queueId !== undefined || cursor > 0);
+      const queueReset = queueChanged || page.cursor < cursor;
+      if (queueReset) {
+        cursor = 0;
+        completed.clear();
+      }
+      if (page.queueId !== undefined) queueId = page.queueId;
       let applied = 0;
       let failed = 0;
       for (const entry of [...page.actions].sort((left, right) => left.cursor - right.cursor)) {
@@ -30,12 +41,13 @@ export function createBridgeActionProcessor(
           }
           completed.add(entry.cursor);
           applied += 1;
-        } catch {
+        } catch (error) {
           failed += 1;
+          onApplyError?.(error, entry.message);
         }
       }
       while (completed.delete(cursor + 1)) cursor += 1;
-      if (page.actions.length === 0 && page.cursor > cursor) cursor = page.cursor;
+      if (!queueReset && page.actions.length === 0 && page.cursor > cursor) cursor = page.cursor;
       return { applied, failed, cursor };
     },
   };
@@ -45,6 +57,7 @@ export interface BridgePollingOptions {
   visibilityState?: () => DocumentVisibilityState;
   schedule?: (callback: () => void, delay: number) => () => void;
   onError?: (error: unknown) => void;
+  onActionError?: (error: unknown, message: BridgeAction) => void;
 }
 
 export interface BridgePollingHandle {
@@ -57,7 +70,7 @@ export function startBridgePolling(
   apply: (message: BridgeAction) => Promise<boolean>,
   options: BridgePollingOptions = {},
 ): BridgePollingHandle {
-  const processor = createBridgeActionProcessor(bridge, apply);
+  const processor = createBridgeActionProcessor(bridge, apply, options.onActionError);
   const schedule = options.schedule ?? ((callback, delay) => {
     const timer = globalThis.setTimeout(callback, delay);
     return () => globalThis.clearTimeout(timer);

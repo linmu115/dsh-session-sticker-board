@@ -59,6 +59,7 @@ export interface QueuedBridgeAction {
 }
 
 export interface BridgeActionPage {
+  queueId?: string;
   cursor: number;
   actions: readonly QueuedBridgeAction[];
 }
@@ -224,8 +225,11 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     async nextActions(after) {
       if (!Number.isInteger(after) || after < 0) throw new TypeError("Bridge cursor must be a non-negative integer");
       const response = await authenticated(`/v2/actions/pending?after=${after}`);
-      const body = await response.json() as { cursor?: unknown; actions?: unknown };
+      const body = await response.json() as { queueId?: unknown; cursor?: unknown; actions?: unknown };
       if (!Number.isInteger(body.cursor) || !Array.isArray(body.actions)) throw new Error("Bridge action page is invalid");
+      if (body.queueId !== undefined && (typeof body.queueId !== "string" || body.queueId === "")) {
+        throw new Error("Bridge queue ID is invalid");
+      }
       const actions = body.actions.map((value): QueuedBridgeAction => {
         if (typeof value !== "object" || value === null) throw new Error("Bridge queue entry is invalid");
         const entry = value as { cursor?: unknown; message?: unknown };
@@ -235,7 +239,11 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
         const message = capture.success ? capture.data : deletion.success ? deletion.data : deepLinkActionSchema.parse(entry.message);
         return { cursor: entry.cursor as number, message };
       });
-      return { cursor: body.cursor as number, actions };
+      return {
+        ...(typeof body.queueId === "string" ? { queueId: body.queueId } : {}),
+        cursor: body.cursor as number,
+        actions,
+      };
     },
     async acknowledgeDeepLink(actionId) {
       await post(`/v1/actions/${encodeURIComponent(actionId)}/ack`, {});
