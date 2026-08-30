@@ -8,6 +8,7 @@ import {
   createStickerCommands,
   findSharedSelectionToolbar,
   isEligibleMessageSelection,
+  mountNativeSelectionAction,
   placeSelectionAction,
   resolveDurableAnchorId,
   resolveRenderedAnchorKey,
@@ -114,6 +115,53 @@ describe("sticker overlay commands", () => {
 
     expect(findSharedSelectionToolbar({ querySelector })).toBe(toolbar);
     expect(querySelector).toHaveBeenCalledWith('[data-dsh-sidechat] [role="toolbar"]');
+  });
+
+  it("mounts a native sticker action into the shared toolbar and disposes it", () => {
+    const listeners = new Map<string, (event: Event) => void>();
+    const button = {
+      type: "",
+      className: "",
+      textContent: "",
+      addEventListener: vi.fn((type: string, listener: (event: Event) => void) => {
+        listeners.set(type, listener);
+      }),
+      removeEventListener: vi.fn((type: string) => {
+        listeners.delete(type);
+      }),
+      remove: vi.fn(),
+    };
+    const host = { appendChild: vi.fn() };
+    const documentLike = { createElement: vi.fn(() => button) };
+    const activate = vi.fn();
+
+    const dispose = mountNativeSelectionAction(
+      host as unknown as HTMLElement,
+      activate,
+      documentLike as unknown as Pick<Document, "createElement">,
+    );
+
+    expect(host.appendChild).toHaveBeenCalledWith(button);
+    expect(button.type).toBe("button");
+    expect(button.className).toBe("dsh-sticker-board-selection-action-shared");
+    expect(button.textContent).toBe("添加贴纸");
+
+    const mouseDown = { preventDefault: vi.fn() } as unknown as Event;
+    listeners.get("mousedown")?.(mouseDown);
+    expect(mouseDown.preventDefault).toHaveBeenCalledOnce();
+
+    const click = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as Event;
+    listeners.get("click")?.(click);
+    expect(click.preventDefault).toHaveBeenCalledOnce();
+    expect(click.stopPropagation).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledOnce();
+
+    dispose();
+    expect(button.remove).toHaveBeenCalledOnce();
+    expect(listeners.size).toBe(0);
   });
 
   it("keeps the delayed selection fallback after the synchronous mouse capture", () => {

@@ -12,6 +12,10 @@
   cursor: pointer;
 }
 
+.dsh-sticker-board-selection-action-shared {
+  white-space: nowrap;
+}
+
 .dsh-sticker-board-selection-action-below {
   transform: translate(-50%, 0);
 }

@@ -21,7 +21,7 @@ async function text(path: string): Promise<string> {
 describe("sticker-board 0.4 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.4.14");
+    expect(packageJson.version).toBe("0.4.15");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
@@ -51,10 +51,11 @@ describe("sticker-board 0.4 package boundary", () => {
     expect(source).toContain('export const inject = ["sessions", "remote"] as const');
   });
 
-  it("keeps Web Viewer selection actions inside the Sticker Board React root", async () => {
+  it("uses a native shared-toolbar action for Web Viewer selections", async () => {
     const source = await text("src/client/overlay.tsx");
     expect(source).not.toContain("createPortal");
-    expect(source).toContain("{selectionButton}");
+    expect(source).toContain("mountNativeSelectionAction");
+    expect(source).toContain("sharedSelectionToolbar.appendChild(button)");
   });
 
   it("inlines only the Core protocol and leaves no runtime Core package import", async () => {

@@ -24,6 +24,34 @@ export function findSharedSelectionToolbar(root: SelectionToolbarQuery = documen
   return root.querySelector(SHARED_SELECTION_TOOLBAR) as HTMLElement | null;
 }
 
+export function mountNativeSelectionAction(
+  sharedSelectionToolbar: HTMLElement,
+  activate: () => void,
+  documentLike: Pick<Document, "createElement"> = document,
+): () => void {
+  const button = documentLike.createElement("button");
+  button.type = "button";
+  button.className = "dsh-sticker-board-selection-action-shared";
+  button.textContent = "添加贴纸";
+
+  const preserveSelection = (event: Event): void => event.preventDefault();
+  const onClick = (event: Event): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    activate();
+  };
+
+  button.addEventListener("mousedown", preserveSelection);
+  button.addEventListener("click", onClick);
+  sharedSelectionToolbar.appendChild(button);
+
+  return () => {
+    button.removeEventListener("mousedown", preserveSelection);
+    button.removeEventListener("click", onClick);
+    button.remove();
+  };
+}
+
 export interface SelectionTimerHost {
   setTimeout(callback: () => void, delay: number): number;
   clearTimeout(timer: number): void;
@@ -423,6 +451,11 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     window.getSelection()?.removeAllRanges();
   }, [props.resolveAnchorId, selection]);
 
+  useEffect(() => {
+    if (!selection || editor || menu || !sharedSelectionToolbar) return;
+    return mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
+  }, [beginCreate, editor, menu, selection, sharedSelectionToolbar]);
+
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;
     try {
@@ -442,7 +475,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     confirm: (message) => window.confirm(message),
   });
 
-  const selectionButton = selection && selectionAction && !editor && !menu ? (
+  const selectionButton = selection && selectionAction && !sharedSelectionToolbar && !editor && !menu ? (
     <button
       type="button"
       className={`dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
@@ -456,7 +489,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   return (
     <>
-      {/* Keep the event owner in this React root; Obsidian Web Viewer drops cross-root Portal clicks. */}
+      {/* The shared toolbar action is a native node; Web Viewer drops cross-root React Portal clicks. */}
       {selectionButton}
       {geometry.flatMap(({ view, rects }) => rects.map((rect, index) => (
         <span
