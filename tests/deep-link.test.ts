@@ -20,10 +20,12 @@ function snapshot(entries: Array<{ key: string; id?: string; kind?: string; seq:
     data: { seq: entry.seq, content: [{ type: "text", text: entry.text }] },
   }]));
   return {
-    sessionId: "session-demo",
-    running: false,
-    hasMore,
-    loadingOlder: false,
+    session: {
+      sessionId: "session-demo",
+      running: false,
+      hasMore,
+      loadingOlder: false,
+    },
     chat: { order: entries.map((entry) => entry.key), nodes: { get: (key: string) => nodes.get(key) } },
   };
 }
@@ -41,7 +43,7 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
     phase: "ready",
   };
   const session = {
-    getSnapshot: () => snapshots[index]!,
+    getSnapshot: () => snapshots[index]!.session,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
     loadOlder: vi.fn(async () => {
       index = Math.min(index + 1, snapshots.length - 1);
@@ -58,6 +60,17 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
         listSnapshot = { ...listSnapshot, current: sessionId };
       }),
       binding: () => ({ session }),
+    },
+    uiConversation: {
+      binding: () => ({
+        target: () => ({
+          getSnapshot: () => snapshots[index]!.chat,
+          subscribe: (listener: () => void) => {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+          },
+        }),
+      }),
     },
   };
   return { ctx, session, setListSnapshot: (value: typeof listSnapshot) => { listSnapshot = value; } };

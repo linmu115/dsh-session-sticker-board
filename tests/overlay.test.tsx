@@ -61,10 +61,8 @@ describe("sticker overlay commands", () => {
     const renderedKey = "13:input-message019d-user-message";
     const nodes = new Map([[renderedKey, { id: "019d-user-message" }]]);
     const snapshot = {
-      chat: {
-        order: [renderedKey],
-        nodes: { get: (key: string) => nodes.get(key) },
-      },
+      order: [renderedKey],
+      nodes: { get: (key: string) => nodes.get(key) },
     };
 
     expect(resolveDurableAnchorId(snapshot, renderedKey)).toBe("019d-user-message");

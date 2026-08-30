@@ -1,5 +1,5 @@
 import { hashQuote } from "./anchor.ts";
-import type { Context, ConversationSnapshotLike, SessionFace } from "../context-types.ts";
+import type { ChatSnapshotLike, Context, ObservableSnapshot, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
 
 export type DeepLinkResult =
@@ -22,8 +22,8 @@ function pause(milliseconds: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | null {
-  const node = snapshot.chat.nodes.get(key);
+function textOfNode(snapshot: ChatSnapshotLike, key: string): string | null {
+  const node = snapshot.nodes.get(key);
   if (!node || !node.data || typeof node.data !== "object") return null;
   const data = node.data as { content?: unknown; blocks?: unknown };
   const content = Array.isArray(data.content) ? data.content : Array.isArray(data.blocks) ? data.blocks : [];
@@ -37,16 +37,27 @@ function textOfNode(snapshot: ConversationSnapshotLike, key: string): string | n
   return text;
 }
 
-function locatedNode(snapshot: ConversationSnapshotLike, anchorId: string): { key: string; text: string } | null {
+function locatedNode(snapshot: ChatSnapshotLike, anchorId: string): { key: string; text: string } | null {
   const direct = textOfNode(snapshot, anchorId);
   if (direct !== null) return { key: anchorId, text: direct };
-  for (const key of snapshot.chat.order) {
-    const node = snapshot.chat.nodes.get(key);
+  for (const key of snapshot.order) {
+    const node = snapshot.nodes.get(key);
     if (node?.id !== anchorId) continue;
     const text = textOfNode(snapshot, key);
     if (text !== null) return { key, text };
   }
   return null;
+}
+
+async function waitForChatSnapshot(
+  source: ObservableSnapshot<ChatSnapshotLike | undefined>,
+): Promise<ChatSnapshotLike | undefined> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const snapshot = source.getSnapshot();
+    if (snapshot !== undefined) return snapshot;
+    await pause(25);
+  }
+  return source.getSnapshot();
 }
 
 async function defaultWaitForBinding(ctx: Context, sessionId: string): Promise<SessionFace | undefined> {
@@ -133,14 +144,15 @@ export async function applyDeepLink(
 
   await options.revealConversation?.(action.sessionId);
 
-  let snapshot = session.getSnapshot();
-  let located = locatedNode(snapshot, action.anchorId);
+  const chatSource = ctx.uiConversation.binding(action.sessionId).target("chat");
+  let chatSnapshot = await waitForChatSnapshot(chatSource);
+  let located = chatSnapshot ? locatedNode(chatSnapshot, action.anchorId) : null;
   let pages = 0;
-  while (located === null && snapshot.hasMore === true && pages < 50) {
+  while (located === null && session.getSnapshot().hasMore === true && pages < 50) {
     await session.loadOlder();
     pages += 1;
-    snapshot = session.getSnapshot();
-    located = locatedNode(snapshot, action.anchorId);
+    chatSnapshot = await waitForChatSnapshot(chatSource);
+    located = chatSnapshot ? locatedNode(chatSnapshot, action.anchorId) : null;
   }
   if (located === null) {
     return { status: "missing-anchor", sessionId: action.sessionId, anchorId: action.anchorId };

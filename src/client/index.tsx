@@ -1,5 +1,5 @@
 import type { AnnotationCoreClient } from "dsh-annotation-core/client-api";
-import { Component, useCallback, useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { BridgeUnavailableError, createBridgeHttpClient } from "../bridge/http-client.ts";
@@ -8,7 +8,6 @@ import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
 import { applyDeepLink } from "./deep-link.ts";
-import { createStickerDiagnosticSurface, type StickerDiagnosticSurface } from "./diagnostic-surface.ts";
 import {
   resolveDurableAnchorId,
   resolveRenderedAnchorKey,
@@ -32,14 +31,13 @@ type SessionOpeningAnnotationCore = Omit<AnnotationCoreClient, "openAnnotationIn
   ) => Promise<boolean>;
 };
 
-export const inject = ["sessions", "remote"] as const;
+export const inject = ["sessions", "remote", "uiConversation"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;
   workspace: StickerWorkspace;
   openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
   openSticker: (record: StickerRecord) => boolean;
-  diagnostic: StickerDiagnosticSurface;
 }): ReactNode {
   const sessionList = useSyncExternalStore(
     useCallback((listener: () => void) => props.ctx.sessions.list.subscribe(listener), [props.ctx]),
@@ -52,23 +50,24 @@ function StickerBoardRoot(props: {
     () => props.workspace.getSnapshot(),
   );
   const sessionId = sessionList.current ?? "";
-  useEffect(() => {
-    props.diagnostic.mark("react-root-committed");
-  }, [props.diagnostic]);
+  const chatSource = useMemo(
+    () => sessionId ? props.ctx.uiConversation.binding(sessionId).target("chat") : undefined,
+    [props.ctx, sessionId],
+  );
+  const chatSnapshot = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => chatSource?.subscribe(listener) ?? (() => undefined),
+      [chatSource],
+    ),
+    () => chatSource?.getSnapshot(),
+    () => chatSource?.getSnapshot(),
+  );
   const resolveAnchorId = useCallback((renderedKey: string): string => {
-    const snapshot = props.ctx.sessions.binding(sessionId)?.session.getSnapshot();
-    return snapshot ? resolveDurableAnchorId(snapshot, renderedKey) : renderedKey;
-  }, [props.ctx, sessionId]);
+    return chatSnapshot ? resolveDurableAnchorId(chatSnapshot, renderedKey) : renderedKey;
+  }, [chatSnapshot]);
   const resolveAnchorKey = useCallback((anchorId: string): string => {
-    const snapshot = props.ctx.sessions.binding(sessionId)?.session.getSnapshot();
-    return snapshot ? resolveRenderedAnchorKey(snapshot, anchorId) : anchorId;
-  }, [props.ctx, sessionId]);
-  const markDiagnostic = useCallback((stage: string, detail?: string): void => {
-    props.diagnostic.mark(stage, detail);
-  }, [props.diagnostic]);
-  const reportOverlayCrash = useCallback((error: unknown): void => {
-    props.diagnostic.fail("overlay-crashed", error);
-  }, [props.diagnostic]);
+    return chatSnapshot ? resolveRenderedAnchorKey(chatSnapshot, anchorId) : anchorId;
+  }, [chatSnapshot]);
   useEffect(() => {
     if (sessionId) void props.workspace.ensure(sessionId).catch((error) => {
       console.warn("[dsh-session-sticker-board] session-note load failed", error);
@@ -87,27 +86,8 @@ function StickerBoardRoot(props: {
       onOpenSticker={props.openSticker}
       resolveAnchorId={resolveAnchorId}
       resolveAnchorKey={resolveAnchorKey}
-      onDiagnosticStage={markDiagnostic}
-      onCrash={reportOverlayCrash}
     />
   );
-}
-
-class StickerClientDiagnosticBoundary extends Component<{
-  children: ReactNode;
-  diagnostic: StickerDiagnosticSurface;
-}, { failed: boolean }> {
-  override state = { failed: false };
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
-  }
-  override componentDidCatch(error: unknown): void {
-    this.props.diagnostic.fail("react-root-crashed", error);
-    console.error("[dsh-session-sticker-board] client root crashed", error);
-  }
-  override render(): ReactNode {
-    return this.state.failed ? null : this.props.children;
-  }
 }
 
 function openSourceAction(notePath: string, blockId?: string): OpenNoteAction {
@@ -121,27 +101,20 @@ function openSourceAction(notePath: string, blockId?: string): OpenNoteAction {
 }
 
 export function apply(ctx: Context): void {
-  const diagnostic = createStickerDiagnosticSurface();
-  diagnostic.mark("module-started");
-  diagnostic.mark("waiting-base-services", inject.join(", "));
   try {
     ctx.inject(inject, async (injectedContext) => {
-      diagnostic.mark("base-services-ready");
       try {
         const ready = injectedContext as unknown as Context;
         const mountedRemote = await mountStickerRemote(ready);
-        diagnostic.mark("remote-mounted");
         const bridge = createBridgeHttpClient({ origin: mountedRemote.origin });
         try {
           await bridge.preflight();
-          diagnostic.mark("bridge-preflight-ready");
         } catch (error) {
           if (!(error instanceof BridgeUnavailableError)) {
             bridge.dispose();
             await mountedRemote.dispose();
             throw error;
           }
-          diagnostic.mark("bridge-offline-continued");
           console.warn("[dsh-session-sticker-board] Obsidian bridge is offline; saved snapshots remain usable", error);
         }
         let annotationCore: SessionOpeningAnnotationCore | undefined;
@@ -157,7 +130,6 @@ export function apply(ctx: Context): void {
                 await bridge.openNote(openSourceAction(item.locator.notePath, item.locator.blockId));
               },
             });
-            diagnostic.mark("annotation-core-registered");
             return () => {
               unregisterObsidianSource();
               unregisterObsidianSource = (): void => undefined;
@@ -181,7 +153,6 @@ export function apply(ctx: Context): void {
               (action) => bridge.openNote(action),
               (record) => bridge.listBacklinks(record),
             );
-            diagnostic.mark("better-sidebar-registered");
             return () => {
               unregister();
               stickerSidebar.detach(service);
@@ -193,20 +164,15 @@ export function apply(ctx: Context): void {
         const overlayHost = document.createElement("div");
         overlayHost.dataset.dshStickerBoard = "";
         document.body.appendChild(overlayHost);
-        diagnostic.mark("overlay-host-created");
         const root = createRoot(overlayHost);
         root.render(
-          <StickerClientDiagnosticBoundary diagnostic={diagnostic}>
-            <StickerBoardRoot
-              ctx={ready}
-              workspace={stickers}
-              openNote={(action) => bridge.openNote(action)}
-              openSticker={(record) => stickerSidebar.openSticker(record)}
-              diagnostic={diagnostic}
-            />
-          </StickerClientDiagnosticBoundary>,
+          <StickerBoardRoot
+            ctx={ready}
+            workspace={stickers}
+            openNote={(action) => bridge.openNote(action)}
+            openSticker={(record) => stickerSidebar.openSticker(record)}
+          />,
         );
-        diagnostic.mark("react-render-requested");
 
         const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
           const core = annotationCore;
@@ -277,8 +243,6 @@ export function apply(ctx: Context): void {
             { actionId: action.actionId, type: action.type, error },
           ),
         });
-        diagnostic.mark("bridge-polling-started");
-
         ready.effect(() => () => {
           polling.stop();
           void annotationFiber.dispose();
@@ -288,15 +252,12 @@ export function apply(ctx: Context): void {
           void mountedRemote.dispose();
           setTimeout(() => root.unmount());
           overlayHost.remove();
-          diagnostic.dispose();
         }, "dsh-session-sticker-board: client");
       } catch (error) {
-        diagnostic.fail("client-init-failed", error);
         throw error;
       }
     });
   } catch (error) {
-    diagnostic.fail("module-injection-failed", error);
     throw error;
   }
 }

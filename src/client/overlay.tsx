@@ -94,28 +94,26 @@ export function createSelectionRecomputeHandlers(
   };
 }
 
-export interface StickerConversationSnapshotLike {
-  readonly chat: {
-    readonly order: readonly string[];
-    readonly nodes: { get(key: string): { readonly id?: string } | undefined };
-  };
+export interface StickerChatSnapshotLike {
+  readonly order: readonly string[];
+  readonly nodes: { get(key: string): { readonly id?: string } | undefined };
 }
 
 /** Convert the current renderer key into the stable Conversation node identity. */
 export function resolveDurableAnchorId(
-  snapshot: StickerConversationSnapshotLike,
+  snapshot: StickerChatSnapshotLike,
   renderedKey: string,
 ): string {
-  return snapshot.chat.nodes.get(renderedKey)?.id ?? renderedKey;
+  return snapshot.nodes.get(renderedKey)?.id ?? renderedKey;
 }
 
 /** Resolve a stored Conversation node identity back to this render's DOM key. */
 export function resolveRenderedAnchorKey(
-  snapshot: StickerConversationSnapshotLike,
+  snapshot: StickerChatSnapshotLike,
   anchorId: string,
 ): string {
-  if (snapshot.chat.nodes.get(anchorId)) return anchorId;
-  return snapshot.chat.order.find((key) => snapshot.chat.nodes.get(key)?.id === anchorId) ?? anchorId;
+  if (snapshot.nodes.get(anchorId)) return anchorId;
+  return snapshot.order.find((key) => snapshot.nodes.get(key)?.id === anchorId) ?? anchorId;
 }
 
 export function isEligibleMessageSelection(input: {
@@ -323,8 +321,6 @@ export interface StickerOverlayProps {
   readonly onOpenSticker?: (record: StickerRecord) => boolean;
   readonly resolveAnchorId: (renderedKey: string) => string;
   readonly resolveAnchorKey: (anchorId: string) => string;
-  readonly onDiagnosticStage?: (stage: string, detail?: string) => void;
-  readonly onCrash?: (error: unknown) => void;
 }
 
 interface EditorState {
@@ -338,16 +334,12 @@ interface MenuState {
   readonly point: OverlayPoint;
 }
 
-export class StickerErrorBoundary extends Component<{
-  children: ReactNode;
-  onCrash?: (error: unknown) => void;
-}, { failed: boolean }> {
+export class StickerErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   override state = { failed: false };
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true };
   }
   override componentDidCatch(error: unknown): void {
-    this.props.onCrash?.(error);
     console.error("[dsh-session-sticker-board] overlay crashed", error);
   }
   override render(): ReactNode {
@@ -356,7 +348,7 @@ export class StickerErrorBoundary extends Component<{
 }
 
 export function StickerOverlay(props: StickerOverlayProps): ReactNode {
-  return <StickerErrorBoundary {...(props.onCrash ? { onCrash: props.onCrash } : {})}><StickerOverlayInner {...props} /></StickerErrorBoundary>;
+  return <StickerErrorBoundary><StickerOverlayInner {...props} /></StickerErrorBoundary>;
 }
 
 function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
@@ -365,10 +357,6 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geometryVersion, setGeometryVersion] = useState(0);
-
-  useEffect(() => {
-    props.onDiagnosticStage?.("overlay-effects-active");
-  }, [props.onDiagnosticStage]);
 
   useEffect(() => {
     const handlers = createSelectionRecomputeHandlers(
@@ -478,11 +466,8 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   useEffect(() => {
     if (editor || menu || !sharedSelectionToolbar) return;
-    props.onDiagnosticStage?.("shared-toolbar-found");
-    const dispose = mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
-    props.onDiagnosticStage?.("sticker-action-mounted");
-    return dispose;
-  }, [beginCreate, editor, menu, props.onDiagnosticStage, sharedSelectionToolbar]);
+    return mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
+  }, [beginCreate, editor, menu, sharedSelectionToolbar]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;

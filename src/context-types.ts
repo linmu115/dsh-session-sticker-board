@@ -15,18 +15,27 @@ export interface ChatNodeLike {
   data: unknown;
 }
 
-export interface ConversationSnapshotLike {
+export interface SessionSnapshotLike {
   sessionId: SessionId;
   running: boolean;
   hasMore?: boolean;
   loadingOlder?: boolean;
-  chat: {
-    order: readonly string[];
-    nodes: { get(key: string): ChatNodeLike | undefined };
-  };
 }
 
-export interface SessionFace extends ObservableSnapshot<ConversationSnapshotLike> {
+export interface ChatSnapshotLike {
+  readonly order: readonly string[];
+  readonly nodes: { get(key: string): ChatNodeLike | undefined };
+}
+
+export interface ConversationBindingLike {
+  target(target: "chat"): ObservableSnapshot<ChatSnapshotLike | undefined>;
+}
+
+export interface UiConversationService {
+  binding(sessionId: SessionId): ConversationBindingLike;
+}
+
+export interface SessionFace extends ObservableSnapshot<SessionSnapshotLike> {
   loadOlder(): Promise<void>;
 }
 
@@ -157,13 +166,14 @@ export interface InputTriggerService {
 }
 
 export interface InputZone {
-  readonly session: ConversationSnapshotLike;
+  readonly session: SessionSnapshotLike;
   readonly input: InputStateSnapshot;
 }
 
 export type Context = Omit<CordisContext, "sessions" | "slots"> & {
   sessions: SessionsService;
   slots: SlotsService;
+  uiConversation: UiConversationService;
   betterSidebar: BetterSidebarService;
   get(name: string): unknown;
 };
