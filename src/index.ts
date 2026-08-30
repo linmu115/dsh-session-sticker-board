@@ -41,7 +41,11 @@ export function apply(ctx: Context, config: Config): void {
     const polling = typeof deleteReferenceLink === "function"
       ? startBridgePolling(
           bridge,
-          createHostBridgeActionHandler({ deleteReferenceLink: deleteReferenceLink.bind(annotationCoreHost) }, "web"),
+          createHostBridgeActionHandler(
+            { deleteReferenceLink: deleteReferenceLink.bind(annotationCoreHost) },
+            bridge,
+            "web",
+          ),
           {
             onError: (error) => console.warn("[dsh-session-sticker-board] host Bridge polling failed", error),
             onActionError: (error, action) => console.warn(

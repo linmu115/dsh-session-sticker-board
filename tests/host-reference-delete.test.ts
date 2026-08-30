@@ -17,15 +17,27 @@ const deletion: ReferenceDeleteRequestV2 = {
 describe("host reference deletion", () => {
   it("forwards matching deletion requests to Core without a browser session", async () => {
     const deleteReferenceLink = vi.fn(async () => ({ deleted: true, scope: "sent" as const }));
-    const apply = createHostBridgeActionHandler({ deleteReferenceLink }, "web");
+    const discardReference = vi.fn(async () => undefined);
+    const apply = createHostBridgeActionHandler({ deleteReferenceLink }, { discardReference }, "web");
 
     await expect(apply(deletion)).resolves.toBe(true);
     expect(deleteReferenceLink).toHaveBeenCalledWith("session-1", "set-1", "reference-1");
+    expect(discardReference).not.toHaveBeenCalled();
+  });
+
+  it("confirms pending deletion directly so an old Core tombstone can drain the Bridge outbox", async () => {
+    const deleteReferenceLink = vi.fn(async () => ({ deleted: false, scope: "pending" as const }));
+    const discardReference = vi.fn(async () => undefined);
+    const apply = createHostBridgeActionHandler({ deleteReferenceLink }, { discardReference }, "web");
+
+    await expect(apply(deletion)).resolves.toBe(true);
+    expect(discardReference).toHaveBeenCalledWith("reference-1");
   });
 
   it("advances past actions that belong to the browser or another profile", async () => {
     const deleteReferenceLink = vi.fn(async () => ({ deleted: true, scope: "sent" as const }));
-    const apply = createHostBridgeActionHandler({ deleteReferenceLink }, "web");
+    const discardReference = vi.fn(async () => undefined);
+    const apply = createHostBridgeActionHandler({ deleteReferenceLink }, { discardReference }, "web");
 
     await expect(apply({ ...deletion, profileId: "other" })).resolves.toBe(true);
     await expect(apply({
@@ -36,5 +48,6 @@ describe("host reference deletion", () => {
       anchorId: "anchor-1",
     })).resolves.toBe(true);
     expect(deleteReferenceLink).not.toHaveBeenCalled();
+    expect(discardReference).not.toHaveBeenCalled();
   });
 })
