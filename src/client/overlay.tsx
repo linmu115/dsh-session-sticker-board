@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { Quote } from "lucide-react";
-import { createPortal } from "react-dom";
 
 import { createMessageAnchor } from "./anchor.ts";
 import type { StickerView } from "./sticker-store.ts";
@@ -388,10 +387,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     if (!selection) return null;
     return placeSelectionAction(
       selection.rect,
-      null,
+      sharedSelectionToolbar?.getBoundingClientRect() ?? null,
       window.innerHeight,
     );
-  }, [selection, geometryVersion]);
+  }, [selection, sharedSelectionToolbar, geometryVersion]);
 
   const beginCreate = useCallback(async () => {
     if (!selection) return;
@@ -446,10 +445,8 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const selectionButton = selection && selectionAction && !editor && !menu ? (
     <button
       type="button"
-      className={sharedSelectionToolbar
-        ? "dsh-sticker-board-selection-action-shared"
-        : `dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
-      style={sharedSelectionToolbar ? undefined : { left: selectionAction.x, top: selectionAction.y }}
+      className={`dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
+      style={{ left: selectionAction.x, top: selectionAction.y }}
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => void beginCreate()}
     >
@@ -459,9 +456,8 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   return (
     <>
-      {selectionButton && sharedSelectionToolbar
-        ? createPortal(selectionButton, sharedSelectionToolbar)
-        : selectionButton}
+      {/* Keep the event owner in this React root; Obsidian Web Viewer drops cross-root Portal clicks. */}
+      {selectionButton}
       {geometry.flatMap(({ view, rects }) => rects.map((rect, index) => (
         <span
           key={`${view.record.stickerId}-highlight-${index}`}
