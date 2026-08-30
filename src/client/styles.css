@@ -1,6 +1,6 @@
 .dsh-sticker-board-selection-action {
   position: fixed;
-  z-index: 70;
+  z-index: 2147483000;
   transform: translate(-50%, -100%);
   border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.12));
   border-radius: 6px;
@@ -10,6 +10,10 @@
   padding: 6px 10px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.dsh-sticker-board-selection-action-shared {
+  white-space: nowrap;
 }
 
 .dsh-sticker-board-selection-action-below {

@@ -134,4 +134,29 @@ describe("bridge action processor", () => {
       .resolves.toEqual({ applied: 0, failed: 1, cursor: 0 });
     expect(onApplyError).toHaveBeenCalledWith(failure, deletion);
   });
+
+  it("claims a one-shot deep link before applying it and never replays a failed navigation", async () => {
+    const order: string[] = [];
+    const failure = new Error("annotation surface unavailable");
+    const acknowledgeDeepLink = vi.fn(async () => { order.push("ack"); });
+    const apply = vi.fn(async () => {
+      order.push("apply");
+      throw failure;
+    });
+    const onApplyError = vi.fn();
+    const processor = createBridgeActionProcessor(
+      { acknowledgeDeepLink, acknowledgeAction: vi.fn() },
+      apply,
+      onApplyError,
+    );
+    const page = { cursor: 1, actions: [{ cursor: 1, message: deepLink }] };
+
+    await expect(processor.process(page)).resolves.toEqual({ applied: 0, failed: 1, cursor: 1 });
+    expect(order).toEqual(["ack", "apply"]);
+    expect(onApplyError).toHaveBeenCalledWith(failure, deepLink);
+
+    await expect(processor.process(page)).resolves.toEqual({ applied: 0, failed: 0, cursor: 1 });
+    expect(acknowledgeDeepLink).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
 });

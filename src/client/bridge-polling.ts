@@ -53,13 +53,24 @@ export function createBridgeActionProcessor(
             applied += 1;
             continue;
           }
+          if (entry.message.type === "deep-link") {
+            // A deep link is a one-shot navigation intent. Claim it before
+            // touching session state so a later DOM/Core failure cannot leave
+            // the request queued and repeatedly reopen the same session.
+            await bridge.acknowledgeDeepLink(entry.message.actionId);
+            completed.add(entry.cursor);
+            if (!await apply(entry.message)) {
+              failed += 1;
+              continue;
+            }
+            applied += 1;
+            continue;
+          }
           if (!await apply(entry.message)) {
             failed += 1;
             continue;
           }
-          if (entry.message.type === "deep-link") {
-            await bridge.acknowledgeDeepLink(entry.message.actionId);
-          } else if (entry.message.type === "reference-delete-request") {
+          if (entry.message.type === "reference-delete-request") {
             await bridge.acknowledgeAction(entry.message.actionId);
           }
           completed.add(entry.cursor);

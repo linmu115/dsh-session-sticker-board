@@ -4,7 +4,9 @@ import {
   buildDshLogicalLink,
   buildReferenceMarkdown,
   buildStickerWikiLink,
+  createSelectionRecomputeHandlers,
   createStickerCommands,
+  findSharedSelectionToolbar,
   isEligibleMessageSelection,
   placeSelectionAction,
   resolveDurableAnchorId,
@@ -104,6 +106,42 @@ describe("sticker overlay commands", () => {
       y: 66,
       below: true,
     });
+  });
+
+  it("uses the existing Sidechat selection toolbar as the sticker action host", () => {
+    const toolbar = {} as HTMLElement;
+    const querySelector = vi.fn(() => toolbar);
+
+    expect(findSharedSelectionToolbar({ querySelector })).toBe(toolbar);
+    expect(querySelector).toHaveBeenCalledWith('[data-dsh-sidechat] [role="toolbar"]');
+  });
+
+  it("captures mouse selections synchronously before an embedded Web Viewer can clear them", () => {
+    const callbacks = new Map<number, () => void>();
+    let nextTimer = 0;
+    const timerHost = {
+      setTimeout: vi.fn((callback: () => void) => {
+        nextTimer += 1;
+        callbacks.set(nextTimer, callback);
+        return nextTimer;
+      }),
+      clearTimeout: vi.fn((timer: number) => { callbacks.delete(timer); }),
+    };
+    const recompute = vi.fn();
+    const handlers = createSelectionRecomputeHandlers(recompute, timerHost, 80);
+
+    handlers.onSelectionChange();
+    expect(recompute).not.toHaveBeenCalled();
+    expect(callbacks.size).toBe(1);
+
+    handlers.onMouseUp();
+    expect(recompute).toHaveBeenCalledTimes(1);
+    expect(callbacks.size).toBe(0);
+
+    handlers.onKeyUp();
+    callbacks.values().next().value?.();
+    expect(recompute).toHaveBeenCalledTimes(2);
+    handlers.dispose();
   });
 
   it("copies stable logical and Markdown links from a message dot", async () => {

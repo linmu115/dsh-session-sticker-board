@@ -8,12 +8,62 @@ import {
   type ReactNode,
 } from "react";
 import { Quote } from "lucide-react";
+import { createPortal } from "react-dom";
 
 import { createMessageAnchor } from "./anchor.ts";
 import type { StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type StickerRecord } from "../protocol.ts";
 
 const MESSAGE_KINDS = new Set(["user", "steering", "assistant-step"]);
+const SHARED_SELECTION_TOOLBAR = '[data-dsh-sidechat] [role="toolbar"]';
+
+export interface SelectionToolbarQuery {
+  querySelector(selectors: string): Element | null;
+}
+
+export function findSharedSelectionToolbar(root: SelectionToolbarQuery = document): HTMLElement | null {
+  return root.querySelector(SHARED_SELECTION_TOOLBAR) as HTMLElement | null;
+}
+
+export interface SelectionTimerHost {
+  setTimeout(callback: () => void, delay: number): number;
+  clearTimeout(timer: number): void;
+}
+
+export function createSelectionRecomputeHandlers(
+  recompute: () => void,
+  timerHost: SelectionTimerHost,
+  delay: number,
+): {
+  onSelectionChange(): void;
+  onMouseUp(): void;
+  onKeyUp(): void;
+  dispose(): void;
+} {
+  let timer: number | undefined;
+  const clear = (): void => {
+    if (timer === undefined) return;
+    timerHost.clearTimeout(timer);
+    timer = undefined;
+  };
+  const delayed = (): void => {
+    clear();
+    timer = timerHost.setTimeout(() => {
+      timer = undefined;
+      recompute();
+    }, delay);
+  };
+  const immediate = (): void => {
+    clear();
+    recompute();
+  };
+  return {
+    onSelectionChange: delayed,
+    onMouseUp: immediate,
+    onKeyUp: delayed,
+    dispose: clear,
+  };
+}
 
 export interface StickerConversationSnapshotLike {
   readonly chat: {
@@ -274,17 +324,22 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const [geometryVersion, setGeometryVersion] = useState(0);
 
   useEffect(() => {
-    let timer = 0;
-    const update = (): void => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => setSelection(captureMessageSelection(props.sessionId)), 80);
-    };
-    document.addEventListener("selectionchange", update);
-    document.addEventListener("mouseup", update);
+    const handlers = createSelectionRecomputeHandlers(
+      () => setSelection(captureMessageSelection(props.sessionId)),
+      {
+        setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+        clearTimeout: (timer) => window.clearTimeout(timer),
+      },
+      80,
+    );
+    document.addEventListener("selectionchange", handlers.onSelectionChange);
+    document.addEventListener("mouseup", handlers.onMouseUp);
+    document.addEventListener("keyup", handlers.onKeyUp);
     return () => {
-      document.removeEventListener("selectionchange", update);
-      document.removeEventListener("mouseup", update);
-      window.clearTimeout(timer);
+      document.removeEventListener("selectionchange", handlers.onSelectionChange);
+      document.removeEventListener("mouseup", handlers.onMouseUp);
+      document.removeEventListener("keyup", handlers.onKeyUp);
+      handlers.dispose();
     };
   }, [props.sessionId]);
 
@@ -325,15 +380,16 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     });
   }, [props.stickers, props.resolveAnchorKey, geometryVersion]);
 
+  const sharedSelectionToolbar = useMemo(() => {
+    if (!selection) return null;
+    return findSharedSelectionToolbar();
+  }, [selection, geometryVersion]);
+
   const selectionAction = useMemo(() => {
     if (!selection) return null;
-    const sidechatToolbar = document.querySelector<HTMLElement>(
-      '[data-dsh-sidechat] [role="toolbar"]',
-    );
-    const sidechatRect = sidechatToolbar?.getBoundingClientRect() ?? null;
     return placeSelectionAction(
       selection.rect,
-      sidechatRect && sidechatRect.width > 0 && sidechatRect.height > 0 ? sidechatRect : null,
+      null,
       window.innerHeight,
     );
   }, [selection, geometryVersion]);
@@ -388,19 +444,25 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     confirm: (message) => window.confirm(message),
   });
 
+  const selectionButton = selection && selectionAction && !editor && !menu ? (
+    <button
+      type="button"
+      className={sharedSelectionToolbar
+        ? "dsh-sticker-board-selection-action-shared"
+        : `dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
+      style={sharedSelectionToolbar ? undefined : { left: selectionAction.x, top: selectionAction.y }}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => void beginCreate()}
+    >
+      添加贴纸
+    </button>
+  ) : null;
+
   return (
     <>
-      {selection && selectionAction && !editor && !menu && (
-        <button
-          type="button"
-          className={`dsh-sticker-board-selection-action${selectionAction.below ? " dsh-sticker-board-selection-action-below" : ""}`}
-          style={{ left: selectionAction.x, top: selectionAction.y }}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => void beginCreate()}
-        >
-          添加贴纸
-        </button>
-      )}
+      {selectionButton && sharedSelectionToolbar
+        ? createPortal(selectionButton, sharedSelectionToolbar)
+        : selectionButton}
       {geometry.flatMap(({ view, rects }) => rects.map((rect, index) => (
         <span
           key={`${view.record.stickerId}-highlight-${index}`}
