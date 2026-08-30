@@ -21,7 +21,7 @@ async function text(path: string): Promise<string> {
 describe("sticker-board 0.4 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.4.16");
+    expect(packageJson.version).toBe("0.4.17");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
@@ -59,6 +59,24 @@ describe("sticker-board 0.4 package boundary", () => {
     expect(source).toContain("mountNativeSelectionAction");
     expect(source).toContain("resolveSelectionForStickerAction");
     expect(source).toContain("sharedSelectionToolbar.appendChild(button)");
+  });
+
+  it("ships the temporary visible client diagnostics", async () => {
+    const index = await text("src/client/index.tsx");
+    const diagnostics = await text("src/client/diagnostic-surface.ts");
+    for (const stage of [
+      "module-started",
+      "base-services-ready",
+      "remote-mounted",
+      "bridge-preflight-ready",
+      "better-sidebar-registered",
+      "overlay-host-created",
+      "react-root-committed",
+      "overlay-crashed",
+    ]) {
+      expect(`${index}\n${diagnostics}`).toContain(stage);
+    }
+    expect(diagnostics).toContain("dshStickerDiagnostic");
   });
 
   it("inlines only the Core protocol and leaves no runtime Core package import", async () => {

@@ -323,6 +323,8 @@ export interface StickerOverlayProps {
   readonly onOpenSticker?: (record: StickerRecord) => boolean;
   readonly resolveAnchorId: (renderedKey: string) => string;
   readonly resolveAnchorKey: (anchorId: string) => string;
+  readonly onDiagnosticStage?: (stage: string, detail?: string) => void;
+  readonly onCrash?: (error: unknown) => void;
 }
 
 interface EditorState {
@@ -336,12 +338,16 @@ interface MenuState {
   readonly point: OverlayPoint;
 }
 
-export class StickerErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+export class StickerErrorBoundary extends Component<{
+  children: ReactNode;
+  onCrash?: (error: unknown) => void;
+}, { failed: boolean }> {
   override state = { failed: false };
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true };
   }
   override componentDidCatch(error: unknown): void {
+    this.props.onCrash?.(error);
     console.error("[dsh-session-sticker-board] overlay crashed", error);
   }
   override render(): ReactNode {
@@ -350,7 +356,7 @@ export class StickerErrorBoundary extends Component<{ children: ReactNode }, { f
 }
 
 export function StickerOverlay(props: StickerOverlayProps): ReactNode {
-  return <StickerErrorBoundary><StickerOverlayInner {...props} /></StickerErrorBoundary>;
+  return <StickerErrorBoundary {...(props.onCrash ? { onCrash: props.onCrash } : {})}><StickerOverlayInner {...props} /></StickerErrorBoundary>;
 }
 
 function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
@@ -359,6 +365,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geometryVersion, setGeometryVersion] = useState(0);
+
+  useEffect(() => {
+    props.onDiagnosticStage?.("overlay-effects-active");
+  }, [props.onDiagnosticStage]);
 
   useEffect(() => {
     const handlers = createSelectionRecomputeHandlers(
@@ -468,8 +478,11 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   useEffect(() => {
     if (editor || menu || !sharedSelectionToolbar) return;
-    return mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
-  }, [beginCreate, editor, menu, sharedSelectionToolbar]);
+    props.onDiagnosticStage?.("shared-toolbar-found");
+    const dispose = mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
+    props.onDiagnosticStage?.("sticker-action-mounted");
+    return dispose;
+  }, [beginCreate, editor, menu, props.onDiagnosticStage, sharedSelectionToolbar]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;
