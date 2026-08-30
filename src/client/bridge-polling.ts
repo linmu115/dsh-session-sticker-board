@@ -27,9 +27,32 @@ export function createBridgeActionProcessor(
       if (page.queueId !== undefined) queueId = page.queueId;
       let applied = 0;
       let failed = 0;
-      for (const entry of [...page.actions].sort((left, right) => left.cursor - right.cursor)) {
+      const ordered = [...page.actions].sort((left, right) => left.cursor - right.cursor);
+      const deletingReferences = new Set(ordered.flatMap((entry) => (
+        entry.message.type === "reference-delete-request" ? [entry.message.referenceId] : []
+      )));
+      const latestNavigation = ordered.findLast((entry) => (
+        entry.message.type === "deep-link"
+        && (entry.message.referenceId === undefined || !deletingReferences.has(entry.message.referenceId))
+      ));
+      for (const entry of ordered) {
         if (entry.cursor <= cursor || completed.has(entry.cursor)) continue;
         try {
+          if (
+            entry.message.type === "deep-link"
+            && (
+              entry !== latestNavigation
+              || (entry.message.referenceId !== undefined && deletingReferences.has(entry.message.referenceId))
+            )
+          ) {
+            // Navigation is ephemeral. Consume superseded requests without
+            // applying them so a reconnect cannot replay an entire click
+            // history or reopen a reference that is being deleted.
+            await bridge.acknowledgeDeepLink(entry.message.actionId);
+            completed.add(entry.cursor);
+            applied += 1;
+            continue;
+          }
           if (!await apply(entry.message)) {
             failed += 1;
             continue;

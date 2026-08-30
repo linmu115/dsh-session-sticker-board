@@ -200,6 +200,18 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     });
   }
 
+  async function acknowledgeOneShot(actionId: string): Promise<void> {
+    try {
+      await post(`/v1/actions/${encodeURIComponent(actionId)}/ack`, {});
+    } catch (error) {
+      // Another live DSH surface may have consumed the same one-shot action
+      // after this client fetched it. Historical Bridge versions return 404
+      // for that harmless race, which must not turn into an infinite retry.
+      if (error instanceof BridgeHttpError && error.status === 404) return;
+      throw error;
+    }
+  }
+
   return {
     origin,
     async preflight() {
@@ -246,10 +258,10 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       };
     },
     async acknowledgeDeepLink(actionId) {
-      await post(`/v1/actions/${encodeURIComponent(actionId)}/ack`, {});
+      await acknowledgeOneShot(actionId);
     },
     async acknowledgeAction(actionId) {
-      await post(`/v1/actions/${encodeURIComponent(actionId)}/ack`, {});
+      await acknowledgeOneShot(actionId);
     },
     async claimReference(actionId, claim) {
       await post(`/v2/actions/${encodeURIComponent(actionId)}/ack`, claim);

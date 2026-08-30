@@ -66,6 +66,35 @@ describe("bridge action processor", () => {
     expect(acknowledgeDeepLink).not.toHaveBeenCalled();
   });
 
+  it("consumes stale navigation and applies only the latest non-deleted target", async () => {
+    const acknowledgeDeepLink = vi.fn(async (_actionId: string) => undefined);
+    const acknowledgeAction = vi.fn(async (_actionId: string) => undefined);
+    const apply = vi.fn(async (
+      _message: DeepLinkAction | ObsidianReferenceCaptureV2 | ReferenceDeleteRequestV2,
+    ) => true);
+    const processor = createBridgeActionProcessor({ acknowledgeDeepLink, acknowledgeAction }, apply);
+    const deletedLink = { ...deepLink, actionId: "deleted-link", referenceId: deletion.referenceId };
+    const staleLink = { ...deepLink, actionId: "stale-link", anchorId: "user-2" };
+    const latestLink = { ...deepLink, actionId: "latest-link", anchorId: "user-3" };
+
+    await expect(processor.process({ cursor: 4, actions: [
+      { cursor: 1, message: deletedLink },
+      { cursor: 2, message: deletion },
+      { cursor: 3, message: staleLink },
+      { cursor: 4, message: latestLink },
+    ] })).resolves.toEqual({ applied: 4, failed: 0, cursor: 4 });
+
+    expect(apply.mock.calls.map(([message]) => message.actionId)).toEqual([
+      deletion.actionId,
+      latestLink.actionId,
+    ]);
+    expect(acknowledgeDeepLink.mock.calls.map(([actionId]) => actionId)).toEqual([
+      deletedLink.actionId,
+      staleLink.actionId,
+      latestLink.actionId,
+    ]);
+  });
+
   it("replays low cursors when the Obsidian Bridge queue instance changes", async () => {
     const acknowledgeDeepLink = vi.fn(async () => undefined);
     const acknowledgeAction = vi.fn(async () => undefined);

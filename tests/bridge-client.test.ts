@@ -132,6 +132,16 @@ describe("DSH v2 bridge HTTP client", () => {
       .rejects.toEqual(new BridgeHttpError(409, "source-changed", "Known snapshot does not match"));
   });
 
+  it("treats an already-consumed one-shot action as acknowledged", async () => {
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith("/v2/handshake")) return handshake();
+      return json(404, { error: "Action was not found" });
+    });
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    await expect(client.acknowledgeDeepLink(deepLink.actionId)).resolves.toBeUndefined();
+    await expect(client.acknowledgeAction("delete-action")).resolves.toBeUndefined();
+  });
+
   it("retains session-note and sticker-backlink v1 operations", async () => {
     const document: SessionNoteDocument = {
       protocolVersion: 1, type: "session-note", sessionId: "session-1", revision: "sha256:one", stickers: [],
