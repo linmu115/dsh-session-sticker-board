@@ -7,7 +7,6 @@ import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
-import { revealConversationSurface } from "./conversation-surface.ts";
 import { applyDeepLink } from "./deep-link.ts";
 import { StickerOverlay } from "./overlay.tsx";
 import { mountStickerRemote } from "./remote.ts";
@@ -177,9 +176,6 @@ export function apply(ctx: Context): void {
       ));
       const result = await applyDeepLink(ready, action, {
         ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
-        revealConversation: async () => {
-          await revealConversationSurface(betterSidebar ?? (ready.get("betterSidebar") as BetterSidebarService | undefined));
-        },
         ...(core === undefined ? {} : {
           openAnnotation: async (setId: string, referenceId?: string) => {
             if (typeof core.openAnnotationInSession === "function") {
