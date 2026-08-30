@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { BridgeHttpError, BridgeUnavailableError, createBridgeHttpClient } from "../src/bridge/http-client.ts";
+import {
+  BridgeHttpError,
+  BridgeUnavailableError,
+  bridgeSurfaceIdFromUrl,
+  createBridgeHttpClient,
+} from "../src/bridge/http-client.ts";
 import {
   documentHash,
   selectedTextHash,
@@ -11,19 +16,24 @@ import {
 } from "../src/protocol.ts";
 
 const ORIGIN = "http://127.0.0.1:28473";
+const SURFACE_ID = "7b31f255-d087-4f8e-bdd6-d09a61860819";
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-function handshake() {
+function handshake(surfaceId?: string) {
   return json(200, {
     token: "token",
     expiresAt: 20_000,
     annotationProtocolVersion: 2,
     stickerProtocolVersion: 1,
     bridgeOrigin: ORIGIN,
-    capabilities: ["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"],
+    capabilities: [
+      "reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2",
+      "targeted-deep-link-v1",
+    ],
+    ...(surfaceId === undefined ? {} : { surfaceId }),
   });
 }
 
@@ -56,6 +66,35 @@ const capture: ObsidianReferenceCaptureV2 = {
 };
 
 describe("DSH v2 bridge HTTP client", () => {
+  it("reads the dedicated Obsidian Web Viewer surface from the launch URL", () => {
+    expect(bridgeSurfaceIdFromUrl(
+      `http://127.0.0.1:3080/?token=secret&dshBridgeSurface=${SURFACE_ID}`,
+    )).toBe(SURFACE_ID);
+    expect(bridgeSurfaceIdFromUrl("http://127.0.0.1:3080/?dshBridgeSurface=invalid")).toBeUndefined();
+  });
+
+  it("binds its handshake to the Web Viewer surface", async () => {
+    const fetch = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+      if (String(url).endsWith("/v2/handshake")) return handshake(SURFACE_ID);
+      return json(200, { queueId: "bridge-queue-1", cursor: 0, actions: [] });
+    });
+    const client = createBridgeHttpClient({
+      origin: ORIGIN,
+      fetch,
+      now: () => 1_000,
+      clientId: "dsh-obsidian-viewer",
+      surfaceId: SURFACE_ID,
+    });
+
+    await client.nextActions(0);
+
+    const handshakeCall = fetch.mock.calls.find(([url]) => String(url).endsWith("/v2/handshake"));
+    expect(JSON.parse(String(handshakeCall?.[1]?.body))).toEqual({
+      clientId: "dsh-obsidian-viewer",
+      surfaceId: SURFACE_ID,
+    });
+  });
+
   it("preflights the exact Host-selected origin before handshaking", async () => {
     const fetch = vi.fn(async (url: string | URL | Request) => {
       if (String(url).endsWith("/v2/health")) return json(200, {

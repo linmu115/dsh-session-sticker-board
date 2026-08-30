@@ -2,7 +2,11 @@ import type { AnnotationCoreClient } from "dsh-annotation-core/client-api";
 import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { BridgeUnavailableError, createBridgeHttpClient } from "../bridge/http-client.ts";
+import {
+  BridgeUnavailableError,
+  bridgeSurfaceIdFromUrl,
+  createBridgeHttpClient,
+} from "../bridge/http-client.ts";
 import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
@@ -106,7 +110,13 @@ export function apply(ctx: Context): void {
       try {
         const ready = injectedContext as unknown as Context;
         const mountedRemote = await mountStickerRemote(ready);
-        const bridge = createBridgeHttpClient({ origin: mountedRemote.origin });
+        const surfaceId = typeof location === "undefined"
+          ? undefined
+          : bridgeSurfaceIdFromUrl(location.href);
+        const bridge = createBridgeHttpClient({
+          origin: mountedRemote.origin,
+          ...(surfaceId === undefined ? {} : { surfaceId }),
+        });
         try {
           await bridge.preflight();
         } catch (error) {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createBridgeActionProcessor } from "../src/client/bridge-polling.ts";
+import { createBridgeActionProcessor, startBridgePolling } from "../src/client/bridge-polling.ts";
 import { documentHash, selectedTextHash, type DeepLinkAction, type ObsidianReferenceCaptureV2, type ReferenceDeleteRequestV2 } from "../src/protocol.ts";
 
 const capture: ObsidianReferenceCaptureV2 = {
@@ -135,7 +135,7 @@ describe("bridge action processor", () => {
     expect(onApplyError).toHaveBeenCalledWith(failure, deletion);
   });
 
-  it("claims a one-shot deep link before applying it and never replays a failed navigation", async () => {
+  it("acknowledges a one-shot deep link only after its target surface takes over", async () => {
     const order: string[] = [];
     const failure = new Error("annotation surface unavailable");
     const acknowledgeDeepLink = vi.fn(async () => { order.push("ack"); });
@@ -152,11 +152,62 @@ describe("bridge action processor", () => {
     const page = { cursor: 1, actions: [{ cursor: 1, message: deepLink }] };
 
     await expect(processor.process(page)).resolves.toEqual({ applied: 0, failed: 1, cursor: 1 });
-    expect(order).toEqual(["ack", "apply"]);
+    expect(order).toEqual(["apply", "ack"]);
     expect(onApplyError).toHaveBeenCalledWith(failure, deepLink);
 
     await expect(processor.process(page)).resolves.toEqual({ applied: 0, failed: 0, cursor: 1 });
     expect(acknowledgeDeepLink).toHaveBeenCalledTimes(1);
     expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a failed acknowledgement without reopening the target session", async () => {
+    let ackAttempts = 0;
+    const acknowledgeDeepLink = vi.fn(async () => {
+      if (++ackAttempts === 1) throw new Error("temporary bridge failure");
+    });
+    const apply = vi.fn(async () => true);
+    const processor = createBridgeActionProcessor(
+      { acknowledgeDeepLink, acknowledgeAction: vi.fn() },
+      apply,
+    );
+    const page = { cursor: 1, actions: [{ cursor: 1, message: deepLink }] };
+
+    await expect(processor.process(page)).resolves.toMatchObject({ applied: 0, failed: 1, cursor: 0 });
+    await expect(processor.process(page)).resolves.toEqual({ applied: 1, failed: 0, cursor: 1 });
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(acknowledgeDeepLink).toHaveBeenCalledTimes(2);
+  });
+
+  it("polls immediately when an Obsidian Web Viewer becomes visible", async () => {
+    let state: DocumentVisibilityState = "hidden";
+    let visibilityListener = (): void => undefined;
+    let scheduledDelay = 0;
+    let cancelCount = 0;
+    const nextActions = vi.fn(async () => ({ queueId: "bridge-1", cursor: 0, actions: [] }));
+    const handle = startBridgePolling({
+      nextActions,
+      acknowledgeDeepLink: vi.fn(),
+      acknowledgeAction: vi.fn(),
+    }, async () => true, {
+      visibilityState: () => state,
+      subscribeVisibility: (listener) => {
+        visibilityListener = listener;
+        return () => undefined;
+      },
+      schedule: (_callback, delay) => {
+        scheduledDelay = delay;
+        return () => { cancelCount += 1; };
+      },
+    });
+
+    await handle.firstCycle;
+    expect(nextActions).toHaveBeenCalledTimes(1);
+    expect(scheduledDelay).toBe(3_000);
+
+    state = "visible";
+    visibilityListener();
+    await vi.waitFor(() => expect(nextActions).toHaveBeenCalledTimes(2));
+    expect(cancelCount).toBe(1);
+    handle.stop();
   });
 });

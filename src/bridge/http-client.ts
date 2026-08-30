@@ -69,6 +69,7 @@ export interface BridgeHttpClientOptions {
   fetch?: typeof globalThis.fetch;
   now?: () => number;
   clientId?: string;
+  surfaceId?: string;
   requestOrigin?: string;
 }
 
@@ -101,6 +102,14 @@ export function normalizeBridgeOrigin(value: string): string {
   return url.origin;
 }
 
+export const DSH_BRIDGE_SURFACE_PARAMETER = "dshBridgeSurface";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function bridgeSurfaceIdFromUrl(value: string): string | undefined {
+  const surfaceId = new URL(value).searchParams.get(DSH_BRIDGE_SURFACE_PARAMETER)?.trim();
+  return surfaceId !== undefined && UUID_PATTERN.test(surfaceId) ? surfaceId : undefined;
+}
+
 async function responseError(response: Response): Promise<BridgeHttpError> {
   let message = `Bridge returned HTTP ${response.status}`;
   let code: BridgeErrorCode = "http-error";
@@ -119,6 +128,17 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
   const fetchImplementation = options.fetch ?? globalThis.fetch.bind(globalThis);
   const now = options.now ?? Date.now;
   const clientId = options.clientId ?? `dsh-sticker-${crypto.randomUUID()}`;
+  const surfaceId = options.surfaceId?.trim();
+  if (surfaceId !== undefined && !UUID_PATTERN.test(surfaceId)) {
+    throw new TypeError("DSH bridge surface ID must be a UUID");
+  }
+  const requiredCapabilities = [
+    "reference-capture-v2",
+    "reference-refresh",
+    "backlink-commit-v2",
+    "reference-delete-v2",
+    ...(surfaceId === undefined ? [] : ["targeted-deep-link-v1"]),
+  ];
   const controllers = new Set<AbortController>();
   let token: string | null = null;
   let tokenExpiresAt = 0;
@@ -151,7 +171,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
     const response = await request("/v2/handshake", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId }),
+      body: JSON.stringify({ clientId, ...(surfaceId === undefined ? {} : { surfaceId }) }),
     });
     if (!response.ok) throw await responseError(response);
     const body = await response.json() as {
@@ -160,6 +180,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       annotationProtocolVersion?: unknown;
       stickerProtocolVersion?: unknown;
       bridgeOrigin?: unknown;
+      surfaceId?: unknown;
       capabilities?: unknown;
     };
     const capabilities = Array.isArray(body.capabilities) ? body.capabilities : [];
@@ -168,7 +189,8 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
       || body.annotationProtocolVersion !== ANNOTATION_PROTOCOL_VERSION
       || body.stickerProtocolVersion !== STICKER_PROTOCOL_VERSION
       || body.bridgeOrigin !== origin
-      || !["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"].every((item) => capabilities.includes(item))
+      || (surfaceId !== undefined && body.surfaceId !== surfaceId)
+      || !requiredCapabilities.every((item) => capabilities.includes(item))
     ) {
       throw new BridgeHttpError(409, "protocol-mismatch", "Obsidian bridge does not provide the required protocol v2 capabilities");
     }
@@ -228,7 +250,7 @@ export function createBridgeHttpClient(options: BridgeHttpClientOptions): Bridge
         body.annotationProtocolVersion !== ANNOTATION_PROTOCOL_VERSION
         || body.stickerProtocolVersion !== STICKER_PROTOCOL_VERSION
         || body.bridgeOrigin !== origin
-        || !["reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2"].every((item) => capabilities.includes(item))
+        || !requiredCapabilities.every((item) => capabilities.includes(item))
       ) {
         throw new BridgeHttpError(409, "protocol-mismatch", "Host, Client and Obsidian bridge configuration do not agree");
       }

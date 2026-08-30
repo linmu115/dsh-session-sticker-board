@@ -13,6 +13,7 @@ export function createBridgeActionProcessor(
   let cursor = 0;
   let queueId: string | undefined;
   const completed = new Set<number>();
+  const deepLinkOutcomes = new Map<number, { accepted: boolean; applyError?: unknown }>();
   return {
     get cursor() { return cursor; },
     async process(page) {
@@ -23,6 +24,7 @@ export function createBridgeActionProcessor(
       if (queueReset) {
         cursor = 0;
         completed.clear();
+        deepLinkOutcomes.clear();
       }
       if (page.queueId !== undefined) queueId = page.queueId;
       let applied = 0;
@@ -54,12 +56,27 @@ export function createBridgeActionProcessor(
             continue;
           }
           if (entry.message.type === "deep-link") {
-            // A deep link is a one-shot navigation intent. Claim it before
-            // touching session state so a later DOM/Core failure cannot leave
-            // the request queued and repeatedly reopen the same session.
+            // Targeted deep links have one owning DSH surface. Let that surface
+            // take over the navigation before globally removing the one-shot
+            // request, otherwise a faster unrelated browser can steal it.
+            let outcome = deepLinkOutcomes.get(entry.cursor);
+            if (outcome === undefined) {
+              try {
+                outcome = { accepted: await apply(entry.message) };
+              } catch (applyError) {
+                outcome = { accepted: false, applyError };
+              }
+              deepLinkOutcomes.set(entry.cursor, outcome);
+            }
             await bridge.acknowledgeDeepLink(entry.message.actionId);
+            deepLinkOutcomes.delete(entry.cursor);
             completed.add(entry.cursor);
-            if (!await apply(entry.message)) {
+            if ("applyError" in outcome) {
+              failed += 1;
+              onApplyError?.(outcome.applyError, entry.message);
+              continue;
+            }
+            if (!outcome.accepted) {
               failed += 1;
               continue;
             }
@@ -89,6 +106,7 @@ export function createBridgeActionProcessor(
 
 export interface BridgePollingOptions {
   visibilityState?: () => DocumentVisibilityState;
+  subscribeVisibility?: (listener: () => void) => () => void;
   schedule?: (callback: () => void, delay: number) => () => void;
   onError?: (error: unknown) => void;
   onActionError?: (error: unknown, message: BridgeAction) => void;
@@ -111,7 +129,14 @@ export function startBridgePolling(
   });
   const visibilityState = options.visibilityState
     ?? (() => typeof document === "undefined" ? "visible" : document.visibilityState);
+  const subscribeVisibility = options.subscribeVisibility ?? ((listener: () => void) => {
+    if (typeof document === "undefined") return () => undefined;
+    document.addEventListener("visibilitychange", listener);
+    return () => document.removeEventListener("visibilitychange", listener);
+  });
   let stopped = false;
+  let running = false;
+  let wakeRequested = false;
   let cancelScheduled: (() => void) | undefined;
   let networkDelay = 1_000;
   let resolveFirst!: () => void;
@@ -119,6 +144,12 @@ export function startBridgePolling(
 
   const cycle = async (): Promise<void> => {
     if (stopped) return;
+    if (running) {
+      wakeRequested = true;
+      return;
+    }
+    running = true;
+    cancelScheduled = undefined;
     let delay: number;
     try {
       const page = await bridge.nextActions(processor.cursor);
@@ -130,9 +161,23 @@ export function startBridgePolling(
       delay = networkDelay;
       networkDelay = Math.min(networkDelay * 2, 10_000);
     }
+    running = false;
     resolveFirst();
-    if (!stopped) cancelScheduled = schedule(() => { void cycle(); }, delay);
+    if (stopped) return;
+    if (wakeRequested) {
+      wakeRequested = false;
+      void cycle();
+      return;
+    }
+    cancelScheduled = schedule(() => { void cycle(); }, delay);
   };
+  const unsubscribeVisibility = subscribeVisibility(() => {
+    if (stopped || visibilityState() === "hidden") return;
+    cancelScheduled?.();
+    cancelScheduled = undefined;
+    if (running) wakeRequested = true;
+    else void cycle();
+  });
   void cycle();
   return {
     firstCycle,
@@ -140,6 +185,7 @@ export function startBridgePolling(
       if (stopped) return;
       stopped = true;
       cancelScheduled?.();
+      unsubscribeVisibility();
     },
   };
 }
