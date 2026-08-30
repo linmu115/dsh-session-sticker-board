@@ -14,7 +14,8 @@ import type { StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type StickerRecord } from "../protocol.ts";
 
 const MESSAGE_KINDS = new Set(["user", "steering", "assistant-step"]);
-const SHARED_SELECTION_TOOLBAR = '[data-dsh-sidechat] [role="toolbar"]';
+const SHARED_SELECTION_TOOLBAR =
+  '[role="toolbar"][aria-label="划选注释"], [role="toolbar"][aria-label="Selection annotations"]';
 
 export interface SelectionToolbarQuery {
   querySelector(selectors: string): Element | null;
@@ -41,11 +42,13 @@ export function mountNativeSelectionAction(
     activate();
   };
 
+  button.addEventListener("pointerdown", preserveSelection);
   button.addEventListener("mousedown", preserveSelection);
   button.addEventListener("click", onClick);
   sharedSelectionToolbar.appendChild(button);
 
   return () => {
+    button.removeEventListener("pointerdown", preserveSelection);
     button.removeEventListener("mousedown", preserveSelection);
     button.removeEventListener("click", onClick);
     button.remove();
@@ -247,6 +250,14 @@ export function captureMessageSelection(sessionId: string): MessageSelectionSnap
   };
 }
 
+export function resolveSelectionForStickerAction(
+  trackedSelection: MessageSelectionSnapshot | null,
+  sessionId: string,
+  capture: (activeSessionId: string) => MessageSelectionSnapshot | null = captureMessageSelection,
+): MessageSelectionSnapshot | null {
+  return capture(sessionId) ?? trackedSelection;
+}
+
 function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
   try {
     const root = document.querySelector<HTMLElement>(
@@ -406,10 +417,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     });
   }, [props.stickers, props.resolveAnchorKey, geometryVersion]);
 
-  const sharedSelectionToolbar = useMemo(() => {
-    if (!selection) return null;
-    return findSharedSelectionToolbar();
-  }, [selection, geometryVersion]);
+  const sharedSelectionToolbar = useMemo(
+    () => findSharedSelectionToolbar(),
+    [geometryVersion],
+  );
 
   const selectionAction = useMemo(() => {
     if (!selection) return null;
@@ -421,18 +432,22 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   }, [selection, sharedSelectionToolbar, geometryVersion]);
 
   const beginCreate = useCallback(async () => {
-    if (!selection) return;
+    const activeSelection = resolveSelectionForStickerAction(selection, props.sessionId);
+    if (!activeSelection) return;
     const anchor = await createMessageAnchor({
-      sessionId: selection.sessionId,
-      nodeId: props.resolveAnchorId(selection.anchorId),
-      role: selection.role,
-      quote: selection.quote,
-      occurrence: selection.occurrence,
+      sessionId: activeSelection.sessionId,
+      nodeId: props.resolveAnchorId(activeSelection.anchorId),
+      role: activeSelection.role,
+      quote: activeSelection.quote,
+      occurrence: activeSelection.occurrence,
     });
     const stickerId = crypto.randomUUID();
     setEditor({
       isNew: true,
-      point: { x: selection.rect.left + selection.rect.width, y: selection.rect.top },
+      point: {
+        x: activeSelection.rect.left + activeSelection.rect.width,
+        y: activeSelection.rect.top,
+      },
       record: {
         stickerId,
         sessionId: anchor.sessionId,
@@ -449,12 +464,12 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
-  }, [props.resolveAnchorId, selection]);
+  }, [props.resolveAnchorId, props.sessionId, selection]);
 
   useEffect(() => {
-    if (!selection || editor || menu || !sharedSelectionToolbar) return;
+    if (editor || menu || !sharedSelectionToolbar) return;
     return mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
-  }, [beginCreate, editor, menu, selection, sharedSelectionToolbar]);
+  }, [beginCreate, editor, menu, sharedSelectionToolbar]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;

@@ -21,7 +21,7 @@ async function text(path: string): Promise<string> {
 describe("sticker-board 0.4 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.4.15");
+    expect(packageJson.version).toBe("0.4.16");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
@@ -54,7 +54,10 @@ describe("sticker-board 0.4 package boundary", () => {
   it("uses a native shared-toolbar action for Web Viewer selections", async () => {
     const source = await text("src/client/overlay.tsx");
     expect(source).not.toContain("createPortal");
+    expect(source).not.toContain('[data-dsh-sidechat] [role="toolbar"]');
+    expect(source).not.toContain("if (!selection || editor || menu || !sharedSelectionToolbar)");
     expect(source).toContain("mountNativeSelectionAction");
+    expect(source).toContain("resolveSelectionForStickerAction");
     expect(source).toContain("sharedSelectionToolbar.appendChild(button)");
   });
 

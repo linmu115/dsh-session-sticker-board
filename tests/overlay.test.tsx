@@ -10,10 +10,12 @@ import {
   isEligibleMessageSelection,
   mountNativeSelectionAction,
   placeSelectionAction,
+  resolveSelectionForStickerAction,
   resolveDurableAnchorId,
   resolveRenderedAnchorKey,
   spreadDotPoint,
 } from "../src/client/overlay.tsx";
+import type { MessageSelectionSnapshot } from "../src/client/overlay.tsx";
 import type { StickerRecord } from "../src/protocol.ts";
 
 const sticker: StickerRecord = {
@@ -114,7 +116,19 @@ describe("sticker overlay commands", () => {
     const querySelector = vi.fn(() => toolbar);
 
     expect(findSharedSelectionToolbar({ querySelector })).toBe(toolbar);
-    expect(querySelector).toHaveBeenCalledWith('[data-dsh-sidechat] [role="toolbar"]');
+    expect(querySelector).toHaveBeenCalledWith(
+      '[role="toolbar"][aria-label="划选注释"], [role="toolbar"][aria-label="Selection annotations"]',
+    );
+  });
+
+  it("recaptures the live message selection before using the tracked fallback", () => {
+    const tracked = { sessionId: "tracked" } as MessageSelectionSnapshot;
+    const live = { sessionId: "live" } as MessageSelectionSnapshot;
+    const capture = vi.fn(() => live);
+
+    expect(resolveSelectionForStickerAction(tracked, "session-demo", capture)).toBe(live);
+    expect(capture).toHaveBeenCalledWith("session-demo");
+    expect(resolveSelectionForStickerAction(tracked, "session-demo", () => null)).toBe(tracked);
   });
 
   it("mounts a native sticker action into the shared toolbar and disposes it", () => {
@@ -147,8 +161,9 @@ describe("sticker overlay commands", () => {
     expect(button.textContent).toBe("添加贴纸");
 
     const mouseDown = { preventDefault: vi.fn() } as unknown as Event;
+    listeners.get("pointerdown")?.(mouseDown);
     listeners.get("mousedown")?.(mouseDown);
-    expect(mouseDown.preventDefault).toHaveBeenCalledOnce();
+    expect(mouseDown.preventDefault).toHaveBeenCalledTimes(2);
 
     const click = {
       preventDefault: vi.fn(),
