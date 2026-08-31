@@ -338,6 +338,15 @@ export interface StickerOverlayProps {
   readonly onOpenSticker?: (record: StickerRecord) => boolean;
   readonly resolveAnchorId: (renderedKey: string) => string;
   readonly resolveAnchorKey: (anchorId: string) => string;
+  readonly resolveLogicalLocation?: (input: {
+    readonly sessionId: string;
+    readonly anchorId: string;
+  }) => Promise<{
+    readonly logicalSessionId?: string;
+    readonly logicalAnchorId?: string;
+    readonly legacySessionId?: string;
+    readonly legacyAnchorId?: string;
+  } | undefined>;
 }
 
 interface EditorState {
@@ -457,6 +466,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       occurrence: activeSelection.occurrence,
     });
     const stickerId = crypto.randomUUID();
+    const logical = await props.resolveLogicalLocation?.({
+      sessionId: anchor.sessionId,
+      anchorId: anchor.anchorId,
+    });
     setEditor({
       isNew: true,
       point: {
@@ -465,6 +478,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       },
       record: {
         stickerId,
+        ...(logical ?? {}),
         sessionId: anchor.sessionId,
         anchorId: anchor.anchorId,
         role: anchor.role,
@@ -674,6 +688,10 @@ export function buildDshLogicalLink(sticker: StickerRecord): string {
   const query = new URLSearchParams({
     session: sticker.sessionId,
     anchor: sticker.anchorId,
+    ...(sticker.logicalSessionId ? { logicalSessionId: sticker.logicalSessionId } : {}),
+    ...(sticker.logicalAnchorId ? { logicalAnchorId: sticker.logicalAnchorId } : {}),
+    ...(sticker.legacySessionId ? { legacySessionId: sticker.legacySessionId } : {}),
+    ...(sticker.legacyAnchorId ? { legacyAnchorId: sticker.legacyAnchorId } : {}),
     quoteHash: sticker.quoteHash,
     sticker: sticker.stickerId,
   });

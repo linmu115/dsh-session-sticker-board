@@ -1,4 +1,7 @@
 import { z } from "zod";
+import {
+  ReferenceDeleteRequestV2Schema as BaseReferenceDeleteRequestV2Schema,
+} from "dsh-annotation-core/protocol";
 
 export {
   ANNOTATION_PROTOCOL_VERSION,
@@ -9,7 +12,6 @@ export {
   ReferenceClaimV2Schema,
   ReferenceDiscardV2Schema,
   ReferenceDeleteCommitV2Schema,
-  ReferenceDeleteRequestV2Schema,
   ReferenceRefreshRequestV2Schema,
   ReferenceRefreshResultV2Schema,
   canonicalSha256,
@@ -24,7 +26,6 @@ export type {
   ReferenceClaimV2,
   ReferenceDiscardV2,
   ReferenceDeleteCommitV2,
-  ReferenceDeleteRequestV2,
   ReferenceRefreshRequestV2,
   ReferenceRefreshResultV2,
 } from "dsh-annotation-core/protocol";
@@ -32,8 +33,19 @@ export type {
 export const STICKER_PROTOCOL_VERSION = 1 as const;
 export const PROTOCOL_VERSION = STICKER_PROTOCOL_VERSION;
 
+const stableLogicalTargetShape = {
+  logicalSessionId: z.string().min(1).optional(),
+  logicalAnchorId: z.string().min(1).optional(),
+  legacySessionId: z.string().min(1).optional(),
+  legacyAnchorId: z.string().min(1).optional(),
+};
+
+export const ReferenceDeleteRequestV2Schema = BaseReferenceDeleteRequestV2Schema.extend(stableLogicalTargetShape).strict();
+export type ReferenceDeleteRequestV2 = z.infer<typeof ReferenceDeleteRequestV2Schema>;
+
 export const stickerSchema = z.object({
   stickerId: z.string().uuid(),
+  ...stableLogicalTargetShape,
   sessionId: z.string().min(1),
   anchorId: z.string().min(1),
   role: z.enum(["user", "assistant"]),
@@ -51,6 +63,7 @@ export const deepLinkActionSchema = z.object({
   protocolVersion: z.literal(PROTOCOL_VERSION),
   type: z.literal("deep-link"),
   actionId: z.string().uuid(),
+  ...stableLogicalTargetShape,
   sessionId: z.string().min(1),
   anchorId: z.string().min(1),
   quoteHash: z.string().optional(),

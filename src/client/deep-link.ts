@@ -14,8 +14,63 @@ export interface ApplyDeepLinkOptions {
   readonly quote?: string;
   readonly locate?: (anchorId: string) => boolean | Promise<boolean>;
   readonly openAnnotation?: (setId: string, referenceId?: string) => void | boolean | Promise<void | boolean>;
+  readonly openAnnotationInSession?: (sessionId: string, setId: string, referenceId?: string) => void | boolean | Promise<void | boolean>;
   readonly revealConversation?: (sessionId: string) => void | Promise<void>;
   readonly waitForBinding?: (ctx: Context, sessionId: string) => Promise<SessionFace | undefined>;
+  readonly resolveLogicalTarget?: (target: {
+    readonly referenceType: "annotation" | "sticker" | "obsidian-reference";
+    readonly logicalSessionId: string;
+    readonly logicalAnchorId?: string;
+    readonly legacySessionId: string;
+    readonly legacyAnchorId?: string;
+  }) => Promise<{ readonly sessionId: string; readonly anchorId?: string } | undefined>;
+}
+
+export async function resolveMaintenanceProjection(input: {
+  readonly referenceType: "annotation" | "sticker" | "obsidian-reference";
+  readonly logicalSessionId?: string;
+  readonly logicalAnchorId?: string;
+  readonly legacySessionId: string;
+  readonly legacyAnchorId?: string;
+  readonly fetchImpl?: typeof fetch;
+}): Promise<{
+  readonly logicalSessionId?: string;
+  readonly logicalAnchorId?: string;
+  readonly sessionId: string;
+  readonly anchorId?: string;
+} | undefined> {
+  const response = await (input.fetchImpl ?? fetch)("/dsh-session-maintenance/api", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      operation: "reference:resolve",
+      referenceType: input.referenceType,
+      logicalSessionId: input.logicalSessionId ?? null,
+      logicalAnchorId: input.logicalAnchorId ?? null,
+      legacyNativeSessionId: input.legacySessionId,
+      legacyNativeAnchorId: input.legacyAnchorId ?? null,
+    }),
+  });
+  if (!response.ok) return undefined;
+  const body = await response.json() as {
+    readonly referenceResolution?: {
+      readonly status?: string;
+      readonly logicalSessionId?: string | null;
+      readonly logicalAnchorId?: string | null;
+      readonly nativeSessionId?: string | null;
+      readonly nativeAnchorId?: string | null;
+    };
+  };
+  const resolved = body.referenceResolution;
+  if (resolved?.status !== "resolved" || typeof resolved.nativeSessionId !== "string") return undefined;
+  return {
+    ...(resolved.logicalSessionId ? { logicalSessionId: resolved.logicalSessionId } : {}),
+    ...(resolved.logicalAnchorId ? { logicalAnchorId: resolved.logicalAnchorId } : {}),
+    sessionId: resolved.nativeSessionId,
+    ...(resolved.nativeAnchorId !== null && resolved.nativeAnchorId !== undefined
+      ? { anchorId: resolved.nativeAnchorId }
+      : input.legacyAnchorId === undefined ? {} : { anchorId: input.legacyAnchorId }),
+  };
 }
 
 function pause(milliseconds: number): Promise<void> {
@@ -130,49 +185,64 @@ export async function applyDeepLink(
   action: DeepLinkAction,
   options: ApplyDeepLinkOptions = {},
 ): Promise<DeepLinkResult> {
+  const stableTarget = action.logicalSessionId === undefined || options.resolveLogicalTarget === undefined
+    ? undefined
+    : await options.resolveLogicalTarget({
+        referenceType: action.stickerId !== undefined
+          ? "sticker"
+          : action.referenceId !== undefined ? "obsidian-reference" : "annotation",
+        logicalSessionId: action.logicalSessionId,
+        ...(action.logicalAnchorId === undefined ? {} : { logicalAnchorId: action.logicalAnchorId }),
+        legacySessionId: action.legacySessionId ?? action.sessionId,
+        legacyAnchorId: action.legacyAnchorId ?? action.anchorId,
+      });
+  const sessionId = stableTarget?.sessionId ?? action.sessionId;
+  const anchorId = stableTarget?.anchorId ?? action.anchorId;
   if (!await waitForSessionCatalog(ctx)) {
-    return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
+    return { status: "dom-unavailable", sessionId, anchorId };
   }
   const list = ctx.sessions.list.getSnapshot();
-  if (list.byId && !list.byId[action.sessionId]) {
-    return { status: "missing-session", sessionId: action.sessionId };
+  if (list.byId && !list.byId[sessionId]) {
+    return { status: "missing-session", sessionId };
   }
 
-  ctx.sessions.open(action.sessionId);
-  const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, action.sessionId);
-  if (!session) return { status: "missing-session", sessionId: action.sessionId };
+  ctx.sessions.open(sessionId);
+  const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, sessionId);
+  if (!session) return { status: "missing-session", sessionId };
 
-  await options.revealConversation?.(action.sessionId);
+  await options.revealConversation?.(sessionId);
 
-  const chatSource = ctx.uiConversation.binding(action.sessionId).target("chat");
+  const chatSource = ctx.uiConversation.binding(sessionId).target("chat");
   let chatSnapshot = await waitForChatSnapshot(chatSource);
-  let located = chatSnapshot ? locatedNode(chatSnapshot, action.anchorId) : null;
+  let located = chatSnapshot ? locatedNode(chatSnapshot, anchorId) : null;
   let pages = 0;
   while (located === null && session.getSnapshot().hasMore === true && pages < 50) {
     await session.loadOlder();
     pages += 1;
     chatSnapshot = await waitForChatSnapshot(chatSource);
-    located = chatSnapshot ? locatedNode(chatSnapshot, action.anchorId) : null;
+    located = chatSnapshot ? locatedNode(chatSnapshot, anchorId) : null;
   }
   if (located === null) {
-    return { status: "missing-anchor", sessionId: action.sessionId, anchorId: action.anchorId };
+    return { status: "missing-anchor", sessionId, anchorId };
   }
   if (action.quoteHash && !await contentMatches(located.text, action.quoteHash, options.quote)) {
-    return { status: "content-changed", sessionId: action.sessionId, anchorId: action.anchorId };
+    return { status: "content-changed", sessionId, anchorId };
   }
   if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key)) {
-    return { status: "dom-unavailable", sessionId: action.sessionId, anchorId: action.anchorId };
+    return { status: "dom-unavailable", sessionId, anchorId };
   }
   if (action.setId !== undefined) {
-    const opened = await options.openAnnotation?.(action.setId, action.referenceId);
+    const opened = options.openAnnotationInSession !== undefined
+      ? await options.openAnnotationInSession(sessionId, action.setId, action.referenceId)
+      : await options.openAnnotation?.(action.setId, action.referenceId);
     if (opened === false) {
       return {
         status: "annotation-missing",
-        sessionId: action.sessionId,
-        anchorId: action.anchorId,
+        sessionId,
+        anchorId,
         setId: action.setId,
       };
     }
   }
-  return { status: "located", sessionId: action.sessionId, anchorId: action.anchorId };
+  return { status: "located", sessionId, anchorId };
 }

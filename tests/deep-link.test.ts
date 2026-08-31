@@ -77,6 +77,31 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
 }
 
 describe("DSH deep links", () => {
+  it("resolves a logical sticker link to the active projection before opening", async () => {
+    const fixture = context([snapshot([
+      { key: "message:user-42", seq: 42, text: "目标问题" },
+    ], false)]);
+    fixture.setListSnapshot({ current: "other", byId: { "session-alpha2": { title: "当前投影" } }, phase: "ready" });
+    const resolver = vi.fn(async () => ({ sessionId: "session-alpha2", anchorId: "message:user-42" }));
+    const result = await applyDeepLink(fixture.ctx as never, {
+      ...action,
+      stickerId: "f6142265-c555-4547-9ed8-d9f178083841",
+      logicalSessionId: "logical-session-1",
+      logicalAnchorId: "logical-anchor-1",
+      legacySessionId: "session-alpha1",
+      legacyAnchorId: "message:user-41",
+    }, { locate: () => true, resolveLogicalTarget: resolver });
+    expect(resolver).toHaveBeenCalledWith({
+      referenceType: "sticker",
+      logicalSessionId: "logical-session-1",
+      logicalAnchorId: "logical-anchor-1",
+      legacySessionId: "session-alpha1",
+      legacyAnchorId: "message:user-41",
+    });
+    expect(fixture.ctx.sessions.open).toHaveBeenCalledWith("session-alpha2");
+    expect(result).toEqual({ status: "located", sessionId: "session-alpha2", anchorId: "message:user-42" });
+  });
+
   it("matches alpha.1 composite DOM anchor keys by their durable message ID", () => {
     const durableId = "c11b0e9b-b9d1-4c07-8312-d2806e3f6e10";
     expect(renderedAnchorMatches(`13:input-message${durableId}`, durableId)).toBe(true);

@@ -11,7 +11,7 @@ import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
-import { applyDeepLink } from "./deep-link.ts";
+import { applyDeepLink, resolveMaintenanceProjection } from "./deep-link.ts";
 import {
   resolveDurableAnchorId,
   resolveRenderedAnchorKey,
@@ -42,6 +42,7 @@ function StickerBoardRoot(props: {
   workspace: StickerWorkspace;
   openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
   openSticker: (record: StickerRecord) => boolean;
+  resolveLogicalLocation: NonNullable<Parameters<typeof StickerOverlay>[0]["resolveLogicalLocation"]>;
 }): ReactNode {
   const sessionList = useSyncExternalStore(
     useCallback((listener: () => void) => props.ctx.sessions.list.subscribe(listener), [props.ctx]),
@@ -90,6 +91,7 @@ function StickerBoardRoot(props: {
       onOpenSticker={props.openSticker}
       resolveAnchorId={resolveAnchorId}
       resolveAnchorKey={resolveAnchorKey}
+      resolveLogicalLocation={props.resolveLogicalLocation}
     />
   );
 }
@@ -181,6 +183,19 @@ export function apply(ctx: Context): void {
             workspace={stickers}
             openNote={(action) => bridge.openNote(action)}
             openSticker={(record) => stickerSidebar.openSticker(record)}
+            resolveLogicalLocation={async ({ sessionId, anchorId }) => {
+              const resolved = await resolveMaintenanceProjection({
+                referenceType: "sticker",
+                legacySessionId: sessionId,
+                legacyAnchorId: anchorId,
+              }).catch(() => undefined);
+              return resolved === undefined ? undefined : {
+                ...(resolved.logicalSessionId === undefined ? {} : { logicalSessionId: resolved.logicalSessionId }),
+                ...(resolved.logicalAnchorId === undefined ? {} : { logicalAnchorId: resolved.logicalAnchorId }),
+                legacySessionId: sessionId,
+                legacyAnchorId: anchorId,
+              };
+            }}
           />,
         );
 
@@ -188,19 +203,38 @@ export function apply(ctx: Context): void {
           const core = annotationCore;
           if (action.type === "reference-delete-request") {
             if (core === undefined || action.profileId !== PROFILE_ID) return false;
-            await core.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
+            const resolved = action.logicalSessionId === undefined
+              ? undefined
+              : await resolveMaintenanceProjection({
+                  referenceType: "obsidian-reference",
+                  logicalSessionId: action.logicalSessionId,
+                  ...(action.logicalAnchorId === undefined ? {} : { logicalAnchorId: action.logicalAnchorId }),
+                  legacySessionId: action.legacySessionId ?? action.sessionId,
+                  legacyAnchorId: action.legacyAnchorId ?? action.anchorId,
+                }).catch(() => undefined);
+            await core.deleteReferenceLink(resolved?.sessionId ?? action.sessionId, action.setId, action.referenceId);
             return true;
           }
           if (action.type === "reference-capture") {
             if (core === undefined) return false;
             const sessionId = ready.sessions.list.getSnapshot().current;
             if (!sessionId) return false;
+            const logicalTarget = await resolveMaintenanceProjection({
+              referenceType: "obsidian-reference",
+              legacySessionId: sessionId,
+            }).catch(() => undefined);
             await consumeObsidianReferenceCapture({
               capture: action,
               sessionId,
               profileId: PROFILE_ID,
               annotationCore: core,
               bridge,
+              ...(logicalTarget === undefined ? {} : {
+                logicalTarget: {
+                  ...(logicalTarget.logicalSessionId === undefined ? {} : { logicalSessionId: logicalTarget.logicalSessionId }),
+                  legacySessionId: sessionId,
+                },
+              }),
             });
             return true;
           }
@@ -231,10 +265,11 @@ export function apply(ctx: Context): void {
           }
           const result = await applyDeepLink(ready, action, {
             ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
+            resolveLogicalTarget: async (target) => resolveMaintenanceProjection(target).catch(() => undefined),
             ...(core === undefined ? {} : {
-              openAnnotation: async (setId: string, referenceId?: string) => {
+              openAnnotationInSession: async (resolvedSessionId: string, setId: string, referenceId?: string) => {
                 if (typeof core.openAnnotationInSession === "function") {
-                  return core.openAnnotationInSession(action.sessionId, setId, referenceId);
+                  return core.openAnnotationInSession(resolvedSessionId, setId, referenceId);
                 }
                 core.openAnnotation(setId, referenceId);
                 return true;

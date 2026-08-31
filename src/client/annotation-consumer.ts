@@ -21,6 +21,12 @@ export interface ConsumeObsidianReferenceInput {
   profileId: string;
   annotationCore: ObsidianAnnotationCore | undefined;
   bridge: Pick<BridgeHttpClient, "claimReference">;
+  logicalTarget?: {
+    readonly logicalSessionId?: string;
+    readonly logicalAnchorId?: string;
+    readonly legacySessionId?: string;
+    readonly legacyAnchorId?: string;
+  };
 }
 
 export async function consumeObsidianReferenceCapture(input: ConsumeObsidianReferenceInput): Promise<{
@@ -46,6 +52,7 @@ export async function consumeObsidianReferenceCapture(input: ConsumeObsidianRefe
     profileId: input.profileId,
     sessionId: input.sessionId,
     setId: persisted.setId,
+    ...(input.logicalTarget ?? {}),
   };
   try {
     await input.bridge.claimReference(input.capture.actionId, claim);

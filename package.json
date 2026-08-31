@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.4.20",
+  "version": "0.4.21",
   "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
   "type": "module",
