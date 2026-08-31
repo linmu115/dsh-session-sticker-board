@@ -11,6 +11,7 @@ import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { OpenNoteAction, StickerRecord } from "../protocol.ts";
 import { consumeObsidianReferenceCapture } from "./annotation-consumer.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
+import { confirmAlreadyDeletedReference } from "../host/reference-delete-actions.ts";
 import { applyDeepLink } from "./deep-link.ts";
 import {
   resolveDurableAnchorId,
@@ -188,7 +189,8 @@ export function apply(ctx: Context): void {
           const core = annotationCore;
           if (action.type === "reference-delete-request") {
             if (core === undefined || action.profileId !== PROFILE_ID) return false;
-            await core.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
+            const result = await core.deleteReferenceLink(action.sessionId, action.setId, action.referenceId);
+            await confirmAlreadyDeletedReference(bridge, action, result);
             return true;
           }
           if (action.type === "reference-capture") {
