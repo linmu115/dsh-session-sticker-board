@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 - 2026-09-01
+
+- Move the `obsidian-note` Core adapter, reference capture and bidirectional reference deletion into the dedicated `dsh-obsidian-reference-adapter` package.
+- Follow `dsh-obsidian-bridge-lifecycle` readiness for the online Sticker transport while leaving the Sticker UI mounted.
+- Route only sticker-owned Bridge actions and skip sibling-adapter actions without acknowledging them globally.
+
+Focused verification: 11 test files / 59 tests, typecheck, build and package dry run.
+
 ## 0.4.22 - 2026-09-01
 
 - Treat `@deepseek-ai/schemastery` as a DSH host capability instead of a

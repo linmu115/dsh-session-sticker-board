@@ -40,6 +40,26 @@ const deletion: ReferenceDeleteRequestV2 = {
 };
 
 describe("bridge action processor", () => {
+  it("advances locally past sibling-adapter actions without acknowledging them globally", async () => {
+    const acknowledgeDeepLink = vi.fn(async () => undefined);
+    const acknowledgeAction = vi.fn(async () => undefined);
+    const apply = vi.fn(async () => true);
+    const processor = createBridgeActionProcessor(
+      { acknowledgeDeepLink, acknowledgeAction },
+      apply,
+      undefined,
+      (message) => message.type === "deep-link" && message.setId === undefined && message.quoteHash !== undefined,
+    );
+    const referenceLink = { ...deepLink, setId: "set-1", referenceId: "reference-1" };
+    await expect(processor.process({ cursor: 2, actions: [
+      { cursor: 1, message: capture },
+      { cursor: 2, message: referenceLink },
+    ] })).resolves.toEqual({ applied: 0, failed: 0, cursor: 2 });
+    expect(apply).not.toHaveBeenCalled();
+    expect(acknowledgeDeepLink).not.toHaveBeenCalled();
+    expect(acknowledgeAction).not.toHaveBeenCalled();
+  });
+
   it("keeps a failed capture behind the cursor while processing an unrelated deep link", async () => {
     const acknowledgeDeepLink = vi.fn(async () => undefined);
     const acknowledgeAction = vi.fn(async () => undefined);

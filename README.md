@@ -1,36 +1,40 @@
 # DSH Session Sticker Board
 
-把 DSH 会话变成可交互的笔记看板：可以为消息添加高亮和 Markdown 贴纸，也可以把 Obsidian 选段作为真正的模型上下文引用，并在 DSH 与 Obsidian 之间双向跳转。
+把 DSH 会话变成可交互的笔记看板：为消息添加高亮和 Markdown 贴纸，并在 DSH 与 Obsidian 之间维护贴纸回链。Obsidian 文段引用由独立的 `dsh-obsidian-reference-adapter` 负责。
 
 ## 兼容版本
 
 - DeepSeek Harness（当前客户端基线为官方 `0.1.2-alpha.1`，安装不限制版本）
-- `dsh-session-sticker-board` `0.4.x`
+- `dsh-session-sticker-board` `0.5.x`
 - `dsh-annotation-core`（按运行时能力探测，不锁定版本）
 
 ## 安装依赖
 
 必须安装：
 
-1. [`dsh-annotation-core`](https://github.com/linmu115/dsh-annotation-core)：统一的注释气泡、编号、发送和历史显示。它是基础组件，没有单独看板。
-2. 本插件 `dsh-session-sticker-board`。
-3. [`obsidian-deepharness-bridge`](https://github.com/linmu115/obsidian-deepharness-bridge)：安装到实际 Obsidian Vault，用于选段引用、保存贴纸和双向跳转。
+推荐直接安装 [`dsh-obsidian-session-reference-suite`](https://github.com/linmu115/dsh-obsidian-session-reference-suite) Bundle。它以一个父组组合：
+
+1. `dsh-annotation-core`：通用引用状态、事务和基础上下文引用。
+2. `dsh-obsidian-bridge-lifecycle`：外部 Bridge 状态、租约和热插拔附件。
+3. `dsh-obsidian-reference-adapter`：Obsidian 文段引用、刷新、删除和回链。
+4. 本插件 `dsh-session-sticker-board`：贴纸状态、UI 和贴纸回链。
+
+此外还需把 [`obsidian-deepharness-bridge`](https://github.com/linmu115/obsidian-deepharness-bridge) 安装到实际 Obsidian Vault。
 
 推荐安装：
 
 - [`dsh-better-sidebar`](https://github.com/omdsh-dev/DSH-better-sidebar)：提供右侧“贴纸”详情页。没有它时，贴纸仍可使用，但会回退到浮层菜单。
 
-按 `dsh-annotation-core → dsh-session-sticker-board → dsh-better-sidebar（可选）` 的顺序安装 DSH 插件，然后安装并启用 Obsidian 伴侣插件，最后重启 DSH 和 Obsidian。
+Suite 的子插件顺序已经固定为 `Core → Lifecycle → Reference Adapter → Sticker Board`，卸载时逆序释放。然后安装并启用 Obsidian 伴侣插件，最后重启 DSH 和 Obsidian。
 
 正式 npm 包发布后，使用标准 Profile Bundle 命令安装：
 
 ```sh
-dsh plugin --profile web add dsh-annotation-core
-dsh plugin --profile web add dsh-session-sticker-board
+dsh plugin --profile web add dsh-obsidian-session-reference-suite
 dsh plugin --profile web add dsh-better-sidebar
 ```
 
-`dsh-better-sidebar` 是可选项；前两个包是完整引用与贴纸工作流的必需组件。
+`dsh-better-sidebar` 是可选项；Suite 是完整引用与贴纸工作流的组合入口。
 
 ## 首次设置
 

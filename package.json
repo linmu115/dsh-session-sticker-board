@@ -1,8 +1,8 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.4.22",
+  "version": "0.5.0",
   "private": false,
-  "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions",
+  "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions; note references live in dsh-obsidian-reference-adapter",
   "type": "module",
   "license": "MIT",
   "main": "lib/index.js",
@@ -52,7 +52,8 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-api-session-controller",
-        "@deepseek-ai/dsh-client-ui-chat"
+        "@deepseek-ai/dsh-client-ui-chat",
+        "dsh-obsidian-bridge-lifecycle"
       ],
       "platform": "web"
     }
@@ -102,6 +103,7 @@
     "@deepseek-ai/dsh-typert-protocol": "*",
     "@deepseek-ai/schemastery": "*",
     "dsh-annotation-core": "*",
+    "dsh-obsidian-bridge-lifecycle": "*",
     "react": "*",
     "react-dom": "*"
   },
@@ -110,6 +112,7 @@
     "@deepseek-ai/dsh-typert-protocol": { "optional": true },
     "@deepseek-ai/schemastery": { "optional": true },
     "dsh-annotation-core": { "optional": true },
+    "dsh-obsidian-bridge-lifecycle": { "optional": true },
     "react": { "optional": true },
     "react-dom": { "optional": true }
   },
@@ -125,6 +128,7 @@
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
     "dsh-annotation-core": "git+https://github.com/linmu115/dsh-annotation-core.git#codex/bidirectional-reference-delete",
+    "dsh-obsidian-bridge-lifecycle": "link:../dsh-obsidian-bridge-lifecycle",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

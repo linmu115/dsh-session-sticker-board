@@ -9,6 +9,7 @@ export function createBridgeActionProcessor(
   bridge: Pick<BridgeHttpClient, "acknowledgeDeepLink" | "acknowledgeAction">,
   apply: (message: BridgeAction) => Promise<boolean>,
   onApplyError?: (error: unknown, message: BridgeAction) => void,
+  accepts: (message: BridgeAction) => boolean = () => true,
 ): BridgeActionProcessor {
   let cursor = 0;
   let queueId: string | undefined;
@@ -35,10 +36,15 @@ export function createBridgeActionProcessor(
       )));
       const latestNavigation = ordered.findLast((entry) => (
         entry.message.type === "deep-link"
+        && accepts(entry.message)
         && (entry.message.referenceId === undefined || !deletingReferences.has(entry.message.referenceId))
       ));
       for (const entry of ordered) {
         if (entry.cursor <= cursor || completed.has(entry.cursor)) continue;
+        if (!accepts(entry.message)) {
+          completed.add(entry.cursor);
+          continue;
+        }
         try {
           if (
             entry.message.type === "deep-link"
@@ -110,6 +116,7 @@ export interface BridgePollingOptions {
   schedule?: (callback: () => void, delay: number) => () => void;
   onError?: (error: unknown) => void;
   onActionError?: (error: unknown, message: BridgeAction) => void;
+  accepts?: (message: BridgeAction) => boolean;
 }
 
 export interface BridgePollingHandle {
@@ -122,7 +129,7 @@ export function startBridgePolling(
   apply: (message: BridgeAction) => Promise<boolean>,
   options: BridgePollingOptions = {},
 ): BridgePollingHandle {
-  const processor = createBridgeActionProcessor(bridge, apply, options.onActionError);
+  const processor = createBridgeActionProcessor(bridge, apply, options.onActionError, options.accepts);
   const schedule = options.schedule ?? ((callback, delay) => {
     const timer = globalThis.setTimeout(callback, delay);
     return () => globalThis.clearTimeout(timer);

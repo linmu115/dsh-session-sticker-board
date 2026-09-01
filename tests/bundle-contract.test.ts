@@ -18,12 +18,13 @@ async function text(path: string): Promise<string> {
   return readFile(join(repositoryRoot, path), "utf8");
 }
 
-describe("sticker-board 0.4 package boundary", () => {
+describe("sticker-board 0.5 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.4.22");
+    expect(packageJson.version).toBe("0.5.0");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
+    expect(packageJson.peerDependencies["dsh-obsidian-bridge-lifecycle"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
     expect(packageJson.exports).toHaveProperty("./typert");
     expect(packageJson.dshKnowledge).toEqual({ annotationProtocolVersion: 2, stickerProtocolVersion: 1 });
@@ -48,7 +49,8 @@ describe("sticker-board 0.4 package boundary", () => {
       expect(source).not.toContain(forbidden);
     }
     expect(source).toContain('export const inject = [] as const');
-    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation"] as const');
+    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation", "obsidianBridgeLifecycle"] as const');
+    expect(source).not.toContain('registerSourceAdapter("obsidian-note"');
   });
 
   it("uses a native shared-toolbar action for Web Viewer selections", async () => {
