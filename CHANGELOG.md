@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 - 2026-09-01
+
+- Persist sticker notes under the active DSH home before attempting any Obsidian operation.
+- Treat Obsidian session notes and backlinks as a reconnectable mirror, so creation, editing, and deletion remain available while the Bridge is offline.
+- Import existing Vault-only sticker session notes on first successful reconnect and report the local versus Obsidian sync state in the sidebar.
+
 ## 0.5.0 - 2026-09-01
 
 - Move the `obsidian-note` Core adapter, reference capture and bidirectional reference deletion into the dedicated `dsh-obsidian-reference-adapter` package.
