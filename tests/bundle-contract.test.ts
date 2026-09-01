@@ -21,7 +21,7 @@ async function text(path: string): Promise<string> {
 describe("sticker-board 0.4 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.4.20");
+    expect(packageJson.version).toBe("0.4.22");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
@@ -65,7 +65,7 @@ describe("sticker-board 0.4 package boundary", () => {
     const index = await text("src/client/index.tsx");
     const deepLink = await text("src/client/deep-link.ts");
     expect(index).toContain('uiConversation.binding(sessionId).target("chat")');
-    expect(deepLink).toContain('uiConversation.binding(action.sessionId).target("chat")');
+    expect(deepLink).toContain('uiConversation.binding(sessionId).target("chat")');
     expect(`${index}\n${deepLink}`).not.toContain("snapshot.chat.nodes");
     expect(index).not.toContain("dshStickerDiagnostic");
   });
