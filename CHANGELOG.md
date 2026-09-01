@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 - 2026-09-01
+
+- Declare Bridge lifecycle protocol v3 compatibility for the Suite's dynamic DSH Viewer target.
+- Keep sticker creation and local persistence independent of Bridge availability.
+
 ## 0.6.0 - 2026-09-01
 
 - Persist sticker notes under the active DSH home before attempting any Obsidian operation.
