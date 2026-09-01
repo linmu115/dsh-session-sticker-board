@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions; note references live in dsh-obsidian-reference-adapter",
   "type": "module",
@@ -61,7 +61,7 @@
   "dshKnowledge": {
     "annotationProtocolVersion": 2,
     "stickerProtocolVersion": 1,
-    "bridgeLifecycleProtocolVersion": 2
+    "bridgeLifecycleProtocolVersion": 3
   },
   "dshWorkshop": {
     "schema": "omdsh-workshop-package/v1",
