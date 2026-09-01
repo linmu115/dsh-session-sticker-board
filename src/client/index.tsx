@@ -210,7 +210,7 @@ export function apply(ctx: Context): void {
                   logicalSessionId: action.logicalSessionId,
                   ...(action.logicalAnchorId === undefined ? {} : { logicalAnchorId: action.logicalAnchorId }),
                   legacySessionId: action.legacySessionId ?? action.sessionId,
-                  legacyAnchorId: action.legacyAnchorId ?? action.anchorId,
+                  ...(action.legacyAnchorId === undefined ? {} : { legacyAnchorId: action.legacyAnchorId }),
                 }).catch(() => undefined);
             await core.deleteReferenceLink(resolved?.sessionId ?? action.sessionId, action.setId, action.referenceId);
             return true;
