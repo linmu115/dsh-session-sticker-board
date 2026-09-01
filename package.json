@@ -28,6 +28,7 @@
   "files": [
     "lib",
     "src",
+    "CHANGELOG.md",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
