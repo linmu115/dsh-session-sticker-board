@@ -112,6 +112,11 @@ export const sessionNoteDocumentSchema = z.object({
   stickers: z.array(stickerSchema),
 });
 
+export const localStickerStateSchema = z.object({
+  document: sessionNoteDocumentSchema,
+  pendingBacklinkDeletes: z.array(stickerSchema),
+}).strict();
+
 export const bridgeMessageSchema = z.discriminatedUnion("type", [
   deepLinkActionSchema,
   openNoteActionSchema,
@@ -125,6 +130,7 @@ export type StickerBacklink = z.infer<typeof stickerBacklinkSchema>;
 export type StickerBacklinkTarget = z.infer<typeof stickerBacklinkTargetSchema>;
 export type StickerBacklinkDeleteResult = z.infer<typeof stickerBacklinkDeleteResultSchema>;
 export type SessionNoteDocument = z.infer<typeof sessionNoteDocumentSchema>;
+export type LocalStickerState = z.infer<typeof localStickerStateSchema>;
 export type BridgeMessage = z.infer<typeof bridgeMessageSchema>;
 
 export function parseBridgeMessage(value: unknown): BridgeMessage {

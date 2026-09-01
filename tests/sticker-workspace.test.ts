@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createStickerWorkspace } from "../src/client/sticker-workspace.ts";
-import type { StickerRecord } from "../src/protocol.ts";
+import type { SessionNoteDocument, StickerRecord } from "../src/protocol.ts";
 
 const sticker: StickerRecord = {
   stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
@@ -16,72 +16,106 @@ const sticker: StickerRecord = {
   color: "yellow",
 };
 
+function document(stickers: StickerRecord[] = [], revision = "sha256:empty"): SessionNoteDocument {
+  return {
+    protocolVersion: 1,
+    type: "session-note",
+    sessionId: "session-demo",
+    revision,
+    stickers,
+  };
+}
+
+function local(initial = document()) {
+  let current = { document: initial, pendingBacklinkDeletes: [] as StickerRecord[] };
+  return {
+    readLocalState: vi.fn(async () => current),
+    saveLocalSession: vi.fn(async (request: { document: SessionNoteDocument; expectedRevision: string; enqueueBacklinkDelete?: StickerRecord }) => {
+      if (request.expectedRevision !== current.document.revision) throw new Error("REVISION_CONFLICT");
+      current = {
+        document: { ...request.document, revision: `sha256:local-${request.document.stickers.length}-${request.document.stickers[0]?.markdown ?? "empty"}` },
+        pendingBacklinkDeletes: request.enqueueBacklinkDelete === undefined
+          ? current.pendingBacklinkDeletes
+          : [...current.pendingBacklinkDeletes, request.enqueueBacklinkDelete],
+      };
+      return current;
+    }),
+    acknowledgeBacklinkDelete: vi.fn(async ({ stickerId }: { sessionId: string; stickerId: string }) => {
+      current = { ...current, pendingBacklinkDeletes: current.pendingBacklinkDeletes.filter((record) => record.stickerId !== stickerId) };
+      return current;
+    }),
+  };
+}
+
+function offlineBridge() {
+  return {
+    readSessionNote: vi.fn(async () => { throw new TypeError("offline"); }),
+    saveSessionNote: vi.fn(async () => { throw new TypeError("offline"); }),
+    deleteStickerBacklinks: vi.fn(async () => { throw new TypeError("offline"); }),
+  };
+}
+
 describe("sticker workspace", () => {
-  it("loads once and commits successful optimistic-concurrency writes", async () => {
-    const saveSessionNote = vi.fn(async () => ({ revision: "sha256:next" }));
-    const bridge = {
-      readSessionNote: vi.fn(async () => ({
-        protocolVersion: 1 as const,
-        type: "session-note" as const,
-        sessionId: "session-demo",
-        revision: "sha256:base",
-        stickers: [sticker],
-      })),
-      saveSessionNote,
-      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 1, linksRemoved: 1 })),
-    };
-    const workspace = createStickerWorkspace(bridge);
+  it("creates and edits durable local stickers while Obsidian is offline", async () => {
+    const persistence = local();
+    const bridge = offlineBridge();
+    const workspace = createStickerWorkspace(persistence, bridge);
 
-    await Promise.all([workspace.ensure("session-demo"), workspace.ensure("session-demo")]);
-    expect(bridge.readSessionNote).toHaveBeenCalledTimes(1);
+    await workspace.ensure("session-demo");
+    await workspace.save(sticker);
+    await workspace.save({ ...sticker, markdown: "离线更新", color: "green" });
 
-    await workspace.save({ ...sticker, markdown: "更新说明", color: "green" });
-    expect(saveSessionNote).toHaveBeenCalledWith(expect.objectContaining({
-      revision: "sha256:base",
-      stickers: [expect.objectContaining({ markdown: "更新说明", color: "green" })],
-    }), "sha256:base");
-    expect(workspace.list("session-demo")[0]?.record.markdown).toBe("更新说明");
-    expect(workspace.revision("session-demo")).toBe("sha256:next");
+    expect(workspace.list("session-demo")[0]?.record).toMatchObject({ markdown: "离线更新", color: "green" });
+    expect(persistence.saveLocalSession).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(workspace.syncStatus("session-demo")).toBe("local-only"));
   });
 
-  it("does not remove a sticker locally when the Vault write fails", async () => {
+  it("imports an existing Obsidian session note once, then treats local state as authoritative", async () => {
+    const persistence = local();
     const bridge = {
-      readSessionNote: vi.fn(async () => ({
-        protocolVersion: 1 as const,
-        type: "session-note" as const,
-        sessionId: "session-demo",
-        revision: "sha256:base",
-        stickers: [sticker],
-      })),
-      saveSessionNote: vi.fn(async () => { throw new Error("REVISION_CONFLICT"); }),
-      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 1, linksRemoved: 1 })),
+      readSessionNote: vi.fn(async () => document([sticker], "sha256:vault")),
+      saveSessionNote: vi.fn(async () => ({ revision: "sha256:vault-next" })),
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 0, linksRemoved: 0 })),
     };
-    const workspace = createStickerWorkspace(bridge);
-    await workspace.ensure("session-demo");
+    const workspace = createStickerWorkspace(persistence, bridge);
 
-    await expect(workspace.remove("session-demo", sticker.stickerId)).rejects.toThrow("REVISION_CONFLICT");
-    expect(workspace.list("session-demo")).toHaveLength(1);
-    expect(bridge.deleteStickerBacklinks).toHaveBeenCalledWith(sticker);
+    await workspace.ensure("session-demo");
+    await vi.waitFor(() => expect(workspace.list("session-demo")).toHaveLength(1));
+    expect(persistence.saveLocalSession).toHaveBeenCalledOnce();
+    expect(workspace.syncStatus("session-demo")).toBe("synced");
   });
 
-  it("does not delete the DSH sticker when Obsidian backlink cleanup fails", async () => {
-    const saveSessionNote = vi.fn(async () => ({ revision: "sha256:next" }));
-    const bridge = {
-      readSessionNote: vi.fn(async () => ({
-        protocolVersion: 1 as const,
-        type: "session-note" as const,
-        sessionId: "session-demo",
-        revision: "sha256:base",
-        stickers: [sticker],
-      })),
-      saveSessionNote,
-      deleteStickerBacklinks: vi.fn(async () => { throw new Error("VAULT_WRITE_FAILED"); }),
-    };
-    const workspace = createStickerWorkspace(bridge);
+  it("deletes locally even when Obsidian backlink cleanup is unavailable", async () => {
+    const persistence = local(document([sticker], "sha256:local"));
+    const bridge = offlineBridge();
+    const workspace = createStickerWorkspace(persistence, bridge);
     await workspace.ensure("session-demo");
 
-    await expect(workspace.remove("session-demo", sticker.stickerId)).rejects.toThrow("VAULT_WRITE_FAILED");
-    expect(saveSessionNote).not.toHaveBeenCalled();
-    expect(workspace.list("session-demo")).toHaveLength(1);
+    await expect(workspace.remove("session-demo", sticker.stickerId)).resolves.toBeUndefined();
+    expect(workspace.list("session-demo")).toHaveLength(0);
+    await vi.waitFor(() => expect(bridge.deleteStickerBacklinks).toHaveBeenCalledWith(sticker));
+  });
+
+  it("drains a persisted backlink deletion after a workspace restart and reconnect", async () => {
+    const persistence = local(document([sticker], "sha256:local"));
+    const offline = createStickerWorkspace(persistence, offlineBridge());
+    await offline.ensure("session-demo");
+    await offline.remove("session-demo", sticker.stickerId);
+    await vi.waitFor(async () => {
+      expect((await persistence.readLocalState()).pendingBacklinkDeletes).toEqual([sticker]);
+    });
+
+    const bridge = {
+      readSessionNote: vi.fn(async () => document([sticker], "sha256:vault")),
+      saveSessionNote: vi.fn(async () => ({ revision: "sha256:vault-next" })),
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 1, linksRemoved: 1 })),
+    };
+    const restarted = createStickerWorkspace(persistence, bridge);
+    await restarted.ensure("session-demo");
+    await vi.waitFor(() => expect(persistence.acknowledgeBacklinkDelete).toHaveBeenCalledWith({
+      sessionId: "session-demo",
+      stickerId: sticker.stickerId,
+    }));
+    expect(restarted.list("session-demo")).toHaveLength(0);
   });
 });

@@ -94,7 +94,7 @@ export function apply(ctx: Context): void {
           origin: mountedRemote.origin,
           ...(surfaceId === undefined ? {} : { surfaceId }),
         });
-        const stickers = createStickerWorkspace(bridge);
+        const stickers = createStickerWorkspace(mountedRemote, bridge);
         const stickerSidebar = createStickerSidebarController();
         let betterSidebar: BetterSidebarService | undefined;
         const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
@@ -181,6 +181,7 @@ export function apply(ctx: Context): void {
         const unregisterBridgeAttachment = ready.obsidianBridgeLifecycle.mountWhenReady(
           "session-sticker-board:client-transport",
           () => {
+            void stickers.syncAll();
             const polling = startBridgePolling(bridge, applyAction, {
               accepts: (action) => action.type === "deep-link"
                 && action.setId === undefined

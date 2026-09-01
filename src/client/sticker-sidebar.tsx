@@ -148,6 +148,7 @@ function StickerDetailForm(props: {
   const [backlinkPhase, setBacklinkPhase] = useState<"loading" | "ready" | "error">("loading");
   const [backlinkError, setBacklinkError] = useState("");
   const colors: StickerRecord["color"][] = ["yellow", "green", "pink", "blue"];
+  const syncStatus = props.workspace.syncStatus(props.record.sessionId);
   const dirty = markdown !== props.record.markdown
     || tags !== props.record.tags.join(", ")
     || color !== props.record.color;
@@ -235,7 +236,17 @@ function StickerDetailForm(props: {
       </div>
       <footer className="dsh-sticker-sidebar-footer">
         <span className={`dsh-sticker-sidebar-status${phase === "error" ? " dsh-sticker-sidebar-status-error" : ""}`}>
-          {phase === "saving" ? "正在保存..." : phase === "saved" ? "已保存" : phase === "error" ? error : dirty ? "有未保存修改" : "内容已同步"}
+          {phase === "saving"
+            ? "正在保存到 DSH..."
+            : phase === "error"
+              ? error
+              : dirty
+                ? "有未保存修改"
+                : syncStatus === "synced"
+                  ? "已保存；Obsidian 双链已同步"
+                  : syncStatus === "syncing"
+                    ? "已保存到 DSH；正在同步 Obsidian 双链"
+                    : "已保存到 DSH；Obsidian 双链待连接"}
         </span>
         <button type="button" className="dsh-sticker-sidebar-save" disabled={!dirty || phase === "saving"} onClick={() => void save()}><Save size={14} />保存</button>
       </footer>
