@@ -9,12 +9,14 @@ This file records author-side release evidence. Workshop verification and Regist
 - Annotation protocol: v2
 - Sticker protocol: v1
 - Public compile-only Annotation Core baseline:
-  `d7b0de917c7673d06dbd30790f7eed960ae82915`
+  `de5c6d3e4784cfcfa4cc90b4e8c29d75a36a2161`
+- Public compile-only Bridge lifecycle baseline:
+  `bfe3582f52826b052cedf2ad7c5f24318fd64bdb`
 
-The published Core baseline is used only for reproducible protocol declarations
-in this repository. The RC1 profile candidate must install Annotation Core
-0.3.7 before Sticker Board 0.7.1; the public baseline itself is not the RC1
-runtime implementation.
+The published Git baselines are used only for reproducible declarations in
+this repository. The RC1 profile candidate must still install Annotation Core
+0.3.7 and Bridge Lifecycle 0.3.1 before Sticker Board 0.7.1; they are not
+bundled into Sticker Board as private runtime copies.
 
 ## Clean-checkout gate
 
