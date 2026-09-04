@@ -21,7 +21,7 @@ async function text(path: string): Promise<string> {
 describe("sticker-board 0.6 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.0");
+    expect(packageJson.version).toBe("0.7.1");
     expect(new Set(Object.values(packageJson.peerDependencies))).toEqual(new Set(["*"]));
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("*");
     expect(packageJson.peerDependencies["dsh-obsidian-bridge-lifecycle"]).toBe("*");
