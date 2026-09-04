@@ -4,10 +4,17 @@ This file records author-side release evidence. Workshop verification and Regist
 
 ## Supported baseline
 
-- DeepSeek Harness client: `0.1.2-alpha.1`
+- DeepSeek Harness client: `0.1.2-rc.1`
 - Profile: `web`
 - Annotation protocol: v2
 - Sticker protocol: v1
+- Public compile-only Annotation Core baseline:
+  `d7b0de917c7673d06dbd30790f7eed960ae82915`
+
+The published Core baseline is used only for reproducible protocol declarations
+in this repository. The RC1 profile candidate must install Annotation Core
+0.3.7 before Sticker Board 0.7.1; the public baseline itself is not the RC1
+runtime implementation.
 
 ## Clean-checkout gate
 

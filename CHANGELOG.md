@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.1 - 2026-09-04
+
+- Compile and package against the DSH 0.1.2-rc.1 Session, Gateway, and Typert
+  contracts with no older Harness build path.
+- Use the public full-commit Annotation Core baseline `d7b0de917c7673d06dbd30790f7eed960ae82915`
+  for reproducible protocol declarations and pin Zod 4.4.3 across the suite.
+- Require the RC1 profile candidate to install Core 0.3.7 before Sticker 0.7.1;
+  the public 0.3.6 commit is a compile-only dependency, not the runtime Core.
+- Preserve sticker persistence, selection overlay, bidirectional navigation,
+  targeted Web Viewer surfaces, immediate unlink, and post-answer visibility.
+
+No sticker, Bridge, backlink, or deletion protocol was changed.
+
 ## 0.7.0 - 2026-09-01
 
 - Declare Bridge lifecycle protocol v3 compatibility for the Suite's dynamic DSH Viewer target.
