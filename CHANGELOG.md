@@ -4,10 +4,12 @@
 
 - Compile and package against the DSH 0.1.2-rc.1 Session, Gateway, and Typert
   contracts with no older Harness build path.
-- Use the public full-commit Annotation Core baseline `d7b0de917c7673d06dbd30790f7eed960ae82915`
-  for reproducible protocol declarations and pin Zod 4.4.3 across the suite.
+- Use the public full-commit Annotation Core RC1 baseline
+  `de5c6d3e4784cfcfa4cc90b4e8c29d75a36a2161` and lifecycle baseline
+  `bfe3582f52826b052cedf2ad7c5f24318fd64bdb` for clean-checkout type
+  verification, and pin Zod 4.4.3 across the suite.
 - Require the RC1 profile candidate to install Core 0.3.7 before Sticker 0.7.1;
-  the public 0.3.6 commit is a compile-only dependency, not the runtime Core.
+  the Git dependencies are compile-only and are not bundled as runtime Core.
 - Preserve sticker persistence, selection overlay, bidirectional navigation,
   targeted Web Viewer surfaces, immediate unlink, and post-answer visibility.
 
