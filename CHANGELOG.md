@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.2 - Unreleased
+
+- Share Protocol data schemas and Lifecycle's cancellable HTTP transport, using
+  the Lifecycle-selected Bridge origin throughout the Suite.
+- Keep revision conflicts visible until the user chooses DSH or Obsidian sticker
+  content. Preserve queued deletions and edits during conflict recovery; offer
+  retry and an Obsidian connection/synchronization tab in Better Sidebar.
+- Bound synchronization to three sessions at a time and stop late polls,
+  navigation, local saves and remote deletions after workspace disposal.
+- Cache normalized text and quote ranges per message, invalidate only changed
+  anchors, and calculate sticker ranges near the viewport. Synthetic 50/200/500
+  anchor tests with ten visible anchors each perform ten text/range calculations.
+- Preserve annotation 2, sticker 1 and lifecycle 3 wire formats.
+
+This development combination is checked with the Suite workspace tools. Public
+development dependency pins still identify the preceding release until the
+coordinated source release; see the Suite README before rebuilding these changes.
+
 ## 0.7.1 - 2026-09-04
 
 - Compile and package against the DSH 0.1.2-rc.1 Session, Gateway, and Typert

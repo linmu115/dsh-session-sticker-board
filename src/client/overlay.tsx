@@ -9,6 +9,9 @@ import {
 } from "react";
 import { Quote } from "lucide-react";
 
+import { StickerGeometryCache } from "./sticker-geometry.ts";
+export { rangeOfSticker } from "./sticker-geometry.ts";
+
 import { createMessageAnchor } from "./anchor.ts";
 import type { StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type StickerRecord } from "../protocol.ts";
@@ -256,76 +259,6 @@ export function resolveSelectionForStickerAction(
   return capture(sessionId) ?? trackedSelection;
 }
 
-interface SearchCharacter {
-  readonly value: string;
-  readonly node: Text;
-  readonly startOffset: number;
-  readonly endOffset: number;
-}
-
-function isIgnoredSearchCharacter(value: string): boolean {
-  return /[\s\u200b-\u200d\u2060\ufeff]/u.test(value);
-}
-
-function normalizedSearchCharacters(root: HTMLElement): SearchCharacter[] {
-  const characters: SearchCharacter[] = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
-    const node = current as Text;
-    const text = node.data;
-    let offset = 0;
-    for (const value of text) {
-      const startOffset = offset;
-      offset += value.length;
-      if (isIgnoredSearchCharacter(value)) continue;
-      characters.push({ value, node, startOffset, endOffset: offset });
-    }
-  }
-  return characters;
-}
-
-function normalizedSearchText(value: string): string {
-  return [...value].filter((character) => !isIgnoredSearchCharacter(character)).join("");
-}
-
-export function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
-  try {
-    const root = document.querySelector<HTMLElement>(
-      `[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`,
-    );
-    if (!root || !root.isConnected || !sticker.quote) return null;
-    const characters = normalizedSearchCharacters(root);
-    const text = characters.map((character) => character.value).join("");
-    const quote = normalizedSearchText(sticker.quote);
-    if (!quote) return null;
-    let start = -1;
-    let cursor = 0;
-    for (let index = 0; index <= sticker.occurrence; index += 1) {
-      start = text.indexOf(quote, cursor);
-      if (start < 0) return null;
-      cursor = start + quote.length;
-    }
-    const first = characters[start];
-    const last = characters[start + quote.length - 1];
-    if (!first || !last) return null;
-    const range = document.createRange();
-    range.setStart(first.node, first.startOffset);
-    range.setEnd(last.node, last.endOffset);
-    if (normalizedSearchText(range.toString()) !== quote) return null;
-    return range;
-  } catch {
-    return null;
-  }
-}
-
-function rangeRects(range: Range): DOMRect[] {
-  try {
-    return [...range.getClientRects()].filter((rect) => rect.width > 0 && rect.height > 0);
-  } catch {
-    return [];
-  }
-}
-
 type StickerDraft = Pick<StickerRecord, "markdown" | "tags" | "color">;
 
 export interface StickerOverlayProps {
@@ -383,6 +316,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geometryVersion, setGeometryVersion] = useState(0);
+  const geometryCache = useMemo(() => new StickerGeometryCache(document), [props.sessionId]);
 
   useEffect(() => {
     const handlers = createSelectionRecomputeHandlers(
@@ -413,8 +347,17 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
         setGeometryVersion((version) => version + 1);
       });
     };
-    const observer = new MutationObserver(update);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const observer = new MutationObserver((records) => {
+      if (geometryCache.processMutations(records)) update();
+    });
+    observer.observe(document.body, {
+      childList: true, subtree: true, characterData: true, attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ["data-chat-anchor-key", "class", "style", "hidden", "data-streaming"],
+    });
+    // Account for DOM committed between the render measurement and effect setup.
+    geometryCache.clear();
+    update();
     document.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
     return () => {
@@ -422,24 +365,25 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       document.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
       if (frame) window.cancelAnimationFrame(frame);
+      geometryCache.clear();
     };
-  }, []);
+  }, [geometryCache]);
 
   const geometry = useMemo(() => {
     const placed: OverlayPoint[] = [];
-    return props.stickers.map((view) => {
-      const range = rangeOfSticker(
-        view.record as StickerRecord,
-        props.resolveAnchorKey(view.record.anchorId),
-      );
-      const rects = range ? rangeRects(range) : [];
+    const rectangles = geometryCache.measure(props.stickers.map((view) => ({
+      record: view.record as StickerRecord,
+      renderedAnchorKey: props.resolveAnchorKey(view.record.anchorId),
+    })), { width: window.innerWidth, height: window.innerHeight });
+    return props.stickers.map((view, index) => {
+      const rects = rectangles[index] ?? [];
       if (!rects.length) return { view, rects, point: null };
       const last = rects.at(-1)!;
       const point = spreadDotPoint({ x: last.right + 7, y: rects[0]!.top + rects[0]!.height / 2 }, placed);
       placed.push(point);
       return { view, rects, point };
     });
-  }, [props.stickers, props.resolveAnchorKey, geometryVersion]);
+  }, [props.stickers, props.resolveAnchorKey, geometryVersion, geometryCache]);
 
   const sharedSelectionToolbar = useMemo(
     () => findSharedSelectionToolbar(),

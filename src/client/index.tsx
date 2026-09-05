@@ -95,6 +95,11 @@ export function apply(ctx: Context): void {
           ...(surfaceId === undefined ? {} : { surfaceId }),
         });
         const stickers = createStickerWorkspace(mountedRemote, bridge);
+        const unregisterHealth = ready.obsidianBridgeLifecycle.registerHealthSource?.("stickers", {
+          getHealth: () => stickers.health(),
+          subscribe: (listener) => stickers.subscribe(listener),
+          retry: () => { void stickers.syncAll(); },
+        });
         const stickerSidebar = createStickerSidebarController();
         let betterSidebar: BetterSidebarService | undefined;
         const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
@@ -108,6 +113,7 @@ export function apply(ctx: Context): void {
               stickers,
               (action) => bridge.openNote(action),
               (record) => bridge.listBacklinks(record),
+              ready.obsidianBridgeLifecycle,
             );
             return () => {
               unregister();
@@ -143,13 +149,15 @@ export function apply(ctx: Context): void {
           />,
         );
 
-        const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction): Promise<boolean> => {
+        const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction, signal?: AbortSignal): Promise<boolean> => {
+          signal?.throwIfAborted();
           if (action.type !== "deep-link" || action.setId !== undefined) return false;
           const isStickerAction = action.stickerId !== undefined
             || action.quoteHash !== undefined;
           if (isStickerAction) {
             try {
               await stickers.ensure(action.sessionId);
+              signal?.throwIfAborted();
             } catch (error) {
               console.warn("[dsh-session-sticker-board] sticker deep-link load failed", error);
               return true;
@@ -170,8 +178,9 @@ export function apply(ctx: Context): void {
             return true;
           }
           const result = await applyDeepLink(ready, action, {
+            ...(signal === undefined ? {} : { signal }),
             ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
-            resolveLogicalTarget: async (target) => resolveMaintenanceProjection(target).catch(() => undefined),
+            resolveLogicalTarget: async (target) => resolveMaintenanceProjection({ ...target, ...(signal === undefined ? {} : { signal }) }).catch(() => undefined),
           });
           if (result.status !== "located") {
             console.warn("[dsh-session-sticker-board] deep-link was not located", result);
@@ -197,6 +206,8 @@ export function apply(ctx: Context): void {
         );
         ready.effect(() => () => {
           unregisterBridgeAttachment();
+          unregisterHealth?.();
+          stickers.dispose();
           void sidebarFiber.dispose();
           bridge.dispose();
           void mountedRemote.dispose();

@@ -56,6 +56,61 @@ function offlineBridge() {
 }
 
 describe("sticker workspace", () => {
+  it("keeps a write conflict visible and requires a content choice before retrying", async () => {
+    const persistence = local(document([sticker], "sha256:local"));
+    const bridge = {
+      readSessionNote: vi.fn(async () => document([{ ...sticker, markdown: "Obsidian edit" }], "sha256:remote")),
+      saveSessionNote: vi.fn(async () => ({ revision: "sha256:saved" })),
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 0, linksRemoved: 0 })),
+    };
+    bridge.saveSessionNote.mockRejectedValueOnce(Object.assign(new Error("Note changed during save"), { code: "revision-conflict" }));
+    const workspace = createStickerWorkspace(persistence, bridge);
+    await workspace.ensure("session-demo");
+    await vi.waitFor(() => expect(workspace.syncStatus("session-demo")).toBe("conflict"));
+    await workspace.syncAll();
+    expect(bridge.saveSessionNote).toHaveBeenCalledTimes(1);
+    expect(workspace.syncIssue("session-demo")).toBe("Note changed during save");
+    expect(workspace.health()).toMatchObject({ state: "conflict", pendingCount: 1 });
+    await workspace.resolveConflict("session-demo", "use-obsidian");
+    expect(workspace.list("session-demo")[0]?.record.markdown).toBe("Obsidian edit");
+    expect(workspace.syncStatus("session-demo")).toBe("synced");
+    expect(workspace.syncIssue("session-demo")).toBeUndefined();
+  });
+
+  it("can explicitly keep local content after a conflict", async () => {
+    const persistence = local(document([sticker], "sha256:local"));
+    const bridge = {
+      readSessionNote: vi.fn(async () => document([], "sha256:remote")),
+      saveSessionNote: vi.fn(async () => ({ revision: "sha256:saved" })),
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 0, linksRemoved: 0 })),
+    };
+    bridge.saveSessionNote.mockRejectedValueOnce(Object.assign(new Error("conflict"), { code: "REVISION_CONFLICT" }));
+    const workspace = createStickerWorkspace(persistence, bridge);
+    await workspace.ensure("session-demo");
+    await vi.waitFor(() => expect(workspace.syncStatus("session-demo")).toBe("conflict"));
+    await workspace.resolveConflict("session-demo", "keep-local");
+    expect(bridge.saveSessionNote).toHaveBeenLastCalledWith(expect.objectContaining({ stickers: [sticker] }), "sha256:remote");
+    expect(workspace.syncStatus("session-demo")).toBe("synced");
+  });
+
+  it("does not write an Obsidian note from a late load after disposal", async () => {
+    let completeRead!: (value: SessionNoteDocument) => void;
+    const bridge = {
+      readSessionNote: vi.fn(() => new Promise<SessionNoteDocument>((resolve) => { completeRead = resolve; })),
+      saveSessionNote: vi.fn(async () => ({ revision: "sha256:saved" })),
+      deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 0, linksRemoved: 0 })),
+    };
+    const workspace = createStickerWorkspace(local(document([sticker], "sha256:local")), bridge);
+    await workspace.ensure("session-demo");
+    await vi.waitFor(() => expect(bridge.readSessionNote).toHaveBeenCalledOnce());
+    workspace.dispose();
+    completeRead(document([], "sha256:remote"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(bridge.saveSessionNote).not.toHaveBeenCalled();
+    expect(workspace.health().state).toBe("closed");
+  });
+
   it("creates and edits durable local stickers while Obsidian is offline", async () => {
     const persistence = local();
     const bridge = offlineBridge();

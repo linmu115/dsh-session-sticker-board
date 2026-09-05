@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions; note references live in dsh-obsidian-reference-adapter",
   "type": "module",
@@ -105,6 +105,7 @@
     "@deepseek-ai/schemastery": "*",
     "dsh-annotation-core": "*",
     "dsh-obsidian-bridge-lifecycle": "*",
+    "dsh-obsidian-bridge-protocol": "*",
     "react": "*",
     "react-dom": "*"
   },
@@ -114,6 +115,7 @@
     "@deepseek-ai/schemastery": { "optional": true },
     "dsh-annotation-core": { "optional": true },
     "dsh-obsidian-bridge-lifecycle": { "optional": true },
+    "dsh-obsidian-bridge-protocol": { "optional": true },
     "react": { "optional": true },
     "react-dom": { "optional": true }
   },
@@ -132,6 +134,7 @@
     "@types/react-dom": "~18.3.1",
     "dsh-annotation-core": "git+https://github.com/linmu115/dsh-annotation-core.git#de5c6d3e4784cfcfa4cc90b4e8c29d75a36a2161",
     "dsh-obsidian-bridge-lifecycle": "git+https://github.com/linmu115/dsh-obsidian-bridge-lifecycle.git#bfe3582f52826b052cedf2ad7c5f24318fd64bdb",
+    "dsh-obsidian-bridge-protocol": "git+https://github.com/linmu115/dsh-obsidian-bridge-protocol.git#cfb069a5a09dacfb2e4f64a26036dfe514225132",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

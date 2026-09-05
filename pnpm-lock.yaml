@@ -57,6 +57,9 @@ importers:
       dsh-obsidian-bridge-lifecycle:
         specifier: git+https://github.com/linmu115/dsh-obsidian-bridge-lifecycle.git#bfe3582f52826b052cedf2ad7c5f24318fd64bdb
         version: https://codeload.github.com/linmu115/dsh-obsidian-bridge-lifecycle/tar.gz/bfe3582f52826b052cedf2ad7c5f24318fd64bdb(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/schemastery@3.18.2)
+      dsh-obsidian-bridge-protocol:
+        specifier: git+https://github.com/linmu115/dsh-obsidian-bridge-protocol.git#cfb069a5a09dacfb2e4f64a26036dfe514225132
+        version: https://codeload.github.com/linmu115/dsh-obsidian-bridge-protocol/tar.gz/cfb069a5a09dacfb2e4f64a26036dfe514225132
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -610,6 +613,10 @@ packages:
         optional: true
       dsh-obsidian-bridge-protocol:
         optional: true
+
+  dsh-obsidian-bridge-protocol@https://codeload.github.com/linmu115/dsh-obsidian-bridge-protocol/tar.gz/cfb069a5a09dacfb2e4f64a26036dfe514225132:
+    resolution: {gitHosted: true, integrity: sha512-iTTDm4/F8hLFxlU2P5KeT5iddfAn+f+OfrHHgStFGZgijJmho1OQ62Nq2P1/Z25rSqRv7hCWeW7xoUvZYwpq+A==, tarball: https://codeload.github.com/linmu115/dsh-obsidian-bridge-protocol/tar.gz/cfb069a5a09dacfb2e4f64a26036dfe514225132}
+    version: 0.3.1
 
   dts-resolver@3.0.0:
     resolution: {integrity: sha512-1T1f+z+4tl9XD+m+0HBgWoL/nm0bOIffyWaUuUSBlFg/86IWvfx+wjNaO/ybU0AJzG9/Mi5hBUgGV6zCmWEN7Q==}
@@ -1485,6 +1492,10 @@ snapshots:
     optionalDependencies:
       '@deepseek-ai/cordis': 4.0.2
       '@deepseek-ai/schemastery': 3.18.2
+
+  dsh-obsidian-bridge-protocol@https://codeload.github.com/linmu115/dsh-obsidian-bridge-protocol/tar.gz/cfb069a5a09dacfb2e4f64a26036dfe514225132:
+    dependencies:
+      zod: 4.4.3
 
   dts-resolver@3.0.0: {}
 

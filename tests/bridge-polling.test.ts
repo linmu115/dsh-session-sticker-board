@@ -40,6 +40,33 @@ const deletion: ReferenceDeleteRequestV2 = {
 };
 
 describe("bridge action processor", () => {
+  it("aborts polling and never applies a late page after stop", async () => {
+    let resolvePage!: (page: { cursor: number; actions: { cursor: number; message: DeepLinkAction }[] }) => void;
+    let requestSignal: AbortSignal | undefined;
+    const apply = vi.fn(async () => true);
+    const bridge = {
+      nextActions: vi.fn((_cursor: number, signal?: AbortSignal) => { requestSignal = signal; return new Promise<{ cursor: number; actions: { cursor: number; message: DeepLinkAction }[] }>((resolve) => { resolvePage = resolve; }); }),
+      acknowledgeDeepLink: vi.fn(), acknowledgeAction: vi.fn(),
+    };
+    const handle = startBridgePolling(bridge, apply);
+    handle.stop();
+    await handle.firstCycle;
+    expect(requestSignal?.aborted).toBe(true);
+    resolvePage({ cursor: 1, actions: [{ cursor: 1, message: deepLink }] });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(apply).not.toHaveBeenCalled();
+    expect(bridge.acknowledgeDeepLink).not.toHaveBeenCalled();
+  });
+
+  it("does not acknowledge a navigation interrupted during its application", async () => {
+    const controller = new AbortController();
+    const acknowledgeDeepLink = vi.fn();
+    const processor = createBridgeActionProcessor({ acknowledgeDeepLink, acknowledgeAction: vi.fn() }, async () => { controller.abort(); return true; });
+    await processor.process({ cursor: 1, actions: [{ cursor: 1, message: deepLink }] }, controller.signal);
+    expect(acknowledgeDeepLink).not.toHaveBeenCalled();
+    expect(processor.cursor).toBe(0);
+  });
   it("advances locally past sibling-adapter actions without acknowledging them globally", async () => {
     const acknowledgeDeepLink = vi.fn(async () => undefined);
     const acknowledgeAction = vi.fn(async () => undefined);

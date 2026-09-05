@@ -11,6 +11,7 @@ export type DeepLinkResult =
   | { status: "annotation-missing"; sessionId: string; anchorId: string; setId: string };
 
 export interface ApplyDeepLinkOptions {
+  readonly signal?: AbortSignal;
   readonly quote?: string;
   readonly locate?: (anchorId: string) => boolean | Promise<boolean>;
   readonly openAnnotation?: (setId: string, referenceId?: string) => void | boolean | Promise<void | boolean>;
@@ -33,6 +34,7 @@ export async function resolveMaintenanceProjection(input: {
   readonly legacySessionId: string;
   readonly legacyAnchorId?: string;
   readonly fetchImpl?: typeof fetch;
+  readonly signal?: AbortSignal;
 }): Promise<{
   readonly logicalSessionId?: string;
   readonly logicalAnchorId?: string;
@@ -42,6 +44,7 @@ export async function resolveMaintenanceProjection(input: {
   const response = await (input.fetchImpl ?? fetch)("/dsh-session-maintenance/api", {
     method: "POST",
     headers: { "content-type": "application/json" },
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
     body: JSON.stringify({
       operation: "reference:resolve",
       referenceType: input.referenceType,
@@ -73,8 +76,13 @@ export async function resolveMaintenanceProjection(input: {
   };
 }
 
-function pause(milliseconds: number): Promise<void> {
-  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+function pause(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(signal?.reason); };
+    const timer = setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, milliseconds);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }
 
 function textOfNode(snapshot: ChatSnapshotLike, key: string): string | null {
@@ -106,21 +114,24 @@ function locatedNode(snapshot: ChatSnapshotLike, anchorId: string): { key: strin
 
 async function waitForChatSnapshot(
   source: ObservableSnapshot<ChatSnapshotLike | undefined>,
+  signal?: AbortSignal,
 ): Promise<ChatSnapshotLike | undefined> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
+    signal?.throwIfAborted();
     const snapshot = source.getSnapshot();
     if (snapshot !== undefined) return snapshot;
-    await pause(25);
+    await pause(25, signal);
   }
   return source.getSnapshot();
 }
 
-async function defaultWaitForBinding(ctx: Context, sessionId: string): Promise<SessionFace | undefined> {
+async function defaultWaitForBinding(ctx: Context, sessionId: string, signal?: AbortSignal): Promise<SessionFace | undefined> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
+    signal?.throwIfAborted();
     const binding = ctx.sessions.binding(sessionId);
     const current = ctx.sessions.list.getSnapshot().current;
     if (binding && (current === undefined || current === sessionId)) return binding.session;
-    await pause(25);
+    await pause(25, signal);
   }
   return undefined;
 }
@@ -129,10 +140,11 @@ export function renderedAnchorMatches(renderedKey: string | null, anchorId: stri
   return renderedKey === anchorId || renderedKey?.endsWith(anchorId) === true;
 }
 
-async function waitForSessionCatalog(ctx: Context): Promise<boolean> {
+async function waitForSessionCatalog(ctx: Context, signal?: AbortSignal): Promise<boolean> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
+    signal?.throwIfAborted();
     if (ctx.sessions.list.getSnapshot().phase !== "pending") return true;
-    await pause(25);
+    await pause(25, signal);
   }
   return ctx.sessions.list.getSnapshot().phase !== "pending";
 }
@@ -172,10 +184,12 @@ async function contentMatches(text: string, hash: string, quote?: string): Promi
 async function locateWhenRendered(
   locate: (anchorId: string) => boolean | Promise<boolean>,
   anchorId: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   for (let attempt = 0; attempt < 80; attempt += 1) {
+    signal?.throwIfAborted();
     if (await locate(anchorId)) return true;
-    await pause(25);
+    await pause(25, signal);
   }
   return false;
 }
@@ -185,6 +199,7 @@ export async function applyDeepLink(
   action: DeepLinkAction,
   options: ApplyDeepLinkOptions = {},
 ): Promise<DeepLinkResult> {
+  options.signal?.throwIfAborted();
   const stableTarget = action.logicalSessionId === undefined || options.resolveLogicalTarget === undefined
     ? undefined
     : await options.resolveLogicalTarget({
@@ -198,7 +213,8 @@ export async function applyDeepLink(
       });
   const sessionId = stableTarget?.sessionId ?? action.sessionId;
   const anchorId = stableTarget?.anchorId ?? action.anchorId;
-  if (!await waitForSessionCatalog(ctx)) {
+  options.signal?.throwIfAborted();
+  if (!await waitForSessionCatalog(ctx, options.signal)) {
     return { status: "dom-unavailable", sessionId, anchorId };
   }
   const list = ctx.sessions.list.getSnapshot();
@@ -206,20 +222,26 @@ export async function applyDeepLink(
     return { status: "missing-session", sessionId };
   }
 
+  options.signal?.throwIfAborted();
   ctx.sessions.open(sessionId);
-  const session = await (options.waitForBinding ?? defaultWaitForBinding)(ctx, sessionId);
+  const session = options.waitForBinding
+    ? await options.waitForBinding(ctx, sessionId)
+    : await defaultWaitForBinding(ctx, sessionId, options.signal);
+  options.signal?.throwIfAborted();
   if (!session) return { status: "missing-session", sessionId };
 
   await options.revealConversation?.(sessionId);
+  options.signal?.throwIfAborted();
 
   const chatSource = ctx.uiConversation.binding(sessionId).target("chat");
-  let chatSnapshot = await waitForChatSnapshot(chatSource);
+  let chatSnapshot = await waitForChatSnapshot(chatSource, options.signal);
   let located = chatSnapshot ? locatedNode(chatSnapshot, anchorId) : null;
   let pages = 0;
   while (located === null && session.getSnapshot().hasMore === true && pages < 50) {
+    options.signal?.throwIfAborted();
     await session.loadOlder();
     pages += 1;
-    chatSnapshot = await waitForChatSnapshot(chatSource);
+    chatSnapshot = await waitForChatSnapshot(chatSource, options.signal);
     located = chatSnapshot ? locatedNode(chatSnapshot, anchorId) : null;
   }
   if (located === null) {
@@ -228,10 +250,11 @@ export async function applyDeepLink(
   if (action.quoteHash && !await contentMatches(located.text, action.quoteHash, options.quote)) {
     return { status: "content-changed", sessionId, anchorId };
   }
-  if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key)) {
+  if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key, options.signal)) {
     return { status: "dom-unavailable", sessionId, anchorId };
   }
   if (action.setId !== undefined) {
+    options.signal?.throwIfAborted();
     const opened = options.openAnnotationInSession !== undefined
       ? await options.openAnnotationInSession(sessionId, action.setId, action.referenceId)
       : await options.openAnnotation?.(action.setId, action.referenceId);

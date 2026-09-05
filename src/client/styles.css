@@ -384,3 +384,24 @@
   color: #c7393f;
   font-size: 12px;
 }
+
+.dsh-sticker-sidebar-sync-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  font-size: 12px;
+}
+
+.dsh-sticker-sidebar-sync-recovery button {
+  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.12));
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.dsh-sticker-sidebar-sync-recovery button:disabled { opacity: .5; cursor: default; }
+.dsh-sticker-sidebar-sync-recovery details { width: 100%; overflow-wrap: anywhere; }

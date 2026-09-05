@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api";
 
 import type { BetterSidebarService, Context, SidebarTab, TabComponentProps } from "../context-types.ts";
 import {
@@ -19,6 +20,7 @@ import {
 } from "../protocol.ts";
 import { createStickerCommands } from "./overlay.tsx";
 import type { StickerWorkspace } from "./sticker-workspace.ts";
+import { BridgeHealthPanel } from "./bridge-health-panel.tsx";
 
 export const STICKER_DETAIL_TAB_TYPE = "dsh-session-sticker-board:detail";
 export const STICKER_DETAIL_TAB_ID = "dsh-session-sticker-board:detail";
@@ -149,6 +151,7 @@ function StickerDetailForm(props: {
   const [backlinkError, setBacklinkError] = useState("");
   const colors: StickerRecord["color"][] = ["yellow", "green", "pink", "blue"];
   const syncStatus = props.workspace.syncStatus(props.record.sessionId);
+  const syncIssue = props.workspace.syncIssue(props.record.sessionId);
   const dirty = markdown !== props.record.markdown
     || tags !== props.record.tags.join(", ")
     || color !== props.record.color;
@@ -186,6 +189,22 @@ function StickerDetailForm(props: {
         tags: tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean),
         color,
       });
+      setPhase("saved");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      setPhase("error");
+    }
+  };
+  const resolveConflict = async (choice: "keep-local" | "use-obsidian"): Promise<void> => {
+    setPhase("saving");
+    setError("");
+    try {
+      await props.workspace.resolveConflict(props.record.sessionId, choice);
+      const current = props.workspace.list(props.record.sessionId).find((item) => item.record.stickerId === props.record.stickerId);
+      if (!current) { props.close(); return; }
+      setMarkdown(current.record.markdown);
+      setTags(current.record.tags.join(", "));
+      setColor(current.record.color);
       setPhase("saved");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -242,6 +261,10 @@ function StickerDetailForm(props: {
               ? error
               : dirty
                 ? "有未保存修改"
+                : syncStatus === "conflict"
+                  ? "Obsidian 笔记在同步期间发生修改，请选择要保留的贴纸内容"
+                  : syncStatus === "error"
+                    ? "已保存到 DSH；Obsidian 同步未完成"
                 : syncStatus === "synced"
                   ? "已保存；Obsidian 双链已同步"
                   : syncStatus === "syncing"
@@ -250,6 +273,15 @@ function StickerDetailForm(props: {
         </span>
         <button type="button" className="dsh-sticker-sidebar-save" disabled={!dirty || phase === "saving"} onClick={() => void save()}><Save size={14} />保存</button>
       </footer>
+      {(syncStatus === "conflict" || syncStatus === "error" || syncStatus === "local-only") && (
+        <div className="dsh-sticker-sidebar-sync-recovery" role="status">
+          {syncStatus === "conflict" ? <>
+            <button type="button" disabled={dirty || phase === "saving"} onClick={() => void resolveConflict("keep-local")}>使用 DSH 贴纸内容</button>
+            <button type="button" disabled={dirty || phase === "saving"} onClick={() => void resolveConflict("use-obsidian")}>使用 Obsidian 贴纸内容</button>
+          </> : <button type="button" onClick={() => void props.workspace.sync(props.record.sessionId)}>重试同步</button>}
+          {syncIssue && <details><summary>查看同步详情</summary><p>{syncIssue}</p></details>}
+        </div>
+      )}
       <section className="dsh-sticker-sidebar-backlinks" aria-label="反向链接">
         <header>
           <h4>反向链接</h4>
@@ -297,8 +329,9 @@ export function registerStickerSidebar(
   workspace: StickerWorkspace,
   openNote: (action: OpenNoteAction) => Promise<void>,
   listBacklinks: (record: StickerRecord) => Promise<StickerBacklink[]>,
+  lifecycle?: ObsidianBridgeLifecycle,
 ): () => void {
-  return ctx.betterSidebar.registerTab({
+  const unregisterDetail = ctx.betterSidebar.registerTab({
     id: STICKER_DETAIL_TAB_TYPE,
     title: "贴纸",
     icon: (size) => <Quote size={size} />,
@@ -316,4 +349,13 @@ export function registerStickerSidebar(
       />
     ),
   });
+  const unregisterHealth = lifecycle?.getHealth ? ctx.betterSidebar.registerTab({
+    id: "dsh-session-sticker-board:health",
+    title: "Obsidian",
+    icon: (size) => <Link size={size} />,
+    order: 66,
+    single: true,
+    component: () => <BridgeHealthPanel lifecycle={lifecycle} />,
+  }) : undefined;
+  return () => { unregisterHealth?.(); unregisterDetail(); };
 }
