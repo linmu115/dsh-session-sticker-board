@@ -1,4 +1,5 @@
 import { hashQuote } from "./anchor.ts";
+import { findMessageAnchorRoot, messageIdOfNode } from "./message-identity.ts";
 import type { ChatSnapshotLike, Context, ObservableSnapshot, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
 
@@ -89,6 +90,10 @@ function textOfNode(snapshot: ChatSnapshotLike, key: string): string | null {
   const node = snapshot.nodes.get(key);
   if (!node || !node.data || typeof node.data !== "object") return null;
   const data = node.data as { content?: unknown; blocks?: unknown };
+  if (node.kind === "executor-assistant" && data.content && typeof data.content === "object") {
+    const content = data.content as { kind?: unknown; text?: unknown };
+    return content.kind === "assistant" && typeof content.text === "string" ? content.text : null;
+  }
   const content = Array.isArray(data.content) ? data.content : Array.isArray(data.blocks) ? data.blocks : [];
   const text = content
     .map((part) => {
@@ -105,7 +110,7 @@ function locatedNode(snapshot: ChatSnapshotLike, anchorId: string): { key: strin
   if (direct !== null) return { key: anchorId, text: direct };
   for (const key of snapshot.order) {
     const node = snapshot.nodes.get(key);
-    if (node?.id !== anchorId) continue;
+    if (messageIdOfNode(node) !== anchorId && node?.id !== anchorId) continue;
     const text = textOfNode(snapshot, key);
     if (text !== null) return { key, text };
   }
@@ -149,13 +154,13 @@ async function waitForSessionCatalog(ctx: Context, signal?: AbortSignal): Promis
   return ctx.sessions.list.getSnapshot().phase !== "pending";
 }
 
-function defaultLocate(anchorId: string): boolean {
+function defaultLocate(anchorId: string, sessionId: string): boolean {
   try {
-    const exact = document.querySelector<HTMLElement>(
-      `[data-chat-anchor-key="${CSS.escape(anchorId)}"]`,
-    );
+    const inSession = (candidate: HTMLElement): boolean => candidate.dataset.messageSessionId === undefined
+      || candidate.dataset.messageSessionId === sessionId;
+    const exact = findMessageAnchorRoot(document, anchorId, sessionId);
     const root = exact ?? [...document.querySelectorAll<HTMLElement>("[data-chat-anchor-key]")]
-      .find((candidate) => renderedAnchorMatches(candidate.dataset.chatAnchorKey ?? null, anchorId));
+      .find((candidate) => inSession(candidate) && renderedAnchorMatches(candidate.dataset.chatAnchorKey ?? null, anchorId));
     if (!root) return false;
     root.scrollIntoView({ block: "center", behavior: "smooth" });
     root.classList.remove("dsh-sticker-board-deep-link-flash");
@@ -250,7 +255,7 @@ export async function applyDeepLink(
   if (action.quoteHash && !await contentMatches(located.text, action.quoteHash, options.quote)) {
     return { status: "content-changed", sessionId, anchorId };
   }
-  if (!await locateWhenRendered(options.locate ?? defaultLocate, located.key, options.signal)) {
+  if (!await locateWhenRendered(options.locate ?? (key => defaultLocate(key, sessionId)), located.key, options.signal)) {
     return { status: "dom-unavailable", sessionId, anchorId };
   }
   if (action.setId !== undefined) {

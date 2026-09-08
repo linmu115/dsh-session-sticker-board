@@ -13,6 +13,7 @@ import { StickerGeometryCache } from "./sticker-geometry.ts";
 export { rangeOfSticker } from "./sticker-geometry.ts";
 
 import { createMessageAnchor } from "./anchor.ts";
+import { messageIdOfNode, type MessageIdentityNode } from "./message-identity.ts";
 import type { StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type StickerRecord } from "../protocol.ts";
 
@@ -99,7 +100,7 @@ export function createSelectionRecomputeHandlers(
 
 export interface StickerChatSnapshotLike {
   readonly order: readonly string[];
-  readonly nodes: { get(key: string): { readonly id?: string } | undefined };
+  readonly nodes: { get(key: string): (MessageIdentityNode & { readonly id?: string }) | undefined };
 }
 
 /** Convert the current renderer key into the stable Conversation node identity. */
@@ -107,7 +108,8 @@ export function resolveDurableAnchorId(
   snapshot: StickerChatSnapshotLike,
   renderedKey: string,
 ): string {
-  return snapshot.nodes.get(renderedKey)?.id ?? renderedKey;
+  const node = snapshot.nodes.get(renderedKey);
+  return messageIdOfNode(node) ?? node?.id ?? renderedKey;
 }
 
 /** Resolve a stored Conversation node identity back to this render's DOM key. */
@@ -116,11 +118,16 @@ export function resolveRenderedAnchorKey(
   anchorId: string,
 ): string {
   if (snapshot.nodes.get(anchorId)) return anchorId;
-  return snapshot.order.find((key) => snapshot.nodes.get(key)?.id === anchorId) ?? anchorId;
+  return snapshot.order.find((key) => {
+    const node = snapshot.nodes.get(key);
+    return messageIdOfNode(node) === anchorId || node?.id === anchorId;
+  }) ?? anchorId;
 }
 
 export function isEligibleMessageSelection(input: {
   kind: string;
+  role?: string;
+  settled?: boolean;
   sameMessage: boolean;
   blank: boolean;
   streaming: boolean;
@@ -128,7 +135,9 @@ export function isEligibleMessageSelection(input: {
   hasSession: boolean;
   hasAnchor: boolean;
 }): boolean {
-  return MESSAGE_KINDS.has(input.kind)
+  return (input.role === undefined ? MESSAGE_KINDS.has(input.kind) : input.role === "user" || input.role === "assistant")
+    && input.settled !== false
+    && (MESSAGE_KINDS.has(input.kind) || input.settled === true)
     && input.sameMessage
     && !input.blank
     && !input.streaming
@@ -198,7 +207,7 @@ export interface MessageSelectionSnapshot {
 
 function messageElement(node: Node): HTMLElement | null {
   const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node as Element;
-  return element?.closest<HTMLElement>("[data-chat-flow-kind]") ?? null;
+  return element?.closest<HTMLElement>("[data-message-role], [data-chat-flow-kind]") ?? null;
 }
 
 function occurrenceBefore(root: HTMLElement, range: Range, quote: string): number {
@@ -223,32 +232,55 @@ export function captureMessageSelection(sessionId: string): MessageSelectionSnap
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
   const range = selection.getRangeAt(0);
+  const identity = selectionIdentity(sessionId, range);
+  if (!identity) return null;
+  const { anchor, anchorId, role } = identity;
+  const rect = range.getBoundingClientRect();
+  return {
+    sessionId, anchorId, role,
+    quote: selection.toString(),
+    occurrence: occurrenceBefore(anchor, range, selection.toString()),
+    range: range.cloneRange(),
+    rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+  };
+}
+
+function selectionIdentity(sessionId: string, range: Range): { anchor: HTMLElement; anchorId: string; role: "user" | "assistant" } | null {
   const start = messageElement(range.startContainer);
   const end = messageElement(range.endContainer);
   const anchor = start?.closest<HTMLElement>("[data-chat-anchor-key]") ?? null;
-  const quote = selection.toString();
+  const quote = range.toString();
   const kind = start?.dataset.chatFlowKind ?? "";
+  const role = start?.dataset.messageRole;
+  const settledValue = start?.dataset.messageSettled;
+  const settled = settledValue === undefined ? undefined : settledValue === "true";
+  const anchorId = role === undefined ? anchor?.dataset.chatAnchorKey : start?.dataset.messageId;
   const excluded = start?.closest("[data-dsh-sticker-board]") !== null;
   const eligible = isEligibleMessageSelection({
     kind,
+    ...(role === undefined ? {} : { role }),
+    ...(settled === undefined ? {} : { settled }),
     sameMessage: start !== null && start === end,
     blank: quote.trim() === "",
     streaming: start?.hasAttribute("data-streaming") === true || start?.querySelector("[data-streaming]") !== null,
     excluded,
-    hasSession: sessionId !== "",
-    hasAnchor: anchor?.dataset.chatAnchorKey !== undefined,
+    hasSession: sessionId !== "" && (start?.dataset.messageSessionId === undefined
+      ? role === undefined : start.dataset.messageSessionId === sessionId),
+    hasAnchor: anchorId !== undefined && anchorId !== "",
   });
-  if (!eligible || !start || !anchor?.dataset.chatAnchorKey) return null;
-  const rect = range.getBoundingClientRect();
+  if (!eligible || !start?.isConnected || !anchor || !anchorId) return null;
   return {
-    sessionId,
-    anchorId: anchor.dataset.chatAnchorKey,
-    role: kind === "assistant-step" ? "assistant" : "user",
-    quote,
-    occurrence: occurrenceBefore(anchor, range, quote),
-    range: range.cloneRange(),
-    rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    anchor, anchorId,
+    role: role === "assistant" || (role === undefined && kind === "assistant-step") ? "assistant" : "user",
   };
+}
+
+/** Revalidate a retained selection after toolbar focus, asynchronous preparation, or editing. */
+export function isCurrentMessageSelection(selection: MessageSelectionSnapshot, sessionId: string): boolean {
+  if (selection.sessionId !== sessionId || !selection.range) return false;
+  const identity = selectionIdentity(sessionId, selection.range);
+  return identity !== null && identity.anchorId === selection.anchorId && identity.role === selection.role
+    && selection.range.toString() === selection.quote;
 }
 
 export function resolveSelectionForStickerAction(
@@ -256,7 +288,7 @@ export function resolveSelectionForStickerAction(
   sessionId: string,
   capture: (activeSessionId: string) => MessageSelectionSnapshot | null = captureMessageSelection,
 ): MessageSelectionSnapshot | null {
-  return capture(sessionId) ?? trackedSelection;
+  return capture(sessionId) ?? (trackedSelection !== null && isCurrentMessageSelection(trackedSelection, sessionId) ? trackedSelection : null);
 }
 
 type StickerDraft = Pick<StickerRecord, "markdown" | "tags" | "color">;
@@ -286,6 +318,7 @@ interface EditorState {
   readonly record: StickerRecord;
   readonly point: OverlayPoint;
   readonly isNew: boolean;
+  readonly selection?: MessageSelectionSnapshot;
 }
 
 interface MenuState {
@@ -348,12 +381,15 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       });
     };
     const observer = new MutationObserver((records) => {
+      if (records.some(record => record.type === "attributes" && record.attributeName?.startsWith("data-message-"))) {
+        setSelection(captureMessageSelection(props.sessionId));
+      }
       if (geometryCache.processMutations(records)) update();
     });
     observer.observe(document.body, {
       childList: true, subtree: true, characterData: true, attributes: true,
       attributeOldValue: true,
-      attributeFilter: ["data-chat-anchor-key", "class", "style", "hidden", "data-streaming"],
+      attributeFilter: ["data-chat-anchor-key", "data-message-id", "data-message-role", "data-message-session-id", "data-message-settled", "class", "style", "hidden", "data-streaming"],
     });
     // Account for DOM committed between the render measurement and effect setup.
     geometryCache.clear();
@@ -367,7 +403,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       if (frame) window.cancelAnimationFrame(frame);
       geometryCache.clear();
     };
-  }, [geometryCache]);
+  }, [geometryCache, props.sessionId]);
 
   const geometry = useMemo(() => {
     const placed: OverlayPoint[] = [];
@@ -414,8 +450,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       sessionId: anchor.sessionId,
       anchorId: anchor.anchorId,
     });
+    if (!isCurrentMessageSelection(activeSelection, props.sessionId)) return;
     setEditor({
       isNew: true,
+      selection: activeSelection,
       point: {
         x: activeSelection.rect.left + activeSelection.rect.width,
         y: activeSelection.rect.top,
@@ -448,6 +486,9 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     if (!editor) return;
     try {
       setError(null);
+      if (editor.isNew && (!editor.selection || !isCurrentMessageSelection(editor.selection, props.sessionId))) {
+        throw new Error("选中的消息尚未确认保存或内容已变化，请重新选择。");
+      }
       await props.onSave({ ...editor.record, ...draft });
       setEditor(null);
     } catch (reason) {

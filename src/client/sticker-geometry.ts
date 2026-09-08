@@ -1,4 +1,5 @@
 import type { StickerRecord } from "../protocol.ts";
+import { findMessageAnchorRoot } from "./message-identity.ts";
 
 interface SearchCharacter {
   readonly value: string;
@@ -35,9 +36,7 @@ function normalizedSearchText(value: string): string {
 
 export function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
   try {
-    const root = document.querySelector<HTMLElement>(
-      `[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`,
-    );
+    const root = findMessageAnchorRoot(document, renderedAnchorKey, sticker.sessionId);
     if (!root || !root.isConnected || !sticker.quote) return null;
     return rangeFromCharacters(root, normalizedSearchCharacters(root), sticker);
   } catch {
@@ -80,6 +79,7 @@ function rangeRects(range: Range): DOMRect[] {
 const ANCHOR = "[data-chat-anchor-key]";
 const OWNED = ".dsh-sticker-board-highlight, .dsh-sticker-board-dot, .dsh-sticker-board-selection-action, .dsh-sticker-board-selection-action-shared, .dsh-sticker-board-editor, .dsh-sticker-board-menu";
 interface AnchorGeometry {
+  sessionId: string;
   root: HTMLElement | null;
   characters?: SearchCharacter[];
   text?: string;
@@ -117,7 +117,7 @@ export class StickerGeometryCache {
       changed = true;
       const element = elementOf(record.target);
       // Styling affects rects, but does not require searching the message again.
-      if (record.type !== "attributes" || record.attributeName === "data-chat-anchor-key") {
+      if (record.type !== "attributes" || record.attributeName === "data-chat-anchor-key" || record.attributeName === "data-message-session-id") {
         let anchor = element?.closest(ANCHOR) ?? null;
         while (anchor) { invalidate(anchor); anchor = anchor.parentElement?.closest(ANCHOR) ?? null; }
       }
@@ -146,9 +146,10 @@ export class StickerGeometryCache {
     const bounds = new Map<HTMLElement, DOMRect>();
     return inputs.map(({ record, renderedAnchorKey }) => {
       let entry = this.anchors.get(renderedAnchorKey);
-      if (!entry || (entry.root && (!entry.root.isConnected || entry.root.dataset.chatAnchorKey !== renderedAnchorKey))) {
-        const root = this.documentLike.querySelector<HTMLElement>(`[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`);
-        entry = { root, ranges: new Map() }; this.anchors.set(renderedAnchorKey, entry);
+      if (!entry || entry.sessionId !== record.sessionId || (entry.root && (!entry.root.isConnected || entry.root.dataset.chatAnchorKey !== renderedAnchorKey
+        || (entry.root.dataset.messageSessionId !== undefined && entry.root.dataset.messageSessionId !== record.sessionId)))) {
+        const root = findMessageAnchorRoot(this.documentLike, renderedAnchorKey, record.sessionId);
+        entry = { root, sessionId: record.sessionId, ranges: new Map() }; this.anchors.set(renderedAnchorKey, entry);
       }
       const root = entry.root;
       if (!root || !root.isConnected) return [];

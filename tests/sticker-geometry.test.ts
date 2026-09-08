@@ -119,3 +119,18 @@ describe("sticker geometry cache", () => {
     expect(repeated?.toString()).toBe("😀 quoted"); expect(repeated?.startOffset).toBe(10);
   });
 });
+
+it("chooses the matching public session over another session or a legacy row with the same key", () => {
+  anchor("shared", 10);
+  const foreign = anchor("shared", 20); foreign.dataset.messageSessionId = "foreign";
+  const current = anchor("shared", 200); current.dataset.messageSessionId = "session";
+  process();
+  expect(rangeOfSticker(record("shared"))?.startContainer.parentElement === current).toBe(true);
+  expect(cache.measure([input("shared")], viewport)[0]?.[0]?.top).toBe(200);
+});
+it("does not highlight a foreign-session row and recovers when the matching row becomes available", () => {
+  const foreign = anchor("shared", 20); foreign.dataset.messageSessionId = "foreign";
+  process(); expect(rangeOfSticker(record("shared")) === null).toBe(true); expect(cache.measure([input("shared")], viewport)).toEqual([[]]);
+  foreign.dataset.messageSessionId = "session"; process();
+  expect(cache.measure([input("shared")], viewport)[0]).toHaveLength(1);
+});

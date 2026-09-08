@@ -161,7 +161,7 @@ describe("sticker overlay commands", () => {
 
     expect(resolveSelectionForStickerAction(tracked, "session-demo", capture)).toBe(live);
     expect(capture).toHaveBeenCalledWith("session-demo");
-    expect(resolveSelectionForStickerAction(tracked, "session-demo", () => null)).toBe(tracked);
+    expect(resolveSelectionForStickerAction(tracked, "session-demo", () => null)).toBeNull();
   });
 
   it("mounts a native sticker action into the shared toolbar and disposes it", () => {

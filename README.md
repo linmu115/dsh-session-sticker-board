@@ -71,3 +71,9 @@ dsh plugin --profile web add dsh-better-sidebar
 - 看不到右侧贴纸页：安装并启用 `dsh-better-sidebar`；不安装时可使用贴纸浮层菜单。
 - Obsidian 引用没有到达 DSH：检查两边的 `Bridge Origin` 是否完全一致，并确认 Obsidian Bridge 状态为已启动。
 - 端口被占用：在 Obsidian 中换一个本机端口，再把同一地址填入 DSH 插件设置并重启。
+
+### 外部执行器消息
+
+贴纸优先使用宿主提供的 `data-message-role`、`data-message-id`、`data-message-session-id` 和 `data-message-settled`。外部助手回复必须具有已确认保存的实际消息身份；运行中、未确认、跨消息或跨会话的划选不会进入新贴纸保存。打开编辑器和保存前都会重新核对消息身份、所选正文与确认状态。没有这些公共字段的旧 user、steering 和 assistant-step 行继续按既有规则识别。
+
+新贴纸使用实际 MessageId，跳转和高亮仍能解析旧 Conversation node id。外部正文从宿主解码的 assistant 内容读取，快照 revision、分页和执行插件停用不改变消息身份。功能只调整浏览器识别与定位，不改变贴纸协议、Bridge 或 Obsidian 同步流程。
