@@ -52,13 +52,13 @@ importers:
         specifier: ~18.3.1
         version: 18.3.7(@types/react@18.3.31)
       dsh-annotation-core:
-        specifier: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz
+        specifier: file:.dev-packages\dsh-annotation-core-0.3.11-rc2.2.tgz
         version: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       dsh-obsidian-bridge-lifecycle:
-        specifier: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.1.tgz
+        specifier: file:.dev-packages\dsh-obsidian-bridge-lifecycle-0.3.3-rc2.1.tgz
         version: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.1.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(dsh-annotation-core@file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz)
       dsh-obsidian-bridge-protocol:
-        specifier: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
+        specifier: file:.dev-packages\dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
         version: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
       jsdom:
         specifier: 26.1.0
@@ -553,7 +553,7 @@ packages:
     engines: {node: '>=8'}
 
   dsh-annotation-core@file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz:
-    resolution: {integrity: sha512-fY6hQU7bA5fMEfB5dpcYxDFoks3WSTMhD4OO8gH2I0cpimQbz6Zgo7ex8I8ptnRIiYCQ/+84QlsdhyKHM17znQ==, tarball: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz}
+    resolution: {integrity: sha512-otO0+pwxn0QB15riZzbA/uqExdHbj2M/yYhTz40ipkyx/CdVoSAYBVE7xjbWwcyHnowGIQ+4TZdm6cg6o07UtQ==, tarball: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz}
     version: 0.3.11-rc2.2
     engines: {node: '>=20'}
     peerDependencies:
@@ -605,7 +605,7 @@ packages:
         optional: true
 
   dsh-obsidian-bridge-lifecycle@file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.1.tgz:
-    resolution: {integrity: sha512-asvEskVkng3lyzIpD7wRGanWGN7HgtcFWKSZkAzluummQL9XZilW0HTzcczDBINRMo1WIYwtk9/edmUjoyIB5Q==, tarball: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.1.tgz}
+    resolution: {integrity: sha512-2nAabMgRAudMGEnCtQLZY3dZ10fuOVh7YhJqAs80/uJMBjbFlqm7LXjkRZCj1qQ+6Mz1BSsui0raImQBirqJhQ==, tarball: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.1.tgz}
     version: 0.3.3-rc2.1
     engines: {node: '>=20'}
     peerDependencies:
@@ -627,7 +627,7 @@ packages:
         optional: true
 
   dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz:
-    resolution: {integrity: sha512-VPp9Phh621Gf1yMIuv3oTdzqLHibWyEXH/lNG4PV77LMgyAkkbBmJnR/kpDx+pFjNEYeg4T8GzszrpSrNeBO4Q==, tarball: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz}
+    resolution: {integrity: sha512-N4SlrVPUAGJyK1pK3RK1CbpSFSYH43jN2mYid3f3Wd1OerYWWA0t0R44HoQvs/z3iR9Ged4cREYnNzlEt3C2Bg==, tarball: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz}
     version: 0.3.3-rc2.1
 
   dts-resolver@3.0.0:
