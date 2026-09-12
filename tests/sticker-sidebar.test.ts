@@ -39,6 +39,29 @@ function service(overrides: Partial<BetterSidebarService> = {}): BetterSidebarSe
 }
 
 describe("sticker sidebar", () => {
+  it("waits for the real instance and updates business metadata without a file path", async () => {
+    const handle = { sessionId: sticker.sessionId, id: "actual-instance" };
+    let resolve!: (value: typeof handle) => void;
+    const update = vi.fn(() => true);
+    const activate = vi.fn(() => true);
+    const sidebar = service({
+      openTabResult: vi.fn(() => new Promise<typeof handle>(done => { resolve = done; })),
+      listTabInstances: () => [], updateTabInstance: update, activateTabInstance: activate,
+    });
+    const result = openStickerInSidebar(sidebar, sticker);
+    expect(update).not.toHaveBeenCalled();
+    resolve(handle);
+    expect(await result).toBe(true);
+    expect(update).toHaveBeenCalledWith(handle, { title: "贴纸", meta: { stickerId: sticker.stickerId } });
+    expect(activate).toHaveBeenCalledWith(handle);
+    expect(sidebar.openTabResult).toHaveBeenCalledWith({ type: STICKER_DETAIL_TAB_TYPE, id: STICKER_DETAIL_TAB_ID, title: "贴纸", meta: { stickerId: sticker.stickerId } }, { sessionId: sticker.sessionId });
+  });
+
+  it("reports a refused asynchronous open to the overlay fallback", async () => {
+    const sidebar = service({ openTabResult: async () => { throw new Error("refused"); }, listTabInstances: () => [], updateTabInstance: () => false, activateTabInstance: () => false });
+    const controller = createStickerSidebarController(); controller.attach(sidebar);
+    expect(await controller.openSticker(sticker)).toBe(false);
+  });
   it("opens a backlink at its stable block and exact fallback line", () => {
     expect(backlinkOpenAction({
       notePath: "项目/架构.md",
@@ -57,11 +80,10 @@ describe("sticker sidebar", () => {
     });
   });
 
-  it("updates and opens the single detail tab for the selected sticker", () => {
+  it("updates and opens the single detail tab for the selected sticker", async () => {
     const sidebar = service();
-    expect(openStickerInSidebar(sidebar, sticker)).toBe(true);
+    expect(await openStickerInSidebar(sidebar, sticker)).toBe(true);
     expect(sidebar.updateTab).toHaveBeenCalledWith(STICKER_DETAIL_TAB_ID, {
-      path: `dsh-sticker:${sticker.stickerId}`,
       meta: { stickerId: sticker.stickerId },
     });
     expect(sidebar.openTab).toHaveBeenCalledWith(expect.objectContaining({
@@ -71,15 +93,15 @@ describe("sticker sidebar", () => {
     }), { sessionId: "session-demo" });
   });
 
-  it("falls back when the sidebar is missing, disabled or too old", () => {
+  it("falls back when the sidebar is missing, disabled or too old", async () => {
     const controller = createStickerSidebarController();
-    expect(controller.openSticker(sticker)).toBe(false);
+    expect(await controller.openSticker(sticker)).toBe(false);
     const disabled = service({ isTabEnabled: () => false });
     controller.attach(disabled);
-    expect(controller.openSticker(sticker)).toBe(false);
+    expect(await controller.openSticker(sticker)).toBe(false);
     controller.detach(disabled);
     const old = service({ features: [] });
     controller.attach(old);
-    expect(controller.openSticker(sticker)).toBe(false);
+    expect(await controller.openSticker(sticker)).toBe(false);
   });
 });

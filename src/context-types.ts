@@ -103,7 +103,12 @@ export interface TabDescriptor {
   component: (props: TabComponentProps) => ReactNode;
 }
 
+export interface TabHandle { sessionId: string; id: string; }
 export interface BetterSidebarService {
+  openTabResult?(seed: { type: string; id?: string; title?: string; meta?: unknown }, scope?: SessionScope): Promise<TabHandle>;
+  listTabInstances?(scope?: SessionScope, filter?: { type?: string }): readonly { handle: TabHandle; tab: SidebarTab }[];
+  updateTabInstance?(handle: TabHandle, patch: { title?: string; path?: string; meta?: unknown }): boolean;
+  activateTabInstance?(handle: TabHandle): boolean;
   readonly version: string;
   readonly features: readonly string[];
   registerTab(descriptor: TabDescriptor): () => void;

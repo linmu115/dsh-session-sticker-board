@@ -276,6 +276,13 @@ describe("sticker overlay commands", () => {
     expect(writeText.mock.calls[1]?.[0]).toContain("<!-- dsh-sticker-backlink:");
   });
 
+  it("retains the originating instance in scoped sticker links and backlink metadata", () => {
+    const scoped = { ...sticker, dshInstanceId: "instance-a" };
+    expect(new URL(buildDshLogicalLink(scoped)).searchParams.get("dshInstanceId")).toBe("instance-a");
+    expect(buildManagedStickerBacklink(scoped, "body")).toContain('"dshInstanceId":"instance-a"');
+    expect(new URL(buildDshLogicalLink(sticker)).searchParams.has("dshInstanceId")).toBe(false);
+  });
+
   it("requires confirmation before deleting a linked sticker", async () => {
     const remove = vi.fn(async () => undefined);
     const commands = createStickerCommands(sticker, {

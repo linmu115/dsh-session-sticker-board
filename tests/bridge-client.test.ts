@@ -22,7 +22,7 @@ function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-function handshake(surfaceId?: string) {
+function handshake(surfaceId?: string, dshInstanceId?: string) {
   return json(200, {
     token: "token",
     expiresAt: 20_000,
@@ -33,8 +33,10 @@ function handshake(surfaceId?: string) {
       "reference-capture-v2", "reference-refresh", "backlink-commit-v2", "reference-delete-v2",
       "targeted-deep-link-v1",
       "sticker-backlink-delete-v1",
+      ...(dshInstanceId === undefined ? [] : ["instance-routing-v1"]),
     ],
     ...(surfaceId === undefined ? {} : { surfaceId }),
+    ...(dshInstanceId === undefined ? {} : { dshInstanceId }),
   });
 }
 
@@ -67,6 +69,25 @@ const capture: ObsidianReferenceCaptureV2 = {
 };
 
 describe("DSH v2 bridge HTTP client", () => {
+  it("binds the handshake to the runtime instance and requires the same instance echo", async () => {
+    const fetch = vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
+      if (String(url).endsWith("/v2/handshake")) return handshake(undefined, "instance-a");
+      return json(200, { queueId: "queue", cursor: 0, actions: [] });
+    });
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000, dshInstanceId: "instance-a" });
+    try {
+      await client.nextActions(0);
+      const call = fetch.mock.calls.find(([url]) => String(url).endsWith("/v2/handshake"));
+      expect(JSON.parse(String(call?.[1]?.body)).dshInstanceId).toBe("instance-a");
+    } finally { client.dispose(); }
+    const wrong = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000, dshInstanceId: "instance-b" });
+    try { await expect(wrong.nextActions(0)).rejects.toThrow(); } finally { wrong.dispose(); }
+  });
+
+  it("refuses an old unscoped handshake for a scoped client", async () => {
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch: async () => handshake(), now: () => 1_000, dshInstanceId: "instance-a" });
+    try { await expect(client.nextActions(0)).rejects.toThrow(); } finally { client.dispose(); }
+  });
   it("reads the dedicated Obsidian Web Viewer surface from the launch URL", () => {
     expect(bridgeSurfaceIdFromUrl(
       `http://127.0.0.1:3080/?token=secret#dshBridgeSurface=${SURFACE_ID}`,

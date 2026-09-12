@@ -7,6 +7,7 @@ import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { StickerRecord } from "../protocol.ts";
 import { startBridgePolling } from "./bridge-polling.ts";
 import { applyDeepLink, resolveMaintenanceProjection } from "./deep-link.ts";
+import { matchesRuntimeScope } from "./runtime-scope.ts";
 import {
   resolveDurableAnchorId,
   resolveRenderedAnchorKey,
@@ -26,7 +27,7 @@ function StickerBoardRoot(props: {
   ctx: Context;
   workspace: StickerWorkspace;
   openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
-  openSticker: (record: StickerRecord) => boolean;
+  openSticker: (record: StickerRecord) => boolean | Promise<boolean>;
   resolveLogicalLocation: NonNullable<Parameters<typeof StickerOverlay>[0]["resolveLogicalLocation"]>;
 }): ReactNode {
   const sessionList = useSyncExternalStore(
@@ -92,6 +93,9 @@ export function apply(ctx: Context): void {
           : bridgeSurfaceIdFromUrl(location.href);
         const bridge = createBridgeHttpClient({
           origin: mountedRemote.origin,
+          ...(ready.obsidianBridgeLifecycle.runtimeIdentity?.dshInstanceId === undefined ? {} : {
+            dshInstanceId: ready.obsidianBridgeLifecycle.runtimeIdentity.dshInstanceId,
+          }),
           ...(surfaceId === undefined ? {} : { surfaceId }),
         });
         const stickers = createStickerWorkspace(mountedRemote, bridge);
@@ -139,9 +143,12 @@ export function apply(ctx: Context): void {
                 legacySessionId: sessionId,
                 legacyAnchorId: anchorId,
               }).catch(() => undefined);
-              return resolved === undefined ? undefined : {
-                ...(resolved.logicalSessionId === undefined ? {} : { logicalSessionId: resolved.logicalSessionId }),
-                ...(resolved.logicalAnchorId === undefined ? {} : { logicalAnchorId: resolved.logicalAnchorId }),
+              return {
+                ...(ready.obsidianBridgeLifecycle.runtimeIdentity?.dshInstanceId === undefined ? {} : {
+                  dshInstanceId: ready.obsidianBridgeLifecycle.runtimeIdentity.dshInstanceId,
+                }),
+                ...(resolved?.logicalSessionId === undefined ? {} : { logicalSessionId: resolved.logicalSessionId }),
+                ...(resolved?.logicalAnchorId === undefined ? {} : { logicalAnchorId: resolved.logicalAnchorId }),
                 legacySessionId: sessionId,
                 legacyAnchorId: anchorId,
               };
@@ -152,6 +159,7 @@ export function apply(ctx: Context): void {
         const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction, signal?: AbortSignal): Promise<boolean> => {
           signal?.throwIfAborted();
           if (action.type !== "deep-link" || action.setId !== undefined) return false;
+          if (!matchesRuntimeScope(action, ready.obsidianBridgeLifecycle.runtimeIdentity)) return false;
           const isStickerAction = action.stickerId !== undefined
             || action.quoteHash !== undefined;
           if (isStickerAction) {
@@ -163,7 +171,7 @@ export function apply(ctx: Context): void {
               return true;
             }
           }
-          const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => (
+          const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => matchesRuntimeScope(view.record, ready.obsidianBridgeLifecycle.runtimeIdentity) && (
             action.stickerId !== undefined
               ? view.record.stickerId === action.stickerId
               : view.record.anchorId === action.anchorId
@@ -178,6 +186,7 @@ export function apply(ctx: Context): void {
             return true;
           }
           const result = await applyDeepLink(ready, action, {
+            ...(ready.obsidianBridgeLifecycle.runtimeIdentity === undefined ? {} : { runtimeIdentity: ready.obsidianBridgeLifecycle.runtimeIdentity }),
             ...(signal === undefined ? {} : { signal }),
             ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
             resolveLogicalTarget: async (target) => resolveMaintenanceProjection({ ...target, ...(signal === undefined ? {} : { signal }) }).catch(() => undefined),
@@ -193,6 +202,7 @@ export function apply(ctx: Context): void {
             void stickers.syncAll();
             const polling = startBridgePolling(bridge, applyAction, {
               accepts: (action) => action.type === "deep-link"
+                && matchesRuntimeScope(action, ready.obsidianBridgeLifecycle.runtimeIdentity)
                 && action.setId === undefined
                 && (action.stickerId !== undefined || action.quoteHash !== undefined),
               onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),

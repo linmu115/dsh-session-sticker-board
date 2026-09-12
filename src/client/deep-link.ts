@@ -1,8 +1,10 @@
 import { hashQuote } from "./anchor.ts";
 import type { ChatSnapshotLike, Context, ObservableSnapshot, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
+import { matchesRuntimeScope } from "./runtime-scope.ts";
 
 export type DeepLinkResult =
+  | { status: "scope-mismatch"; sessionId: string }
   | { status: "located"; sessionId: string; anchorId: string }
   | { status: "missing-session"; sessionId: string }
   | { status: "missing-anchor"; sessionId: string; anchorId: string }
@@ -11,6 +13,7 @@ export type DeepLinkResult =
   | { status: "annotation-missing"; sessionId: string; anchorId: string; setId: string };
 
 export interface ApplyDeepLinkOptions {
+  readonly runtimeIdentity?: { readonly dshInstanceId?: string };
   readonly signal?: AbortSignal;
   readonly quote?: string;
   readonly locate?: (anchorId: string) => boolean | Promise<boolean>;
@@ -200,6 +203,9 @@ export async function applyDeepLink(
   options: ApplyDeepLinkOptions = {},
 ): Promise<DeepLinkResult> {
   options.signal?.throwIfAborted();
+  if (!matchesRuntimeScope(action, options.runtimeIdentity)) {
+    return { status: "scope-mismatch", sessionId: action.sessionId };
+  }
   const stableTarget = action.logicalSessionId === undefined || options.resolveLogicalTarget === undefined
     ? undefined
     : await options.resolveLogicalTarget({
@@ -211,6 +217,11 @@ export async function applyDeepLink(
         legacySessionId: action.legacySessionId ?? action.sessionId,
         legacyAnchorId: action.legacyAnchorId ?? action.anchorId,
       });
+  // A scoped logical id must resolve in the current host. Never silently jump
+  // to a colliding legacy session after a failed logical resolution.
+  if (action.dshInstanceId !== undefined && action.logicalSessionId !== undefined && stableTarget === undefined) {
+    return { status: "missing-session", sessionId: action.sessionId };
+  }
   const sessionId = stableTarget?.sessionId ?? action.sessionId;
   const anchorId = stableTarget?.anchorId ?? action.anchorId;
   options.signal?.throwIfAborted();

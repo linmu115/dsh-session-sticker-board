@@ -35,10 +35,6 @@ function parseStickerTabMeta(value: unknown): StickerTabMeta | null {
   return typeof stickerId === "string" && stickerId !== "" ? { stickerId } : null;
 }
 
-function stickerPath(stickerId: string): string {
-  return `dsh-sticker:${stickerId}`;
-}
-
 export function backlinkOpenAction(
   backlink: StickerBacklink,
   createActionId: () => string = () => crypto.randomUUID(),
@@ -54,7 +50,7 @@ export function backlinkOpenAction(
   };
 }
 
-export function openStickerInSidebar(service: BetterSidebarService, record: StickerRecord): boolean {
+export async function openStickerInSidebar(service: BetterSidebarService, record: StickerRecord): Promise<boolean> {
   const snapshot = service.getSnapshot();
   if (snapshot.sessionId !== record.sessionId || snapshot.state === undefined) return false;
   if (!service.isTabEnabled(STICKER_DETAIL_TAB_TYPE)) return false;
@@ -65,10 +61,16 @@ export function openStickerInSidebar(service: BetterSidebarService, record: Stic
     type: STICKER_DETAIL_TAB_TYPE,
     id: STICKER_DETAIL_TAB_ID,
     title: "贴纸",
-    path: stickerPath(record.stickerId),
     meta,
   };
-  service.updateTab(STICKER_DETAIL_TAB_ID, { path: seed.path, meta });
+  if (service.openTabResult && service.listTabInstances && service.updateTabInstance && service.activateTabInstance) {
+    const scope = { sessionId: record.sessionId };
+    const existing = service.listTabInstances(scope, { type: STICKER_DETAIL_TAB_TYPE })[0];
+    const handle = existing?.handle ?? await service.openTabResult(seed, scope);
+    if (!service.updateTabInstance(handle, { title: seed.title, meta })) return false;
+    return service.activateTabInstance(handle);
+  }
+  service.updateTab(STICKER_DETAIL_TAB_ID, { meta });
   service.openTab(seed, { sessionId: record.sessionId });
   return true;
 }
@@ -76,7 +78,7 @@ export function openStickerInSidebar(service: BetterSidebarService, record: Stic
 export interface StickerSidebarController {
   attach(service: BetterSidebarService): void;
   detach(service: BetterSidebarService): void;
-  openSticker(record: StickerRecord): boolean;
+  openSticker(record: StickerRecord): Promise<boolean>;
 }
 
 export function createStickerSidebarController(): StickerSidebarController {
@@ -84,10 +86,10 @@ export function createStickerSidebarController(): StickerSidebarController {
   return {
     attach(service) { current = service; },
     detach(service) { if (current === service) current = null; },
-    openSticker(record) {
+    async openSticker(record) {
       if (current === null) return false;
       try {
-        return openStickerInSidebar(current, record);
+        return await openStickerInSidebar(current, record);
       } catch (error) {
         console.warn("[dsh-session-sticker-board] failed to open sticker sidebar", error);
         return false;

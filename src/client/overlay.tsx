@@ -268,13 +268,14 @@ export interface StickerOverlayProps {
   readonly onSave: (record: StickerRecord) => Promise<void>;
   readonly onDelete: (stickerId: string) => Promise<void>;
   readonly onOpenNote: StickerCommandDependencies["openNote"];
-  readonly onOpenSticker?: (record: StickerRecord) => boolean;
+  readonly onOpenSticker?: (record: StickerRecord) => boolean | Promise<boolean>;
   readonly resolveAnchorId: (renderedKey: string) => string;
   readonly resolveAnchorKey: (anchorId: string) => string;
   readonly resolveLogicalLocation?: (input: {
     readonly sessionId: string;
     readonly anchorId: string;
   }) => Promise<{
+    readonly dshInstanceId?: string;
     readonly logicalSessionId?: string;
     readonly logicalAnchorId?: string;
     readonly legacySessionId?: string;
@@ -495,10 +496,10 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
           style={{ left: point.x, top: point.y }}
           title={`打开贴纸：${view.record.markdown || view.record.quote}`}
           aria-label="打开贴纸"
-          onClick={(event) => {
+          onClick={async (event) => {
             event.preventDefault();
             event.stopPropagation();
-            if (props.onOpenSticker?.(view.record as StickerRecord)) {
+            if (await props.onOpenSticker?.(view.record as StickerRecord)) {
               setMenu(null);
               setEditor(null);
               return;
@@ -632,6 +633,7 @@ export function buildDshLogicalLink(sticker: StickerRecord): string {
   const query = new URLSearchParams({
     session: sticker.sessionId,
     anchor: sticker.anchorId,
+    ...(sticker.dshInstanceId === undefined ? {} : { dshInstanceId: sticker.dshInstanceId }),
     ...(sticker.logicalSessionId ? { logicalSessionId: sticker.logicalSessionId } : {}),
     ...(sticker.logicalAnchorId ? { logicalAnchorId: sticker.logicalAnchorId } : {}),
     ...(sticker.legacySessionId ? { legacySessionId: sticker.legacySessionId } : {}),
@@ -650,6 +652,7 @@ export function buildStickerWikiLink(sticker: StickerRecord): string {
 
 export function buildManagedStickerBacklink(sticker: StickerRecord, body: string): string {
   const metadata = {
+    ...(sticker.dshInstanceId === undefined ? {} : { dshInstanceId: sticker.dshInstanceId }),
     stickerId: sticker.stickerId,
     sessionId: sticker.sessionId,
     anchorId: sticker.anchorId,

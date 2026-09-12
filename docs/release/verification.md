@@ -1,3 +1,11 @@
+## Local RC2 candidate 0.7.3-rc2.1 (2026-09-12)
+
+Based on installed 0.7.2 / c23bed0. Sidebar detail opens now await a committed session-scoped instance, update its metadata, and activate it before reporting success. A refused open leaves the overlay fallback usable. Removed the fake dsh-sticker file path; the detail remains a business tab. Existing sticker editing, local outbox, backlinks, sync conflict recovery, deletion and health panel remain.
+
+The Bridge client forwards obsidianBridgeLifecycle.runtimeIdentity.dshInstanceId. New stickers retain the originating instance even if logical resolution is unavailable; copied deep links and managed backlink metadata retain it. Foreign scoped actions are rejected before reading local stickers or resolving/navigating. Scoped logical resolution failure cannot fall back to a colliding legacy session. Legacy unscoped data remains supported. Maintenance reference:resolve remains current-host scoped; no browser targetInstance is sent.
+
+Reproducible dev dependencies are the checked-in .dev-packages archives for annotation-core 0.3.11-rc2.2 and bridge protocol/lifecycle 0.3.3-rc2.1, with lockfile integrity hashes. No other plugin source tree is modified. Typecheck, build, 97 tests and peer checks passed. Six added scope regressions cover instance handshake/echo, old handshake rejection, foreign scope rejection, failed logical resolution, legacy/current acceptance and copied scope retention. Existing Sidebar open/refusal tests and persistence/bundle contracts also pass. No live DSH home, Vault writes, profile deployment, browser E2E or upstream publication was performed.
+
 # Release verification
 
 This file records author-side release evidence. Workshop verification and Registry admission remain independent maintainer decisions.

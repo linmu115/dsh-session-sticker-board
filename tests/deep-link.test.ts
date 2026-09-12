@@ -77,6 +77,35 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
 }
 
 describe("DSH deep links", () => {
+  it("rejects a foreign scoped link before resolution or navigation", async () => {
+    const fixture = context([snapshot([], false)]);
+    const resolver = vi.fn();
+    const result = await applyDeepLink(fixture.ctx as never, { ...action, dshInstanceId: "other" }, {
+      runtimeIdentity: { dshInstanceId: "current" }, resolveLogicalTarget: resolver,
+    });
+    expect(result.status).toBe("scope-mismatch");
+    expect(resolver).not.toHaveBeenCalled();
+    expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to a legacy session when a scoped logical target is unresolved", async () => {
+    const fixture = context([snapshot([], false)]);
+    const result = await applyDeepLink(fixture.ctx as never, { ...action, dshInstanceId: "current", logicalSessionId: "logical" }, {
+      runtimeIdentity: { dshInstanceId: "current" }, resolveLogicalTarget: async () => undefined,
+    });
+    expect(result.status).toBe("missing-session");
+    expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
+  });
+
+  it("accepts current-instance links and legacy links without scope", async () => {
+    const fixture = context([snapshot([{ key: action.anchorId, seq: 42, text: "target" }], false)]);
+    for (const target of [action, { ...action, dshInstanceId: "current" }]) {
+      const result = await applyDeepLink(fixture.ctx as never, target, {
+        runtimeIdentity: { dshInstanceId: "current" }, locate: () => true,
+      });
+      expect(result.status).toBe("located");
+    }
+  });
   it("resolves a logical sticker link to the active projection before opening", async () => {
     const fixture = context([snapshot([
       { key: "message:user-42", seq: 42, text: "目标问题" },
