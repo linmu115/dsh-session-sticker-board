@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.3-rc2.2 - Local RC2 candidate (2026-09-12)
+
+- Pin Bridge Lifecycle 0.3.3-rc2.2, preserving every explicit stable Sticker target
+  field for backlink lookup and deletion. Historical unscoped targets stay unscoped.
+- Keep Core 0.3.11-rc2.2, Bridge Protocol 0.3.3-rc2.1 and the complete RC2 Sidebar
+  compatibility integration. Replace the affected Lifecycle rc2.1 peer candidate
+  with rc2.2; legacy stable peers remain supported.
+- Verify the actual packaged transport with scoped and historical Sticker calls.
+  This candidate is packaged locally; it is not deployed or published.
+
 ## 0.7.2 - Unreleased
 
 - Share Protocol data schemas and Lifecycle's cancellable HTTP transport, using

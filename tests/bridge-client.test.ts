@@ -211,27 +211,40 @@ describe("DSH v2 bridge HTTP client", () => {
     await expect(client.acknowledgeAction("delete-action")).resolves.toBeUndefined();
   });
 
-  it("retains session-note and sticker-backlink v1 operations", async () => {
+  it.each([undefined, "instance-a"])("retains v1 operations and explicit target fields through the packaged transport (scope=%s)", async dshInstanceId => {
     const document: SessionNoteDocument = {
       protocolVersion: 1, type: "session-note", sessionId: "session-1", revision: "sha256:one", stickers: [],
     };
-    const sticker: StickerRecord = {
+    const target = {
       stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
-      sessionId: "session-1", anchorId: "user-1", role: "user", quote: "引用", quoteHash: "sha256:quote",
+      sessionId: "session-1", anchorId: "user-1", quoteHash: "sha256:quote",
+      ...(dshInstanceId === undefined ? {} : {
+        dshInstanceId, logicalSessionId: "logical-session", logicalAnchorId: "logical-anchor",
+        legacySessionId: "legacy-session", legacyAnchorId: "legacy-anchor",
+      }),
+    };
+    const sticker: StickerRecord = {
+      role: "user", quote: "引用",
       occurrence: 0, markdown: "", tags: [], color: "yellow",
+      ...target,
     };
     const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const value = String(url);
-      if (value.endsWith("/v2/handshake")) return handshake();
+      if (value.endsWith("/v2/handshake")) return handshake(undefined, "instance-a");
       if (value.endsWith("/v1/sticker-backlinks/delete")) return json(200, { notesChanged: 1, linksRemoved: 2 });
       if (init?.method === "PUT") return json(200, { revision: "sha256:two" });
       if (value.includes("/v1/sticker-backlinks?")) return json(200, { backlinks: [] });
       return json(200, document);
     });
-    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000 });
+    const client = createBridgeHttpClient({ origin: ORIGIN, fetch, now: () => 1_000, dshInstanceId: "instance-a" });
     await expect(client.readSessionNote("session-1")).resolves.toEqual(document);
     await expect(client.saveSessionNote(document, "sha256:one")).resolves.toEqual({ revision: "sha256:two" });
     await expect(client.listBacklinks(sticker)).resolves.toEqual([]);
     await expect(client.deleteStickerBacklinks(sticker)).resolves.toEqual({ notesChanged: 1, linksRemoved: 2 });
+    const list = fetch.mock.calls.find(([url]) => String(url).includes("/v1/sticker-backlinks?"));
+    expect(Object.fromEntries(new URL(String(list?.[0])).searchParams)).toEqual(target);
+    const deletion = fetch.mock.calls.find(([url]) => String(url).endsWith("/v1/sticker-backlinks/delete"));
+    expect(JSON.parse(String(deletion?.[1]?.body))).toEqual(target);
+    client.dispose();
   });
 });
