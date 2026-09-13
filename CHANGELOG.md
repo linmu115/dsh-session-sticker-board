@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3-rc2.3 — 2026-09-13
+
+- Accept Core 0.3.12-rc2.1 and Lifecycle 0.3.3-rc2.3 alongside the previous RC2 peers.
+- Build with the Core 0.3.12-rc2.1 protocol while preserving the existing data formats.
+- Keep existing runtime behavior; P2 session stickers and Obsidian data migration are not part of this release.
+- Validation and its limits are recorded in docs/changes/2026-09-13-upstream-core-compatibility.md.
+
 ## 0.7.3-rc2.2 - Local RC2 candidate (2026-09-12)
 
 - Pin Bridge Lifecycle 0.3.3-rc2.2, preserving every explicit stable Sticker target

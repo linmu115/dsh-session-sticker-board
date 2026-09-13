@@ -52,11 +52,11 @@ importers:
         specifier: ~18.3.1
         version: 18.3.7(@types/react@18.3.31)
       dsh-annotation-core:
-        specifier: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz
-        version: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz
+        version: file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       dsh-obsidian-bridge-lifecycle:
-        specifier: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.2.tgz
-        version: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(dsh-annotation-core@file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz)
+        specifier: file:../../../artifacts/session-context-graph-20260913/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.3.tgz
+        version: file:../../../artifacts/session-context-graph-20260913/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.3.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(dsh-annotation-core@file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz)
       dsh-obsidian-bridge-protocol:
         specifier: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
         version: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
@@ -552,9 +552,9 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  dsh-annotation-core@file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz:
-    resolution: {integrity: sha512-otO0+pwxn0QB15riZzbA/uqExdHbj2M/yYhTz40ipkyx/CdVoSAYBVE7xjbWwcyHnowGIQ+4TZdm6cg6o07UtQ==, tarball: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz}
-    version: 0.3.11-rc2.2
+  dsh-annotation-core@file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz:
+    resolution: {integrity: sha512-0fxYM53CJuxhMgkKmODwm0szGiBGhAyuMgkNkwb99e8ymaj9XRffUezQOmdentkOiLTmGS4vcneXxLh+x8Ihkw==, tarball: file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz}
+    version: 0.3.12-rc2.1
     engines: {node: '>=20'}
     peerDependencies:
       '@deepseek-ai/cordis': '*'
@@ -604,15 +604,15 @@ packages:
       react-dom:
         optional: true
 
-  dsh-obsidian-bridge-lifecycle@file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.2.tgz:
-    resolution: {integrity: sha512-fX3myy4PDOaIMpnfBRA3DDqAPTnZKj+K7tYuOH+u94onwaXVNEni8jycwe73oo6uMSelRclSXB4iUW9Ja34izQ==, tarball: file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.2.tgz}
-    version: 0.3.3-rc2.2
+  dsh-obsidian-bridge-lifecycle@file:../../../artifacts/session-context-graph-20260913/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.3.tgz:
+    resolution: {integrity: sha512-xu6xJmLfXQfpt2chs8laG09NErwxqCtFqyaP08RMy7NY7j4ToGsw54bSnYgfJel6ef/PrSkYSZoALMESOzoeFA==, tarball: file:../../../artifacts/session-context-graph-20260913/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.3.tgz}
+    version: 0.3.3-rc2.3
     engines: {node: '>=20'}
     peerDependencies:
       '@deepseek-ai/cordis': '*'
       '@deepseek-ai/dsh-typert-protocol': 0.1.5-rc.2
       '@deepseek-ai/schemastery': '*'
-      dsh-annotation-core: 0.3.11-rc2.2
+      dsh-annotation-core: 0.3.11-rc2.2 || 0.3.12-rc2.1
       dsh-obsidian-bridge-protocol: 0.3.3-rc2.1
     peerDependenciesMeta:
       '@deepseek-ai/cordis':
@@ -1489,7 +1489,7 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  dsh-annotation-core@file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  dsh-annotation-core@file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       zod: 4.4.3
     optionalDependencies:
@@ -1501,14 +1501,14 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  dsh-obsidian-bridge-lifecycle@file:.dev-packages/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(dsh-annotation-core@file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz):
+  dsh-obsidian-bridge-lifecycle@file:../../../artifacts/session-context-graph-20260913/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.3.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(dsh-annotation-core@file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz):
     dependencies:
       zod: 4.4.3
     optionalDependencies:
       '@deepseek-ai/cordis': 4.0.2
       '@deepseek-ai/dsh-typert-protocol': 0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)
       '@deepseek-ai/schemastery': 3.18.2
-      dsh-annotation-core: file:.dev-packages/dsh-annotation-core-0.3.11-rc2.2.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      dsh-annotation-core: file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       dsh-obsidian-bridge-protocol: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
 
   dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz:
