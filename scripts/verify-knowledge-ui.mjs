@@ -37,7 +37,7 @@ async function knowledge(op,input) {
 let bridge;
 const server=createServer(async(req,res)=>{try{
   const path=new URL(req.url,'http://fixture').pathname;
-  if(path==='/'){res.setHeader('content-type','text/html;charset=utf-8');return res.end('<meta charset="utf-8"><div id="toolbar"></div><script src="/fixture.js"></script><script src="/client.js"></script>');}
+  if(path==='/'){const dark=new URL(req.url,'http://fixture').searchParams.get('theme')==='dark';res.setHeader('content-type','text/html;charset=utf-8');return res.end('<meta charset="utf-8"><style>body{font-family:Inter,system-ui,sans-serif;background:#f8f8f8;color:#202124}body.dark{background:#171717;--dsw-alias-bg-layer-1:#292929;--dsw-alias-bg-layer-2:#212121;--dsw-alias-label-primary:#ececec;--dsw-alias-label-secondary:#b4b4b4;--dsw-alias-label-tertiary:#939393;--dsw-alias-border-l3:#ffffff21;--dsw-alias-interactive-bg-hover:#ffffff0c;--dsw-alias-bg-mask-1:#0009;--dsw-alias-button-primary-fill:#ececec;--dsw-alias-button-primary-hover:#d4d4d4;--dsw-alias-label-primary-foreground:#171717}#toolbar{padding:12px}</style><body class="'+(dark?'dark':'')+'"><div id="toolbar"></div><script src="/fixture.js"></script><script src="/client.js"></script>');}
   if(path==='/fixture.js'||path==='/client.js'){res.setHeader('content-type','text/javascript');return res.end(await readFile(path==='/fixture.js'?join(output,'fixture.js'):join(root,'lib/client.js')));}
   const chunks=[];for await(const c of req)chunks.push(c);const input=JSON.parse(Buffer.concat(chunks).toString()||'{}');let value;
   if(path==='/local/freeze')value=await local.freeze(input.sessionId);
@@ -58,24 +58,33 @@ const ctx={sessions,uiConversation:{binding:()=>({target:()=>({getSnapshot:()=>c
 Object.defineProperty(ctx,'obsidianBridgeLifecycle',{get(){throw new Error('Optional lifecycle requires ctx.get');}});
 window.__ModuleLoader__={load:module=>module.factory(name=>({'react':React,'react-dom/client':ReactDOM,'react/jsx-runtime':JSX})[name]).apply(ctx)};`;
 await build({stdin:{contents:clientEntry,resolveDir:root},bundle:true,platform:'browser',format:'iife',outfile:join(output,'fixture.js')});
+if(process.argv.includes('--serve')){console.log(JSON.stringify({preview:true,origin,dark:origin+'/?theme=dark',synthetic:true}));await new Promise(()=>{});}
 const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const page=await browser.newPage({viewport:{width:1280,height:920}});const errors=[];page.on('pageerror',e=>errors.push(e.message));const checks=[];
 try{
   await page.route('**/*',route=>[origin,bridge.origin].some(o=>route.request().url().startsWith(o+'/'))?route.continue():route.abort());
   await page.goto(origin);
   const header=()=>page.getByRole('button',{name:'会话贴纸',exact:true});await header().click();
-  const dialog=page.getByRole('dialog',{name:'会话贴纸'});
-  await dialog.getByRole('button',{name:'新建 / 挂接会话贴纸'}).click();await dialog.getByRole('button',{name:'合成工作区'}).click();await dialog.getByRole('button',{name:'目标讨论',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'会话贴纸'});await dialog.getByText('还没有会话贴纸',{exact:true}).waitFor();await page.screenshot({path:join(output,'empty.png'),fullPage:true});
+  await dialog.getByRole('button',{name:'关闭',exact:true}).focus();await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'SUMMARY');
+  await page.keyboard.press('Tab');assert.equal(await dialog.getByRole('button',{name:'关闭',exact:true}).evaluate(e=>e===document.activeElement),true);
+  await dialog.getByRole('button',{name:'新建贴纸'}).click();await dialog.getByRole('button',{name:'返回贴纸'}).click();
+  assert.equal(await dialog.evaluate(e=>e.contains(document.activeElement)),true);await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});await header().click();
+  await dialog.getByRole('button',{name:'新建贴纸'}).click();await dialog.getByRole('button',{name:'合成工作区'}).waitFor();await page.screenshot({path:join(output,'picker.png'),fullPage:true});await dialog.getByRole('button',{name:'合成工作区'}).click();await dialog.getByRole('button',{name:'目标讨论',exact:true}).click();
   await dialog.getByText('会话贴纸已建立，点击贴纸进入完整会话。').waitFor();assert.equal(identities.length,2);
   await dialog.getByRole('button',{name:'目标讨论',exact:true}).click();await dialog.waitFor({state:'hidden'});assert.deepEqual(await page.evaluate(()=>fixture.opened),['native-target']);checks.push('existing session opens its full native page; no duplicate session');
-  await header().click();await dialog.getByRole('button',{name:'删除对象',exact:true}).click();assert.equal(identities.length,2);await dialog.getByRole('button',{name:'已删除对象'}).click();await dialog.getByRole('button',{name:'恢复对象'}).click();await dialog.getByRole('button',{name:'返回当前对象'}).click();checks.push('delete and restore the sticker without deleting the real session');
-  await dialog.getByRole('button',{name:'新建 / 挂接会话贴纸'}).click();await dialog.getByRole('button',{name:'新建独立会话',exact:true}).click();await dialog.getByRole('button',{name:'新建独立会话',exact:true}).waitFor();assert.equal(identities.length,3);checks.push('independent session creation');
-  await dialog.getByText('迁移当前会话的旧贴纸',{exact:true}).click();await dialog.getByRole('button',{name:'迁移 / 继续上次迁移'}).click();await dialog.getByText('已迁移 0 张贴纸，后续由 Maintenance 保存。').waitFor();assert.equal((await local.ownership('native-target')).phase,'active');assert.equal(registry.fences[0].phase,'active');checks.push('packaged Lifecycle knowledge transport reaches authenticated real Companion; both durable fences activate');
-  await dialog.getByText('当前会话的 Obsidian 双向链接',{exact:true}).click();await dialog.getByRole('button',{name:'查找可关联笔记'}).click();await dialog.getByRole('button',{name:'合成笔记.md ＋'}).click();await dialog.getByText('已关联',{exact:true}).waitFor();assert.match(notes.get('合成笔记.md'),/obsidian:\/\/deepharness-session/);
+  await header().click();await dialog.getByRole('button',{name:'删除对象',exact:true}).click();assert.equal(identities.length,2);await dialog.getByRole('button',{name:'已删除'}).click();await dialog.getByRole('button',{name:'恢复对象'}).click();await dialog.getByRole('button',{name:'全部贴纸'}).click();checks.push('delete and restore the sticker without deleting the real session');
+  await dialog.getByRole('button',{name:'新建贴纸'}).click();await dialog.getByRole('button',{name:'新建独立会话',exact:true}).click();await dialog.getByRole('button',{name:'新建独立会话',exact:true}).waitFor();assert.equal(identities.length,3);checks.push('independent session creation');
+  await dialog.getByText('迁移旧贴纸',{exact:true}).click();await dialog.getByRole('button',{name:'迁移 / 继续上次迁移'}).click();await dialog.getByText('已迁移 0 张贴纸，后续由 Maintenance 保存。').waitFor();assert.equal((await local.ownership('native-target')).phase,'active');assert.equal(registry.fences[0].phase,'active');checks.push('packaged Lifecycle knowledge transport reaches authenticated real Companion; both durable fences activate');
+  await dialog.getByText('Obsidian 双向链接',{exact:true}).click();await dialog.getByRole('button',{name:'查找笔记'}).click();await dialog.getByRole('button',{name:'关联 合成笔记.md'}).click();await dialog.getByText('已关联',{exact:true}).waitFor();assert.match(notes.get('合成笔记.md'),/obsidian:\/\/deepharness-session/);
   await dialog.getByRole('button',{name:'解除此链接'}).click();await dialog.getByText('已解除',{exact:true}).waitFor();assert.ok(!notes.get('合成笔记.md').includes('dsh-session-link:'));assert.ok(notes.get('合成笔记.md').includes('请保留这一段'));checks.push('bidirectional note link, exact unlink, unrelated prose retained');
   await dialog.getByRole('button',{name:'关闭',exact:true}).click();await page.evaluate(()=>window.dispatchEvent(new CustomEvent('dsh-session-sticker-open',{detail:{sessionId:'native-source',anchorId:'answer-1',selectedText:'换取显存'}})));
   await dialog.getByRole('button',{name:'合成工作区'}).click();await dialog.getByRole('button',{name:'目标讨论',exact:true}).click();await dialog.getByText('会话贴纸已建立，引用已加入目标会话输入框，发送后参与回答。').waitFor();
   assert.equal(await page.evaluate(()=>fixture.refs.length),1);assert.equal(await page.evaluate(()=>fixture.draft),'用户原有草稿');checks.push('selected completed source becomes a reference sticker, leaving draft and send under user control');
   assert.deepEqual(await page.evaluate(()=>fixture.errors),[]);assert.deepEqual(errors,[]);await page.screenshot({path:join(output,'session-stickers.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});assert.equal(await dialog.evaluate(e=>e.scrollWidth<=e.clientWidth),true);await page.screenshot({path:join(output,'mobile.png'),fullPage:true});
+  await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});assert.equal(await header().evaluate(e=>e===document.activeElement),true);
+  await page.setViewportSize({width:1280,height:920});await page.goto(origin+'/?theme=dark');await header().click();await dialog.getByRole('button',{name:'新建贴纸'}).waitFor();await page.screenshot({path:join(output,'dark.png'),fullPage:true});
+  checks.push('native-style empty, populated and picker layouts; narrow viewport, dark host tokens and Escape focus return');
   await writeFile(join(output,'verification.json'),JSON.stringify({passed:true,userData:false,modelCalls:0,checks,bridgeOrigin:bridge.origin,actions},null,2));console.log(JSON.stringify({passed:true,checks:checks.length,output}));
 }catch(e){await page.screenshot({path:join(output,'failure.png'),fullPage:true});console.error(await page.evaluate(()=>fixture));throw e;}
 finally{await browser.close();await bridge.close();server.closeAllConnections();await new Promise(r=>server.close(r));}
