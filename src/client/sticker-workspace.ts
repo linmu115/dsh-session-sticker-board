@@ -5,6 +5,7 @@ import { PROTOCOL_VERSION, type LocalStickerState, type SessionNoteDocument, typ
 type StickerBridge = Pick<BridgeClient, "readSessionNote" | "saveSessionNote" | "deleteStickerBacklinks">;
 
 export interface StickerLocalPersistence {
+  managed?: boolean;
   readLocalState(sessionId: string): Promise<LocalStickerState>;
   saveLocalSession(request: {
     document: SessionNoteDocument;
@@ -152,6 +153,11 @@ export function createStickerWorkspace(
           await local.acknowledgeBacklinkDelete({ sessionId, stickerId: deleted.stickerId });
           if (disposed) return;
         }
+        if (local.managed) {
+          const current = await local.readLocalState(sessionId);
+          if (current.document.revision !== entry(sessionId).store.snapshot().revision) attach(sessionId, createStickerStore(current.document.stickers, current.document.revision));
+          syncIssues.delete(sessionId); setSyncStatus(sessionId, 'synced'); return;
+        }
         const remote = await bridge.readSessionNote(sessionId);
         if (disposed) return;
         let snapshot = entry(sessionId).store.snapshot();
@@ -240,6 +246,7 @@ export function createStickerWorkspace(
         await synchronizations.get(sessionId);
         if (disposed) return;
         if (choice === "use-obsidian") {
+          if (local.managed) throw new Error('已迁移对象以 Maintenance 为准，请在扩展面板处理冲突');
           const remote = await bridge.readSessionNote(sessionId);
           if (disposed) return;
           const current = await local.readLocalState(sessionId);

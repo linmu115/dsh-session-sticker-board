@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -60,6 +60,39 @@ export class StickerLocalStore {
 
   constructor(readonly root: string = defaultStickerStorageDirectory()) {}
 
+  async ownership(sessionId: string): Promise<{ migrationId: string; phase: 'frozen' | 'active'; receiptId?: string } | null> {
+    try {
+      const value = JSON.parse(await readFile(sessionFile(this.root, sessionId) + '.ownership', 'utf8'));
+      if (typeof value.migrationId !== 'string' || !['frozen','active'].includes(value.phase)) throw new Error('贴纸迁移登记损坏，暂停写入');
+      return value;
+    } catch (error) { if (isMissing(error)) return null; throw error; }
+  }
+  freeze(sessionId: string): Promise<unknown> {
+    return this.serialized(sessionId, async () => {
+      const ownership = await this.ownership(sessionId) ?? { migrationId: randomUUID(), phase: 'frozen' as const };
+      await this.writeOwnership(sessionId, ownership);
+      return { ...ownership, state: await this.read(sessionId) };
+    });
+  }
+  activate(sessionId: string, migrationId: string, receiptId: string): Promise<void> {
+    return this.serialized(sessionId, async () => {
+      const ownership = await this.ownership(sessionId);
+      if (!ownership || ownership.migrationId !== migrationId || (ownership.receiptId && ownership.receiptId !== receiptId)) throw new Error('迁移回执与本地冻结记录不同');
+      await this.writeOwnership(sessionId, { migrationId, phase: 'active', receiptId });
+    });
+  }
+  private async writeOwnership(sessionId: string, value: unknown): Promise<void> {
+    const path = sessionFile(this.root, sessionId) + '.ownership';
+    await mkdir(dirname(path), { recursive: true });
+    const temporary = path + '.' + randomUUID() + '.tmp';
+    const handle = await open(temporary, 'wx');
+    try { await handle.writeFile(JSON.stringify(value), 'utf8'); await handle.sync(); } finally { await handle.close(); }
+    try { await rename(temporary, path); } catch (error) { await rm(temporary, { force: true }); throw error; }
+  }
+  private async assertWritable(sessionId: string): Promise<void> {
+    if (await this.ownership(sessionId)) throw Object.assign(new Error('旧贴纸已冻结或迁入 Maintenance，禁止重新写入本地副本'), { code: 'STICKER_MIGRATION_REQUIRED' });
+  }
+
   async read(sessionId: string): Promise<LocalStickerState> {
     if (sessionId.trim() === "") throw new TypeError("Session ID must not be empty");
     const file = sessionFile(this.root, sessionId);
@@ -79,6 +112,7 @@ export class StickerLocalStore {
 
   save(request: SaveLocalSessionRequest): Promise<LocalStickerState> {
     return this.serialized(request.document.sessionId, async () => {
+    await this.assertWritable(request.document.sessionId);
     const input = sessionNoteDocumentSchema.parse(request.document);
     const current = await this.read(input.sessionId);
     if (current.document.revision !== request.expectedRevision) {
@@ -103,6 +137,7 @@ export class StickerLocalStore {
 
   acknowledgeBacklinkDelete(sessionId: string, stickerId: string): Promise<LocalStickerState> {
     return this.serialized(sessionId, async () => {
+      await this.assertWritable(sessionId);
       const current = await this.read(sessionId);
       const state = localStickerStateSchema.parse({
         ...current,

@@ -8,8 +8,8 @@ describe("sticker bridge Remote boundary", () => {
   it("declares profile-scoped bridge configuration and durable local sticker operations", () => {
     expect(TYPERT.package).toBe("dsh-session-sticker-board");
     expect(TYPERT.face).toBe("host");
-    expect(STICKER_REMOTE.descriptors).toHaveLength(4);
-    expect(STICKER_REMOTE.descriptors[0]).toMatchObject({
+    expect(STICKER_REMOTE.descriptors).toHaveLength(5);
+    expect(STICKER_REMOTE.descriptors.find(d => d.method === 'getBridgeConfig')).toMatchObject({
       namespace: "stickerBoard",
       method: "getBridgeConfig",
       invocation: { kind: "direct" },
@@ -17,14 +17,15 @@ describe("sticker bridge Remote boundary", () => {
     });
     expect(STICKER_REMOTE.descriptors[0]?.scope).toBeUndefined();
     expect(STICKER_REMOTE.descriptors.map((descriptor) => descriptor.method)).toEqual([
-      "getBridgeConfig", "readLocalState", "saveLocalSession", "acknowledgeBacklinkDelete",
+      "knowledgeOperation", "getBridgeConfig", "readLocalState", "saveLocalSession", "acknowledgeBacklinkDelete",
     ]);
   });
 
-  it("returns the Host-selected non-default bridge origin", () => {
+  it("returns the Host-selected non-default bridge origin", async () => {
     const service = Object.create(StickerBoardRemoteService.prototype) as StickerBoardRemoteService;
     Object.defineProperty(service, "origin", { value: "http://127.0.0.1:28473" });
-    expect(service.getBridgeConfig()).toEqual({ origin: "http://127.0.0.1:28473" });
+    Object.defineProperty(service, 'hostContext', { value: { get: () => undefined } });
+    await expect(service.getBridgeConfig()).resolves.toEqual({ origin: "http://127.0.0.1:28473", managed: false });
   });
 
   it("mounts, reads and disposes the same descriptor on the Client", async () => {

@@ -28,6 +28,11 @@ const backlinkDeleteAcknowledgementSchema = z.object({
 }).strict();
 
 export const STICKER_REMOTE_DESCRIPTORS: readonly InvocationDescriptor[] = [{
+  id: 'dsh-session-sticker-board#stickerBoard/knowledgeOperation', service: 'stickerBoard', namespace: 'stickerBoard', method: 'knowledgeOperation',
+  invocation: { kind: 'direct' },
+  parameters: [jsonParameter('operation', z.enum(['freeze','activate']), 'string'), jsonParameter('inputJson', z.string().max(512 * 1024), 'string')],
+  result: { mode: 'strict', typeSymbol: 'string', schema: z.string().max(1024 * 1024) },
+}, {
   id: "dsh-session-sticker-board#stickerBoard/getBridgeConfig",
   service: "stickerBoard",
   namespace: "stickerBoard",
@@ -37,7 +42,7 @@ export const STICKER_REMOTE_DESCRIPTORS: readonly InvocationDescriptor[] = [{
   result: {
     mode: "strict",
     typeSymbol: "dsh-session-sticker-board#BridgeConfig",
-    schema: z.object({ origin: z.string().url() }).strict(),
+    schema: z.object({ origin: z.string().url(), managed: z.boolean().optional() }).strict(),
   },
 }, {
   id: "dsh-session-sticker-board#stickerBoard/readLocalState",

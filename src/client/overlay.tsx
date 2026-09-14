@@ -32,11 +32,12 @@ export function mountNativeSelectionAction(
   sharedSelectionToolbar: HTMLElement,
   activate: () => void,
   documentLike: Pick<Document, "createElement"> = document,
+  label = '添加贴纸',
 ): () => void {
   const button = documentLike.createElement("button");
   button.type = "button";
   button.className = "dsh-sticker-board-selection-action-shared";
-  button.textContent = "添加贴纸";
+  button.textContent = label;
 
   const preserveSelection = (event: Event): void => event.preventDefault();
   const onClick = (event: Event): void => {
@@ -262,6 +263,7 @@ export function resolveSelectionForStickerAction(
 type StickerDraft = Pick<StickerRecord, "markdown" | "tags" | "color">;
 
 export interface StickerOverlayProps {
+  readonly onSessionSticker?: (source: { sessionId: string; anchorId: string; selectedText: string }) => void;
   readonly sessionId: string;
   readonly sessionTitle: string;
   readonly stickers: readonly StickerView[];
@@ -442,8 +444,13 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   useEffect(() => {
     if (editor || menu || !sharedSelectionToolbar) return;
-    return mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
-  }, [beginCreate, editor, menu, sharedSelectionToolbar]);
+    const remove = mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
+    const removeSession = props.onSessionSticker && selection?.role === 'assistant' ? mountNativeSelectionAction(sharedSelectionToolbar, () => {
+      const active = resolveSelectionForStickerAction(selection, props.sessionId);
+      if (active?.role === 'assistant') props.onSessionSticker?.({ sessionId: active.sessionId, anchorId: props.resolveAnchorId(active.anchorId), selectedText: active.quote });
+    }, document, '会话贴纸') : undefined;
+    return () => { remove(); removeSession?.(); };
+  }, [beginCreate, editor, menu, sharedSelectionToolbar, selection, props.onSessionSticker, props.resolveAnchorId, props.sessionId]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;

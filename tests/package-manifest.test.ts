@@ -6,7 +6,7 @@ describe("published package manifest", () => {
   it("uses the Harness-owned Schemastery runtime", async () => {
     const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-    expect(manifest.version).toBe("0.7.3-rc2.3");
+    expect(manifest.version).toBe("0.7.3-rc2.9");
     expect(manifest.dependencies?.["@deepseek-ai/schemastery"]).toBeUndefined();
     expect(manifest.optionalDependencies?.["@deepseek-ai/schemastery"]).toBeUndefined();
     expect(manifest.peerDependencies?.["@deepseek-ai/schemastery"]).toBe("*");

@@ -21,10 +21,10 @@ async function text(path: string): Promise<string> {
 describe("sticker-board 0.6 package boundary", () => {
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.3-rc2.3");
+    expect(packageJson.version).toBe("0.7.3-rc2.9");
     expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("^0.1.5-rc.2");
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toContain("0.3.11-rc2.2");
-    expect(packageJson.peerDependencies["dsh-obsidian-bridge-lifecycle"]).toBe("^0.3.2 || 0.3.3-rc2.2 || 0.3.3-rc2.3");
+    expect(packageJson.peerDependencies["dsh-obsidian-bridge-lifecycle"]).toContain("0.3.3-rc2.8");
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toContain("0.3.12-rc2.1");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
     expect(packageJson.exports).toHaveProperty("./typert");
@@ -54,7 +54,7 @@ describe("sticker-board 0.6 package boundary", () => {
       expect(source).not.toContain(forbidden);
     }
     expect(source).toContain('export const inject = [] as const');
-    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation", "obsidianBridgeLifecycle"] as const');
+    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation"] as const');
     expect(source).not.toContain('registerSourceAdapter("obsidian-note"');
   });
 

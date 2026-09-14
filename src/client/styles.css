@@ -1,3 +1,13 @@
+.dsh-knowledge-backdrop { position:fixed;inset:0;z-index:2147483005;background:#0005;display:flex;align-items:center;justify-content:center;padding:24px; }
+.dsh-knowledge-panel { box-sizing:border-box;width:min(720px,100%);max-height:90vh;overflow:auto;padding:20px;border:1px solid var(--dsw-alias-border-l1,#ccc);border-radius:12px;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#202124);box-shadow:0 18px 64px #0003;font-size:14px; }
+.dsh-knowledge-panel header,.dsh-knowledge-panel footer { display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0; }
+.dsh-knowledge-panel h2 { margin:0;font-size:18px; }
+.dsh-knowledge-panel button { border:1px solid var(--dsw-alias-border-l1,#ddd);border-radius:7px;padding:7px 12px;background:var(--dsw-alias-bg-layer-2,#f5f5f5);color:inherit;cursor:pointer;text-align:left; }
+.dsh-knowledge-panel button:disabled { opacity:.5;cursor:default; }
+.dsh-knowledge-panel [role=alert] { color:var(--dsw-alias-status-error,#b3261e); }
+.dsh-knowledge-list { max-height:45vh;overflow:auto;display:grid;gap:8px;margin:16px 0; }
+.dsh-knowledge-list article { display:flex;align-items:center;gap:8px;justify-content:space-between;border-bottom:1px solid var(--dsw-alias-border-l1,#ddd);padding:8px 0; }
+.dsh-knowledge-list article button:first-of-type { flex:1; }
 .dsh-sticker-board-selection-action {
   position: fixed;
   z-index: 2147483000;

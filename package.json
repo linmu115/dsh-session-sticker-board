@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.3-rc2.7",
+  "version": "0.7.3-rc2.9",
   "private": false,
   "description": "Persistent highlights, stickers and Obsidian backlinks for DSH sessions; note references live in dsh-obsidian-reference-adapter",
   "type": "module",
@@ -52,8 +52,7 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-api-session-controller",
-        "@deepseek-ai/dsh-client-ui-chat",
-        "dsh-obsidian-bridge-lifecycle"
+        "@deepseek-ai/dsh-client-ui-chat"
       ],
       "platform": "web"
     }
@@ -103,8 +102,8 @@
     "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-typert-protocol": "^0.1.5-rc.2",
     "@deepseek-ai/schemastery": "*",
-    "dsh-annotation-core": "^0.3.9 || 0.3.10-dev.2 || 0.3.11-rc2.1 || 0.3.11-rc2.2 || 0.3.12-rc2.1 || 0.3.12-rc2.2 || 0.3.12-rc2.3 || 0.3.12-rc2.4 || 0.3.12-rc2.5",
-    "dsh-obsidian-bridge-lifecycle": "^0.3.2 || 0.3.3-rc2.2 || 0.3.3-rc2.3 || 0.3.3-rc2.4 || 0.3.3-rc2.5 || 0.3.3-rc2.6 || 0.3.3-rc2.7",
+    "dsh-annotation-core": "^0.3.9 || 0.3.10-dev.2 || 0.3.11-rc2.1 || 0.3.11-rc2.2 || 0.3.12-rc2.1 || 0.3.12-rc2.2 || 0.3.12-rc2.3 || 0.3.12-rc2.4 || 0.3.12-rc2.5 || 0.3.12-rc2.6",
+    "dsh-obsidian-bridge-lifecycle": "^0.3.2 || 0.3.3-rc2.2 || 0.3.3-rc2.3 || 0.3.3-rc2.4 || 0.3.3-rc2.5 || 0.3.3-rc2.6 || 0.3.3-rc2.7 || 0.3.3-rc2.8 || 0.3.3-rc2.9",
     "dsh-obsidian-bridge-protocol": "^0.3.2 || 0.3.3-rc2.1",
     "react": "*",
     "react-dom": "*",
@@ -149,8 +148,8 @@
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "file:../../../artifacts/session-context-graph-20260913/dsh-annotation-core-0.3.12-rc2.1.tgz",
-    "dsh-obsidian-bridge-lifecycle": "file:../../../artifacts/session-context-graph-20260913/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.3.tgz",
+    "dsh-annotation-core": "file:D:/AI/DeepSeekHarness-Plugin/artifacts/knowledge-network-rc2-20260914/dsh-annotation-core-0.3.12-rc2.6.tgz",
+    "dsh-obsidian-bridge-lifecycle": "file:D:/AI/DeepSeekHarness-Plugin/artifacts/knowledge-network-rc2-20260914/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.9.tgz",
     "dsh-obsidian-bridge-protocol": "file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
@@ -158,7 +157,8 @@
     "tsdown": "^0.22.14",
     "typescript": "^5.9.3",
     "unrun": "^0.3.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "@linmu/dsh-session-contracts": "file:../dsh-session-maintenance/packages/contracts"
   },
   "packageManager": "pnpm@11.19.0",
   "repository": {
