@@ -1,4 +1,5 @@
-.dsh-linked-notes { width:100%; min-width:0; color:var(--dsw-alias-label-primary,#20232a); font-size:12px; padding:6px 0; }
+/* Keep dock controls inside DSH's content column, clear of its side resize strips. */
+.dsh-linked-notes { width:min(100%,var(--dsh-chat-content-width,100%)); box-sizing:border-box; margin-inline:auto; min-width:0; color:var(--dsw-alias-label-primary,#20232a); font-size:12px; padding:6px 12px; }
 .dsh-linked-notes-row { display:flex; align-items:center; gap:6px; overflow-x:auto; padding:2px; scrollbar-width:thin; }
 .dsh-linked-notes-label { display:inline-flex; align-items:center; gap:4px; color:var(--dsw-alias-label-tertiary,#737780); white-space:nowrap; flex-shrink:0; }
 .dsh-linked-note-chip { display:inline-flex; align-items:center; gap:5px; max-width:220px; flex-shrink:0; padding:5px 9px; border:1px solid var(--dsw-alias-border-l3,#dedfe4); border-radius:16px; background:var(--dsw-alias-bg-layer-2,#f7f8fa); color:inherit; cursor:pointer; font:inherit; }
