@@ -65,7 +65,7 @@ export function KnowledgePanel(props: Props) {
   }, []);
   const create = async (item?: Item) => {
     if (!item && (!creating || !workspace)) throw new Error('请先选择新会话所在的工作区');
-    const target = await knowledgeRequest<GraphSessionIdentity>(item ? 'resolve' : 'create-session', item ? { logicalSessionId: item.logicalSessionId ?? item.id } : { operationId: operation.current, workspaceId: workspace!.id });
+    let prepared: { identity: GraphSessionIdentity; preview: GraphPreviewPage; core: { addCrossSessionReference(targetId: string, capture: GraphCapture & { expectedSourceVersionId: string }, options: { operationId: string }): Promise<{ referenceId: string }> } } | undefined;
     let origin: SessionSticker['source'];
     if (source) {
       const identity = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: source.sessionId });
@@ -73,6 +73,11 @@ export function KnowledgePanel(props: Props) {
       const preview = await knowledgeRequest<GraphPreviewPage>('preview', { logicalSessionId: identity.logicalSessionId, sourceVersionId: latest.sourceVersionId, sourceAnchorId: source.anchorId });
       const core = props.ctx.get('annotationCore') as { addCrossSessionReference?(targetId: string, capture: GraphCapture & { expectedSourceVersionId: string }, options: { operationId: string }): Promise<{ referenceId: string }> } | undefined;
       if (!core?.addCrossSessionReference) throw new Error('当前注释插件尚未提供跨会话引用');
+      prepared = { identity, preview, core: core as NonNullable<typeof prepared>['core'] };
+    }
+    const target = await knowledgeRequest<GraphSessionIdentity>(item ? 'resolve' : 'create-session', item ? { logicalSessionId: item.logicalSessionId ?? item.id } : { operationId: operation.current, workspaceId: workspace!.id });
+    if (source && prepared) {
+      const { identity, preview, core } = prepared;
       const reference = await core.addCrossSessionReference(target.nativeSessionId, { ...preview.capture, selectedText: source.selectedText, expectedSourceVersionId: preview.sourceVersionId }, { operationId: operation.current });
       origin = { logicalSessionId: identity.logicalSessionId, sourceVersionId: preview.sourceVersionId, sourceAnchorId: preview.capture.anchorId, referenceId: reference.referenceId };
     }

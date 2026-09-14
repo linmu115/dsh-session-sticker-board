@@ -10,6 +10,7 @@ import { applyDeepLink, resolveMaintenanceProjection } from "./deep-link.ts";
 import { matchesRuntimeScope } from "./runtime-scope.ts";
 import {
   resolveDurableAnchorId,
+  resolveSessionStickerAnchorId,
   resolveRenderedAnchorKey,
   StickerOverlay,
 } from "./overlay.tsx";
@@ -82,6 +83,10 @@ function StickerBoardRoot(props: {
       onOpenSticker={props.openSticker}
       resolveAnchorId={resolveAnchorId}
       resolveAnchorKey={resolveAnchorKey}
+      resolveSessionStickerAnchorId={key => {
+        if (!chatSnapshot) throw new Error('来源会话尚未加载完成');
+        return resolveSessionStickerAnchorId(chatSnapshot, key);
+      }}
       resolveLogicalLocation={props.resolveLogicalLocation}
       onSessionSticker={capture => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open', { detail: capture }))}
     />

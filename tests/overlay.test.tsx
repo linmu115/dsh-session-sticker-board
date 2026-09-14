@@ -15,6 +15,7 @@ import {
   rangeOfSticker,
   resolveSelectionForStickerAction,
   resolveDurableAnchorId,
+  resolveSessionStickerAnchorId,
   resolveRenderedAnchorKey,
   spreadDotPoint,
 } from "../src/client/overlay.tsx";
@@ -71,6 +72,19 @@ describe("sticker overlay commands", () => {
     expect(resolveDurableAnchorId(snapshot, renderedKey)).toBe("019d-user-message");
     expect(resolveRenderedAnchorKey(snapshot, "019d-user-message")).toBe(renderedKey);
     expect(resolveDurableAnchorId(snapshot, "unknown-key")).toBe("unknown-key");
+  });
+
+  it('uses the finalized RC2 message identity for session stickers, preserving legacy layout anchors', () => {
+    const key='14:assistant-step21:1',id='assistant-step21:1';
+    const nodes=new Map([[key,{id,kind:'assistant-step',data:{status:'settled',finalNode:{messageId:'recorded-reply-id'}}}]]);
+    const snapshot={order:[key],nodes};
+    expect(resolveSessionStickerAnchorId(snapshot,key)).toBe('recorded-reply-id');
+    expect(resolveSessionStickerAnchorId(snapshot,id)).toBe('recorded-reply-id');
+    expect(resolveDurableAnchorId(snapshot,key)).toBe(id);
+    for(const data of [{status:'running'},{status:'interrupted',finalNode:{messageId:'partial'}},{status:'settled',finalNode:{}}]) {
+      expect(()=>resolveSessionStickerAnchorId({order:[key],nodes:new Map([[key,{id,kind:'assistant-step',data}]])},key)).toThrow('完整结束');
+    }
+    expect(()=>resolveSessionStickerAnchorId(snapshot,'missing')).toThrow('完整结束');
   });
 
   it("restores a multiline Markdown selection across rendered block and inline nodes", () => {

@@ -100,7 +100,17 @@ export function createSelectionRecomputeHandlers(
 
 export interface StickerChatSnapshotLike {
   readonly order: readonly string[];
-  readonly nodes: { get(key: string): { readonly id?: string } | undefined };
+  readonly nodes: { get(key: string): { readonly id?: string; readonly kind?: string; readonly data?: unknown } | undefined };
+}
+
+/** A graph source needs the recorded assistant message ID, not the renderer's step ID. */
+export function resolveSessionStickerAnchorId(snapshot: StickerChatSnapshotLike, renderedKey: string): string {
+  const key = resolveRenderedAnchorKey(snapshot, renderedKey);
+  const node = snapshot.nodes.get(key);
+  const data = node?.data as { status?: string; finalNode?: { messageId?: string } } | undefined;
+  if (node?.kind !== 'assistant-step' || data?.status !== 'settled' || !data.finalNode?.messageId)
+    throw new Error('请等待所选回复完整结束并保存后，再创建会话贴纸');
+  return data.finalNode.messageId;
 }
 
 /** Convert the current renderer key into the stable Conversation node identity. */
@@ -264,6 +274,7 @@ type StickerDraft = Pick<StickerRecord, "markdown" | "tags" | "color">;
 
 export interface StickerOverlayProps {
   readonly onSessionSticker?: (source: { sessionId: string; anchorId: string; selectedText: string }) => void;
+  readonly resolveSessionStickerAnchorId?: (renderedKey: string) => string;
   readonly sessionId: string;
   readonly sessionTitle: string;
   readonly stickers: readonly StickerView[];
@@ -447,10 +458,15 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
     const remove = mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
     const removeSession = props.onSessionSticker && selection?.role === 'assistant' ? mountNativeSelectionAction(sharedSelectionToolbar, () => {
       const active = resolveSelectionForStickerAction(selection, props.sessionId);
-      if (active?.role === 'assistant') props.onSessionSticker?.({ sessionId: active.sessionId, anchorId: props.resolveAnchorId(active.anchorId), selectedText: active.quote });
+      if (active?.role === 'assistant') {
+        try {
+          if (!props.resolveSessionStickerAnchorId) throw new Error('当前会话尚未提供完整回复定位');
+          props.onSessionSticker?.({ sessionId: active.sessionId, anchorId: props.resolveSessionStickerAnchorId(active.anchorId), selectedText: active.quote });
+        } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+      }
     }, document, '会话贴纸') : undefined;
     return () => { remove(); removeSession?.(); };
-  }, [beginCreate, editor, menu, sharedSelectionToolbar, selection, props.onSessionSticker, props.resolveAnchorId, props.sessionId]);
+  }, [beginCreate, editor, menu, sharedSelectionToolbar, selection, props.onSessionSticker, props.resolveSessionStickerAnchorId, props.sessionId]);
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;

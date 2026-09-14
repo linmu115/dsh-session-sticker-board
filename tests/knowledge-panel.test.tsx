@@ -38,10 +38,19 @@ it('can still attach an existing session without creating one',async()=>{
 });
 it('retains selection and operation identity when creation fails and is retried',async()=>{
   await fixture();await click('新建独立会话');await click('空工作区');
-  vi.mocked(knowledgeRequest).mockRejectedValueOnce(new Error('temporary failure'));
+  const implementation=vi.mocked(knowledgeRequest).getMockImplementation()!;let failed=false;
+  vi.mocked(knowledgeRequest).mockImplementation(async(op,input)=>{if(op==='create-session'&&!failed){failed=true;throw new Error('temporary failure');}return implementation(op,input);});
   await click('在所选工作区新建会话');expect(host.textContent).toContain('temporary failure');expect(host.textContent).toContain('引用选区');
   await click('在所选工作区新建会话');expect(creates()[0]![1]).toEqual(creates()[1]![1]);
 });
 it('does not create a session when cancelling workspace selection',async()=>{
   await fixture();await click('新建独立会话');await click('空工作区');await click('重新选择工作区');await click('选择已有会话');expect(creates()).toHaveLength(0);
+});
+
+it('checks the exact completed source before creating, with no orphan session on source failure',async()=>{
+  await fixture();await click('新建独立会话');await click('空工作区');
+  const implementation=vi.mocked(knowledgeRequest).getMockImplementation()!;
+  vi.mocked(knowledgeRequest).mockImplementation(async(op,input)=>{if(op==='preview'&&input?.sourceAnchorId)throw new Error('来源回复不可用');return implementation(op,input);});
+  await click('在所选工作区新建会话');
+  expect(host.textContent).toContain('来源回复不可用');expect(host.textContent).toContain('引用选区');expect(creates()).toHaveLength(0);expect(core.addCrossSessionReference).not.toHaveBeenCalled();
 });
