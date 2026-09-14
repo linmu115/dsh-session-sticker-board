@@ -22,6 +22,7 @@ import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspa
 import "./styles.css";
 import { KnowledgePanel } from './knowledge-panel.tsx';
 import { knowledgeRequest } from './knowledge.ts';
+import { registerLinkedNotes } from './linked-notes.tsx';
 
 export const inject = ["sessions", "remote", "uiConversation"] as const;
 
@@ -108,6 +109,7 @@ export function apply(ctx: Context): void {
           ...(surfaceId === undefined ? {} : { surfaceId }),
         });
         const stickers = createStickerWorkspace(mountedRemote, bridge);
+        if (mountedRemote.managed) ready.effect(() => registerLinkedNotes(ready, bridge));
         const knowledgeSlots = mountedRemote.managed ? ready.inject(['slots'], slotContext => {
           const slots = (slotContext as unknown as Context).slots;
           return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open'))}>会话贴纸</button>));
