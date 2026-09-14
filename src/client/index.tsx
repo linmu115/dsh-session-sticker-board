@@ -24,6 +24,7 @@ import "./styles.css";
 import { KnowledgePanel } from './knowledge-panel.tsx';
 import { knowledgeRequest } from './knowledge.ts';
 import { registerLinkedNotes } from './linked-notes.tsx';
+import { SourceMarkerOverlay } from './source-marker-overlay.tsx';
 
 export const inject = ["sessions", "remote", "uiConversation"] as const;
 
@@ -90,6 +91,7 @@ function StickerBoardRoot(props: {
       resolveLogicalLocation={props.resolveLogicalLocation}
       onSessionSticker={capture => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open', { detail: capture }))}
     />
+    {props.knowledge && <SourceMarkerOverlay key={sessionId} ctx={props.ctx} sessionId={sessionId} snapshot={chatSnapshot} ordinaryStickers={props.workspace.list(sessionId)} />}
     </>
   );
 }

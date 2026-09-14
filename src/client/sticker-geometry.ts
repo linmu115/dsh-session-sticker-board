@@ -1,4 +1,5 @@
-import type { StickerRecord } from "../protocol.ts";
+/** Only the short source locator is needed to recover a highlighted range. */
+export interface HighlightLocator { anchorId: string; quote: string; occurrence: number }
 
 interface SearchCharacter {
   readonly value: string;
@@ -33,7 +34,7 @@ function normalizedSearchText(value: string): string {
   return [...value].filter((character) => !isIgnoredSearchCharacter(character)).join("");
 }
 
-export function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = sticker.anchorId): Range | null {
+export function rangeOfSticker(sticker: HighlightLocator, renderedAnchorKey = sticker.anchorId): Range | null {
   try {
     const root = document.querySelector<HTMLElement>(
       `[data-chat-anchor-key="${CSS.escape(renderedAnchorKey)}"]`,
@@ -45,7 +46,7 @@ export function rangeOfSticker(sticker: StickerRecord, renderedAnchorKey = stick
   }
 }
 
-function rangeFromCharacters(root: HTMLElement, characters: SearchCharacter[], sticker: StickerRecord, text = characters.map((character) => character.value).join("")): Range | null {
+function rangeFromCharacters(root: HTMLElement, characters: SearchCharacter[], sticker: HighlightLocator, text = characters.map((character) => character.value).join("")): Range | null {
   try {
     const quote = normalizedSearchText(sticker.quote);
     if (!quote) return null;
@@ -85,10 +86,10 @@ interface AnchorGeometry {
   text?: string;
   ranges: Map<string, Range | null>;
 }
-export interface StickerGeometryInput { record: StickerRecord; renderedAnchorKey: string }
+export interface StickerGeometryInput { record: HighlightLocator; renderedAnchorKey: string }
 export interface StickerViewport { width: number; height: number; margin?: number }
 
-function signature(record: StickerRecord): string { return JSON.stringify([record.quote, record.occurrence]); }
+function signature(record: HighlightLocator): string { return JSON.stringify([record.quote, record.occurrence]); }
 function elementOf(node: Node): Element | null { return node.nodeType === 1 ? node as Element : node.parentElement; }
 function owned(node: Node): boolean { return Boolean(elementOf(node)?.closest(OWNED)); }
 function nearViewport(rect: DOMRect, viewport: StickerViewport): boolean {

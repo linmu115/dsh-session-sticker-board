@@ -168,6 +168,12 @@
 }
 
 .dsh-sticker-board-dot svg { pointer-events: none; }
+.dsh-sticker-board-dot.dsh-source-reference-dot { background:#3978df; border-color:#2864c5; color:#fff; }
+.dsh-sticker-board-dot.dsh-source-reference-dot:hover:not(:disabled) { background:#2864c5; }
+.dsh-source-reference-dot:focus-visible { outline:2px solid #3978df; outline-offset:3px; }
+.dsh-source-reference-dot:disabled { opacity:.55; cursor:wait; }
+.dsh-source-reference-menu { max-width:280px; max-height:min(320px,60vh); overflow:auto; }
+.dsh-source-reference-error { bottom:24px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; }
 
 .dsh-sticker-sidebar-detail {
   box-sizing: border-box;

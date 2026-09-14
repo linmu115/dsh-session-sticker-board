@@ -8,6 +8,7 @@ vi.mock('../src/client/knowledge.ts',()=>({knowledgeRequest:vi.fn(),migrateLegac
 vi.mock('../src/client/knowledge-links.tsx',()=>({KnowledgeLinks:()=>null}));
 let root:ReturnType<typeof createRoot>,host:HTMLDivElement;
 const core={addCrossSessionReference:vi.fn(async()=>({referenceId:'ref'}))};
+const openSession=vi.fn();
 beforeEach(()=>{
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});host=document.createElement('div');document.body.append(host);root=createRoot(host);
   vi.mocked(knowledgeRequest).mockImplementation(async(op,input)=>{
@@ -15,13 +16,13 @@ beforeEach(()=>{
     if(op==='directory')return{items:input?.workspaceId?[{id:'existing',logicalSessionId:'existing-logical',title:'已有会话'}]:[{id:'logical-workspace',title:'已有工作区'}],nextCursor:null};
     if(op==='create-session')return{nativeSessionId:'new-native',logicalSessionId:'new-logical',title:'新会话'};
     if(op==='resolve')return{nativeSessionId:'source',logicalSessionId:input?.logicalSessionId??'source-logical'};
-    if(op==='preview')return{sourceVersionId:'v1',capture:{anchorId:'completed-reply',selectedText:'full reply'}};
+    if(op==='preview')return{sourceVersionId:'v1',capture:{anchorId:'completed-reply',messageId:'completed-reply',selectedText:'full reply'}};
     if(op==='write')return{status:'committed'};
     return{items:[],nextCursor:null};
   });
 });
 afterEach(async()=>{await act(()=>root.unmount());host.remove();vi.clearAllMocks();});
-async function fixture(){await act(async()=>root.render(<KnowledgePanel ctx={{get:()=>core} as any} sessionId="source" local={{knowledgeOperation:vi.fn()}} bridge={{knowledge:vi.fn()}} onMigrated={vi.fn()}/>));await act(async()=>{window.dispatchEvent(new CustomEvent('dsh-session-sticker-open',{detail:{sessionId:'source',anchorId:'completed-reply',selectedText:'引用选区'}}));});}
+async function fixture(occurrence=0){await act(async()=>root.render(<KnowledgePanel ctx={{get:()=>core,sessions:{open:openSession}} as any} sessionId="source" local={{knowledgeOperation:vi.fn()}} bridge={{knowledge:vi.fn()}} onMigrated={vi.fn()}/>));await act(async()=>{window.dispatchEvent(new CustomEvent('dsh-session-sticker-open',{detail:{sessionId:'source',anchorId:'completed-reply',selectedText:'引用选区',occurrence}}));});}
 async function click(label:string){await act(async()=>{const b=[...host.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent)===label);expect(b).toBeTruthy();b!.click();});}
 const creates=()=>vi.mocked(knowledgeRequest).mock.calls.filter(([op])=>op==='create-session');
 it('selects a native workspace before creation and preserves the selected upstream reference',async()=>{
@@ -31,6 +32,33 @@ it('selects a native workspace before creation and preserves the selected upstre
   expect(creates()[0]![1]).toEqual({operationId:expect.any(String),workspaceId:'native-workspace'});
   expect(core.addCrossSessionReference).toHaveBeenCalledWith('new-native',expect.objectContaining({selectedText:'引用选区',expectedSourceVersionId:'v1'}),expect.anything());
   expect(knowledgeRequest).toHaveBeenCalledWith('write',expect.objectContaining({body:expect.objectContaining({logicalSessionId:'new-logical',source:expect.objectContaining({referenceId:'ref'})})}));
+  expect(openSession).toHaveBeenCalledWith('new-native');
+});
+
+it('persists a bounded source selection with the real message ID and repeated-text occurrence',async()=>{
+  await fixture(2);await click('已有工作区');await click('已有会话');
+  expect(knowledgeRequest).toHaveBeenCalledWith('write',expect.objectContaining({body:expect.objectContaining({source:expect.objectContaining({
+    locator:{messageId:'completed-reply',selectedText:'引用选区',occurrence:2},
+  })})}));
+});
+
+it('does not persist a source marker or open the target when binding fails',async()=>{
+  core.addCrossSessionReference.mockRejectedValueOnce(new Error('绑定失败'));
+  await fixture();await click('已有工作区');await click('已有会话');
+  expect(host.textContent).toContain('绑定失败');
+  expect(vi.mocked(knowledgeRequest).mock.calls.some(([op])=>op==='write')).toBe(false);
+  expect(openSession).not.toHaveBeenCalled();
+});
+
+it('retries the same reference and sticker identities after a failed marker save',async()=>{
+  await fixture();await click('已有工作区');
+  const implementation=vi.mocked(knowledgeRequest).getMockImplementation()!;let failed=false;
+  vi.mocked(knowledgeRequest).mockImplementation(async(op,input)=>{if(op==='write'&&!failed){failed=true;throw new Error('保存失败');}return implementation(op,input);});
+  await click('已有会话');expect(host.textContent).toContain('保存失败');expect(openSession).not.toHaveBeenCalled();
+  await click('已有会话');
+  const writes=vi.mocked(knowledgeRequest).mock.calls.filter(([op])=>op==='write');
+  expect(writes[0]![1]).toEqual(writes[1]![1]);
+  expect(core.addCrossSessionReference.mock.calls[0]).toEqual(core.addCrossSessionReference.mock.calls[1]);
 });
 it('can still attach an existing session without creating one',async()=>{
   await fixture();await click('已有工作区');await click('已有会话');expect(creates()).toHaveLength(0);

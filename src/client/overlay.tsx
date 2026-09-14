@@ -273,7 +273,7 @@ export function resolveSelectionForStickerAction(
 type StickerDraft = Pick<StickerRecord, "markdown" | "tags" | "color">;
 
 export interface StickerOverlayProps {
-  readonly onSessionSticker?: (source: { sessionId: string; anchorId: string; selectedText: string }) => void;
+  readonly onSessionSticker?: (source: { sessionId: string; anchorId: string; selectedText: string; occurrence: number }) => void;
   readonly resolveSessionStickerAnchorId?: (renderedKey: string) => string;
   readonly sessionId: string;
   readonly sessionTitle: string;
@@ -461,7 +461,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       if (active?.role === 'assistant') {
         try {
           if (!props.resolveSessionStickerAnchorId) throw new Error('当前会话尚未提供完整回复定位');
-          props.onSessionSticker?.({ sessionId: active.sessionId, anchorId: props.resolveSessionStickerAnchorId(active.anchorId), selectedText: active.quote });
+          props.onSessionSticker?.({ sessionId: active.sessionId, anchorId: props.resolveSessionStickerAnchorId(active.anchorId), selectedText: active.quote, occurrence: active.occurrence });
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
       }
     }, document, '会话贴纸') : undefined;
