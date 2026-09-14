@@ -19,6 +19,7 @@ export function KnowledgePanel(props: Props) {
   const [deleted, setDeleted] = useState(false), [picker, setPicker] = useState(false), [workspace, setWorkspace] = useState<Item | undefined>();
   const [directory, setDirectory] = useState<Item[]>([]), [directoryCursor, setDirectoryCursor] = useState<string | null>(null);
   const [source, setSource] = useState<Source | undefined>(), [migrationConflict, setMigrationConflict] = useState(false);
+  const [creating, setCreating] = useState(false);
   const operation = useRef(crypto.randomUUID()), active = useRef(false), alive = useRef(true);
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -47,18 +48,24 @@ export function KnowledgePanel(props: Props) {
     if (!alive.current) return;
     setDirectory(old => after ? [...old, ...page.items] : page.items); setDirectoryCursor(page.nextCursor); setWorkspace(space);
   };
+  const loadCreateWorkspaces = async (after?: string) => {
+    const page = await knowledgeRequest<{ items: Item[]; nextCursor: string | null }>('create-workspaces', after ? { after } : {});
+    if (!alive.current) return;
+    setDirectory(old => after ? [...old, ...page.items] : page.items); setDirectoryCursor(page.nextCursor); setWorkspace(undefined);
+  };
   useEffect(() => {
     const show = (event: Event) => {
       if (active.current) return;
       const next = (event as CustomEvent<Source | undefined>).detail;
-      setOpen(true); setSource(next); setPicker(Boolean(next)); setDeleted(false); setError(''); setNotice(''); setMigrationConflict(false); operation.current = crypto.randomUUID();
+      setOpen(true); setSource(next); setPicker(Boolean(next)); setCreating(false); setWorkspace(undefined); setDeleted(false); setError(''); setNotice(''); setMigrationConflict(false); operation.current = crypto.randomUUID();
       void run(async () => { await load(undefined, false); if (next) await loadDirectory(); });
     };
     window.addEventListener('dsh-session-sticker-open', show);
     return () => window.removeEventListener('dsh-session-sticker-open', show);
   }, []);
   const create = async (item?: Item) => {
-    const target = await knowledgeRequest<GraphSessionIdentity>(item ? 'resolve' : 'create-session', item ? { logicalSessionId: item.logicalSessionId ?? item.id } : { operationId: operation.current });
+    if (!item && (!creating || !workspace)) throw new Error('请先选择新会话所在的工作区');
+    const target = await knowledgeRequest<GraphSessionIdentity>(item ? 'resolve' : 'create-session', item ? { logicalSessionId: item.logicalSessionId ?? item.id } : { operationId: operation.current, workspaceId: workspace!.id });
     let origin: SessionSticker['source'];
     if (source) {
       const identity = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: source.sessionId });
@@ -94,17 +101,26 @@ export function KnowledgePanel(props: Props) {
     {error && <div className="dsh-knowledge-feedback is-error" role="alert"><CircleAlert size={16} aria-hidden="true" /><span>{error}</span></div>}{notice && <div className="dsh-knowledge-feedback" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span></div>}
     {picker ? <>
       <button className="dsh-knowledge-back" disabled={busy} onClick={() => setPicker(false)}><ArrowLeft size={16} aria-hidden="true" />返回贴纸</button>
-      <div className="dsh-knowledge-section-title"><h3>{source ? '从这段回复开始' : '添加会话贴纸'}</h3><p>新开一段对话，或选择已有会话。</p></div>
+      <div className="dsh-knowledge-section-title"><h3>{source ? '从这段回复开始' : '添加会话贴纸'}</h3><p>{creating ? '先选择工作区，再新建独立会话。' : '新开一段对话，或选择已有会话。'}</p></div>
       {source && <blockquote className="dsh-knowledge-source">{source.selectedText.slice(0,200)}</blockquote>}
-      <button className="dsh-knowledge-create" disabled={busy} aria-label="新建独立会话" onClick={() => void run(() => create())}><span className="dsh-knowledge-create-icon"><Plus size={20} aria-hidden="true" /></span><span><strong>新建独立会话</strong><small>从新的对话开始，保留这张贴纸作为入口</small></span><ArrowUpRight size={16} aria-hidden="true" /></button>
+      {!creating && <button className="dsh-knowledge-create" disabled={busy} aria-label="新建独立会话" onClick={() => void run(async () => { await loadCreateWorkspaces(); setCreating(true); })}><span className="dsh-knowledge-create-icon"><Plus size={20} aria-hidden="true" /></span><span><strong>新建独立会话</strong><small>先选择新会话所在的工作区</small></span><ArrowUpRight size={16} aria-hidden="true" /></button>}
+      {creating ? <>
+        <div className="dsh-knowledge-directory-heading"><button className="dsh-knowledge-back" disabled={busy} onClick={() => void run(async () => { if (workspace) await loadCreateWorkspaces(); else { await loadDirectory(); setCreating(false); } })}><ArrowLeft size={14} aria-hidden="true" />{workspace ? '重新选择工作区' : '选择已有会话'}</button><span>{workspace?.title ?? '选择新会话所在工作区'}</span></div>
+        {workspace ? <button className="dsh-knowledge-create" disabled={busy} aria-label="在所选工作区新建会话" onClick={() => void run(() => create())}><span className="dsh-knowledge-create-icon"><Plus size={20} aria-hidden="true" /></span><span><strong>在「{workspace.title}」中新建会话</strong><small>保留所选引用，创建独立会话贴纸</small></span><ArrowUpRight size={16} aria-hidden="true" /></button> : <div className="dsh-knowledge-list dsh-knowledge-directory" onScroll={event => { const el = event.currentTarget; if (directoryCursor && el.scrollHeight - el.scrollTop - el.clientHeight < 60) void run(() => loadCreateWorkspaces(directoryCursor)); }}>
+          {directory.map(item => <button className="dsh-knowledge-choice" disabled={busy} key={item.id} aria-label={item.title} onClick={() => setWorkspace(item)}><Folder size={18} aria-hidden="true" /><span>{item.title}</span><ChevronRight size={16} aria-hidden="true" /></button>)}
+          {!directory.length && !busy && <p className="dsh-knowledge-muted">暂时没有可用工作区，请先在 DSH 新建工作区。</p>}
+          {directoryCursor && <button className="dsh-knowledge-more" disabled={busy} onClick={() => void run(() => loadCreateWorkspaces(directoryCursor))}>加载更多</button>}
+        </div>}
+      </> : <>
       <div className="dsh-knowledge-directory-heading">{workspace ? <><button className="dsh-knowledge-back" disabled={busy} onClick={() => void run(() => loadDirectory())}><ArrowLeft size={14} aria-hidden="true" />返回工作区</button><span>{workspace.title}</span></> : <span>从工作区选择已有会话</span>}</div>
       <div className="dsh-knowledge-list dsh-knowledge-directory" onScroll={event => { const el = event.currentTarget; if (directoryCursor && el.scrollHeight - el.scrollTop - el.clientHeight < 60) void run(() => loadDirectory(workspace, directoryCursor)); }}>
         {directory.map(item => <button className="dsh-knowledge-choice" disabled={busy} key={item.id} aria-label={item.title} onClick={() => void run(() => workspace ? create(item) : loadDirectory(item))}>{workspace ? <MessageSquare size={18} aria-hidden="true" /> : <Folder size={18} aria-hidden="true" />}<span>{item.title}</span><ChevronRight size={16} aria-hidden="true" /></button>)}
         {!directory.length && !busy && <p className="dsh-knowledge-muted">{workspace ? '这个工作区暂时没有会话。' : '暂时没有可用工作区。'}</p>}
         {directoryCursor && <button className="dsh-knowledge-more" disabled={busy} onClick={() => void run(() => loadDirectory(workspace, directoryCursor))}>加载更多</button>}
       </div>
+      </>}
     </> : <>
-      <div className="dsh-knowledge-toolbar"><div className="dsh-knowledge-tabs" role="group" aria-label="贴纸视图"><button disabled={busy} aria-pressed={!deleted} onClick={() => { setDeleted(false); void run(() => load(undefined, false)); }}>全部贴纸</button><button disabled={busy} aria-pressed={deleted} onClick={() => { setDeleted(true); void run(() => load(undefined, true)); }}>已删除</button></div><button className="dsh-knowledge-primary" disabled={busy} onClick={() => { setSource(undefined); operation.current = crypto.randomUUID(); setPicker(true); void run(() => loadDirectory()); }}><Plus size={16} aria-hidden="true" />新建贴纸</button></div>
+      <div className="dsh-knowledge-toolbar"><div className="dsh-knowledge-tabs" role="group" aria-label="贴纸视图"><button disabled={busy} aria-pressed={!deleted} onClick={() => { setDeleted(false); void run(() => load(undefined, false)); }}>全部贴纸</button><button disabled={busy} aria-pressed={deleted} onClick={() => { setDeleted(true); void run(() => load(undefined, true)); }}>已删除</button></div><button className="dsh-knowledge-primary" disabled={busy} onClick={() => { setSource(undefined); setCreating(false); operation.current = crypto.randomUUID(); setPicker(true); void run(() => loadDirectory()); }}><Plus size={16} aria-hidden="true" />新建贴纸</button></div>
       <div className="dsh-knowledge-list dsh-knowledge-stickers">{items.map(object => {
         const body = object.content.body as { kind: string; logicalSessionId: string; note?: SessionSticker['note']; noteSelection?: SessionSticker['noteSelection'] };
         const note = body.kind === 'session' ? body.note : undefined;
