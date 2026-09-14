@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileText, Link2, ArrowUpRight, Quote, X, Loader2 } from 'lucide-react';
+import { FileText, Link2, Unlink, ArrowUpRight, Quote, X, Loader2 } from 'lucide-react';
 import type { ExtensionObject, GraphSessionIdentity, KnowledgePage } from '@linmu/dsh-session-contracts';
 import type { AnnotationCoreClient } from 'dsh-annotation-core/client-api';
 import type { Context } from '../context-types.ts';
 import { knowledgeRequest } from './knowledge.ts';
+import { unlinkNote } from './unlink-note.ts';
 import './linked-notes.css';
 
 type Bridge = { knowledge(operation: string, input: Record<string, unknown>): Promise<unknown> };
@@ -16,6 +17,7 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
   const [cursor, setCursor] = useState<string | null>(null);
   const active = useRef(false), generation = useRef(0), operation = useRef<string>();
   const pagesShown = useRef(1);
+  const mutation = useRef(0);
   useEffect(() => {
     let disposed = false, loading = false;
     const epoch = ++generation.current;
@@ -24,6 +26,7 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
     const refresh = async () => {
       if (loading || document.visibilityState === 'hidden' || active.current) return;
       loading = true;
+      const startedAt = mutation.current;
       try {
         const target = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: sessionId });
         const found: ExtensionObject[] = []; let after: string | null = null;
@@ -32,7 +35,7 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
           if (disposed || generation.current !== epoch) return;
           found.push(...page.items); after = page.nextCursor; if (!after) break;
         }
-        if (!disposed && generation.current === epoch) { setItems(found); setCursor(after); setError(''); }
+        if (!disposed && generation.current === epoch && startedAt === mutation.current) { setItems(found.filter(item => !item.deleted)); setCursor(after); setError(''); }
       } catch { /* No relation rail in unmanaged/deleted sessions; keep already rendered links on transient disconnect. */ }
       finally { loading = false; }
     };
@@ -42,6 +45,7 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
   }, [sessionId]);
   const run = async (work: () => Promise<void>) => {
     if (active.current) return; active.current = true; setBusy(true); setError(''); setMessage('');
+    mutation.current++;
     const epoch = generation.current;
     try { await work(); } catch (e) { if (epoch === generation.current) setError(e instanceof Error ? e.message : String(e)); }
     finally { active.current = false; if (epoch === generation.current) setBusy(false); }
@@ -68,14 +72,24 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
     }
     operation.current = undefined; setMessage('已加入本轮引用，发送消息后参与回答。');
   };
-  if (!items.length && !error) return null;
+  const unlink = async (object: ExtensionObject) => {
+    const epoch = generation.current;
+    const target = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: sessionId });
+    if (epoch !== generation.current || ctx.sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请在目标会话解除关联');
+    await unlinkNote(object.objectId, target, bridge);
+    if (epoch !== generation.current) return;
+    setItems(old => old.filter(item => item.objectId !== object.objectId));
+    setSelected(undefined); operation.current = undefined;
+    setMessage('已解除关联，笔记正文和本轮引用保留。');
+  };
+  if (!items.length && !error && !message) return null;
   const focused = items.find(i => i.objectId === selected);
   return <div className="dsh-linked-notes" aria-label="当前会话关联笔记">
     <div className="dsh-linked-notes-row"><span className="dsh-linked-notes-label"><Link2 size={13} />关联笔记</span>
       {items.map(item => { const note = (item.content.body as NoteBody).note; return <button key={item.objectId} type="button" className={'dsh-linked-note-chip' + (selected === item.objectId ? ' is-selected' : '')} aria-expanded={selected === item.objectId} title={note.notePath} onClick={() => { setSelected(selected === item.objectId ? undefined : item.objectId); setMessage(''); setError(''); operation.current = undefined; }} disabled={busy}><FileText size={13} /><span>{note.notePath.split('/').at(-1)?.replace(/\.md$/, '')}</span></button>; })}
       {cursor && <button type="button" className="dsh-linked-note-chip" disabled={busy} onClick={() => void run(async () => { const target = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: sessionId }); const page = await knowledgeRequest<KnowledgePage>('list', { namespace: 'obsidian-links', logicalSessionId: target.logicalSessionId, after: cursor }); setItems(old => [...old, ...page.items.filter(i => !old.some(o => o.objectId === i.objectId))]); pagesShown.current++; setCursor(page.nextCursor); })}>更多</button>}
     </div>
-    {focused && <section className="dsh-linked-note-detail" aria-label="关联笔记操作"><div><strong>{(focused.content.body as NoteBody).note.notePath}</strong><button type="button" aria-label="收起关联笔记" onClick={() => setSelected(undefined)} disabled={busy}><X size={14} /></button></div><p>此关联长期保留。引用到本轮后，内容才会随消息交给 AI。</p><div className="dsh-linked-note-actions"><button type="button" disabled={busy} onClick={() => void run(async () => { const note = (focused.content.body as NoteBody).note; await bridge.knowledge('note-open', { noteId: note.noteId, ...(note.blockId ? { blockId: note.blockId } : {}) }); })}><ArrowUpRight size={14} />在 Obsidian 打开</button><button type="button" disabled={busy} onClick={() => void run(() => reference(focused))}>{busy ? <Loader2 size={14} /> : <Quote size={14} />}引用到本轮</button></div></section>}
+    {focused && <section className="dsh-linked-note-detail" aria-label="关联笔记操作"><div><strong>{(focused.content.body as NoteBody).note.notePath}</strong><button type="button" aria-label="收起关联笔记" onClick={() => setSelected(undefined)} disabled={busy}><X size={14} /></button></div><p>此关联长期保留。引用到本轮后，内容才会随消息交给 AI。</p><div className="dsh-linked-note-actions"><button type="button" disabled={busy} onClick={() => void run(async () => { const note = (focused.content.body as NoteBody).note; await bridge.knowledge('note-open', { noteId: note.noteId, ...(note.blockId ? { blockId: note.blockId } : {}) }); })}><ArrowUpRight size={14} />在 Obsidian 打开</button><button type="button" disabled={busy} onClick={() => void run(() => reference(focused))}>{busy ? <Loader2 size={14} /> : <Quote size={14} />}引用到本轮</button><button type="button" className="dsh-linked-note-unlink" title="仅解除当前会话与笔记的关联" disabled={busy} onClick={() => void run(() => unlink(focused))}><Unlink size={14} />解除关联</button></div></section>}
     {message && <p role="status" className="dsh-linked-note-message">{message}</p>}{error && <p role="alert" className="dsh-linked-note-error">{error}</p>}
   </div>;
 }
