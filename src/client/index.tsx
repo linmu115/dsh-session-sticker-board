@@ -109,9 +109,10 @@ export function apply(ctx: Context): void {
           ...(surfaceId === undefined ? {} : { surfaceId }),
         });
         const stickers = createStickerWorkspace(mountedRemote, bridge);
-        if (mountedRemote.managed) ready.effect(() => registerLinkedNotes(ready, bridge));
         const knowledgeSlots = mountedRemote.managed ? ready.inject(['slots'], slotContext => {
-          const slots = (slotContext as unknown as Context).slots;
+          const slotsReady = slotContext as unknown as Context;
+          const slots = slotsReady.slots;
+          slotsReady.effect(() => registerLinkedNotes(slotsReady, bridge));
           return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open'))}>会话贴纸</button>));
         }) : undefined;
         const unregisterHealth = lifecycle?.registerHealthSource?.("stickers", {
