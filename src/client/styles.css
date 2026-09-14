@@ -415,3 +415,4 @@
 
 .dsh-sticker-sidebar-sync-recovery button:disabled { opacity: .5; cursor: default; }
 .dsh-sticker-sidebar-sync-recovery details { width: 100%; overflow-wrap: anywhere; }
+.dsh-knowledge-trigger { font: inherit; font-size: 12px; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 8px; padding: 6px 10px; cursor: pointer; } .dsh-knowledge-trigger:hover { background: color-mix(in srgb, currentColor 6%, transparent); }

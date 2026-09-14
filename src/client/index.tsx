@@ -93,9 +93,10 @@ export function apply(ctx: Context): void {
     ctx.inject(inject, async (injectedContext) => {
       try {
         const ready = injectedContext as unknown as Context & { obsidianBridgeLifecycle?: ObsidianBridgeLifecycle };
+        const lifecycle = ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
         const mountedRemote = await mountStickerRemote(ready);
         const managedIdentity = mountedRemote.managed ? await knowledgeRequest<{ instanceId: string }>('status') : undefined;
-        const runtimeIdentity = ready.obsidianBridgeLifecycle?.runtimeIdentity ?? (managedIdentity ? { dshInstanceId: managedIdentity.instanceId } : undefined);
+        const runtimeIdentity = lifecycle?.runtimeIdentity ?? (managedIdentity ? { dshInstanceId: managedIdentity.instanceId } : undefined);
         const surfaceId = typeof location === "undefined"
           ? undefined
           : bridgeSurfaceIdFromUrl(location.href);
@@ -109,9 +110,9 @@ export function apply(ctx: Context): void {
         const stickers = createStickerWorkspace(mountedRemote, bridge);
         const knowledgeSlots = mountedRemote.managed ? ready.inject(['slots'], slotContext => {
           const slots = (slotContext as unknown as Context).slots;
-          return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button onClick={() => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open'))}>会话贴纸</button>));
+          return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open'))}>会话贴纸</button>));
         }) : undefined;
-        const unregisterHealth = ready.obsidianBridgeLifecycle?.registerHealthSource?.("stickers", {
+        const unregisterHealth = lifecycle?.registerHealthSource?.("stickers", {
           getHealth: () => stickers.health(),
           subscribe: (listener) => stickers.subscribe(listener),
           retry: () => { void stickers.syncAll(); },
@@ -129,7 +130,7 @@ export function apply(ctx: Context): void {
               stickers,
               (action) => bridge.openNote(action),
               (record) => bridge.listBacklinks(record),
-              ready.obsidianBridgeLifecycle,
+              lifecycle,
             );
             return () => {
               unregister();
@@ -158,8 +159,8 @@ export function apply(ctx: Context): void {
                 legacyAnchorId: anchorId,
               }).catch(() => undefined);
               return {
-                ...(ready.obsidianBridgeLifecycle?.runtimeIdentity?.dshInstanceId === undefined ? {} : {
-                  dshInstanceId: ready.obsidianBridgeLifecycle?.runtimeIdentity.dshInstanceId,
+                ...(runtimeIdentity?.dshInstanceId === undefined ? {} : {
+                  dshInstanceId: runtimeIdentity.dshInstanceId,
                 }),
                 ...(resolved?.logicalSessionId === undefined ? {} : { logicalSessionId: resolved.logicalSessionId }),
                 ...(resolved?.logicalAnchorId === undefined ? {} : { logicalAnchorId: resolved.logicalAnchorId }),
@@ -173,7 +174,7 @@ export function apply(ctx: Context): void {
         const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction, signal?: AbortSignal): Promise<boolean> => {
           signal?.throwIfAborted();
           if (action.type !== "deep-link" || action.setId !== undefined) return false;
-          if (!matchesRuntimeScope(action, ready.obsidianBridgeLifecycle?.runtimeIdentity)) return false;
+          if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
           if (action.anchorId === '@session' && action.logicalSessionId) {
             const target = await knowledgeRequest<{ nativeSessionId: string }>('resolve', { logicalSessionId: action.logicalSessionId });
             signal?.throwIfAborted(); await ready.sessions.open(target.nativeSessionId); return true;
@@ -189,7 +190,7 @@ export function apply(ctx: Context): void {
               return true;
             }
           }
-          const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => matchesRuntimeScope(view.record, ready.obsidianBridgeLifecycle?.runtimeIdentity) && (
+          const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => matchesRuntimeScope(view.record, runtimeIdentity) && (
             action.stickerId !== undefined
               ? view.record.stickerId === action.stickerId
               : view.record.anchorId === action.anchorId
@@ -204,7 +205,7 @@ export function apply(ctx: Context): void {
             return true;
           }
           const result = await applyDeepLink(ready, action, {
-            ...(ready.obsidianBridgeLifecycle?.runtimeIdentity === undefined ? {} : { runtimeIdentity: ready.obsidianBridgeLifecycle?.runtimeIdentity }),
+            ...(runtimeIdentity === undefined ? {} : { runtimeIdentity: runtimeIdentity }),
             ...(signal === undefined ? {} : { signal }),
             ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
             resolveLogicalTarget: async (target) => resolveMaintenanceProjection({ ...target, ...(signal === undefined ? {} : { signal }) }).catch(() => undefined),
@@ -214,13 +215,13 @@ export function apply(ctx: Context): void {
           }
           return true;
         };
-        const unregisterBridgeAttachment = ready.obsidianBridgeLifecycle?.mountWhenReady(
+        const unregisterBridgeAttachment = lifecycle?.mountWhenReady(
           "session-sticker-board:client-transport",
           () => {
             void stickers.syncAll();
             const polling = startBridgePolling(bridge, applyAction, {
               accepts: (action) => action.type === "deep-link"
-                && matchesRuntimeScope(action, ready.obsidianBridgeLifecycle?.runtimeIdentity)
+                && matchesRuntimeScope(action, runtimeIdentity)
                 && action.setId === undefined
                 && (action.stickerId !== undefined || action.quoteHash !== undefined || action.anchorId === '@session'),
               onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
