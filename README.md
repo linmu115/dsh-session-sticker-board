@@ -1,8 +1,10 @@
 # DSH Session Sticker Board
 
+本补丁同步 **原生 Agent 上下文管理组合** 的兼容清单，接受 Annotation Core **0.3.12-rc2.11**；本插件原有职责保持不变，托管引擎不在本阶段范围内。见[组合兼容说明](docs/changes/2026-09-15-native-context-cohort.md)。
+
 在 DSH 中保留原文高亮、Markdown 贴纸和会话入口，并把选中的已完成回复连接到另一个真实会话。配套 ThoughtDAG 可显示接收会话的上下文主干；Obsidian 的笔记引用、回链和会话贴纸关联由对应 Bridge 服务协作完成。
 
-当前源码版本为 **`dsh-session-sticker-board` 0.7.3-rc2.16**，本定制分支的验证基线为 **DeepSeek Harness 0.1.5-rc.2**。这里的版本指当前代码及本地验证包，不表示相同版本已发布到 npm 或提供公网下载。早期 0.6.x / DSH 0.1.2-alpha.1 的说明不能作为本轮安装依据。
+当前源码版本为 **`dsh-session-sticker-board` 0.7.3-rc2.17**，本定制分支的验证基线为 **DeepSeek Harness 0.1.5-rc.2**。这里的版本指当前代码及本地验证包，不表示相同版本已发布到 npm 或提供公网下载。早期 0.6.x / DSH 0.1.2-alpha.1 的说明不能作为本轮安装依据。
 
 ## 三种入口
 
@@ -19,16 +21,16 @@
 | 组件 | 本轮本地验收版本 | 用途 |
 |---|---|---|
 | DeepSeek Harness | 0.1.5-rc.2 | 原生工作区、会话与输入框 |
-| 本插件 | 0.7.3-rc2.16 | 贴纸、会话选择与蓝色来源入口 |
-| Annotation Core | 0.3.12-rc2.10 | 统一引用气泡、发送与授权恢复 |
+| 本插件 | 0.7.3-rc2.17 | 贴纸、会话选择与蓝色来源入口 |
+| Annotation Core | 0.3.12-rc2.11 | 统一引用气泡、发送与授权恢复 |
 | Maintenance 插件 / Engine | 0.2.26-rc2.15 / 0.1.33-rc2.19 | 会话贴纸存储、固定来源、关系撤销及归档同步 |
 | ThoughtDAG | 0.4.14-rc2.8 | 可选的会话主干图视图 |
 
 使用完整 Obsidian 工作流时，还需配套：
 
-- [Reference Suite](https://github.com/linmu115/dsh-obsidian-session-reference-suite/tree/codex/rc2-session-context-graph)：本轮组合入口为 0.3.4-rc2.16，按 `Core → Lifecycle → Reference Adapter → Sticker Board` 管理成员，卸载逆序释放。
-- [Obsidian Bridge Lifecycle](https://github.com/linmu115/dsh-obsidian-bridge-lifecycle/tree/codex/rc2-session-context-graph) 0.3.3-rc2.14：当前实例与 Bridge 的连接、租约和状态。
-- [Obsidian Reference Adapter](https://github.com/linmu115/dsh-obsidian-reference-adapter/tree/codex/rc2-session-context-graph) 0.3.4-rc2.14：Obsidian 文段引用及其发送、删除和回链。
+- [Reference Suite](https://github.com/linmu115/dsh-obsidian-session-reference-suite/tree/codex/rc2-session-context-graph)：本轮组合入口为 0.3.4-rc2.17，按 `Core → Lifecycle → Reference Adapter → Sticker Board` 管理成员，卸载逆序释放。
+- [Obsidian Bridge Lifecycle](https://github.com/linmu115/dsh-obsidian-bridge-lifecycle/tree/codex/rc2-session-context-graph) 0.3.3-rc2.15：当前实例与 Bridge 的连接、租约和状态。
+- [Obsidian Reference Adapter](https://github.com/linmu115/dsh-obsidian-reference-adapter/tree/codex/rc2-session-context-graph) 0.3.4-rc2.15：Obsidian 文段引用及其发送、删除和回链。
 - [Obsidian 伴侣插件](https://github.com/linmu115/obsidian-deepharness-bridge/tree/codex/dsh-0-1-5-rc2)：安装到实际使用的 Vault。
 - [Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)：可选的右侧普通贴纸详情页；未启用时使用浮层入口。
 
@@ -47,12 +49,12 @@ pnpm test
 pnpm pack
 ```
 
-`pnpm test` 和 `pnpm pack` 会执行项目配置的构建步骤；打包生成本地 `dsh-session-sticker-board-0.7.3-rc2.16.tgz`。部分配套 RC2 依赖不一定存在于公开注册表，需要使用同批本地包或已配置的工作区依赖。
+`pnpm test` 和 `pnpm pack` 会执行项目配置的构建步骤；打包生成本地 `dsh-session-sticker-board-0.7.3-rc2.17.tgz`。部分配套 RC2 依赖不一定存在于公开注册表，需要使用同批本地包或已配置的工作区依赖。
 
 对于已有依赖、且没有将本插件作为 Suite 子成员的 profile，可在包所在目录执行：
 
 ```sh
-dsh plugin --profile web add ./dsh-session-sticker-board-0.7.3-rc2.16.tgz
+dsh plugin --profile web add ./dsh-session-sticker-board-0.7.3-rc2.17.tgz
 ```
 
 完成同批更新后重启目标 DSH 实例并刷新页面。裸包名或 `@latest` 不保证取得这个定制组合；本文没有提供尚未确认发布的下载地址。
