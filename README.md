@@ -1,73 +1,132 @@
 # DSH Session Sticker Board
 
-把 DSH 会话变成可交互的笔记看板：为消息添加高亮和 Markdown 贴纸，并在 DSH 与 Obsidian 之间维护贴纸回链。Obsidian 文段引用由独立的 `dsh-obsidian-reference-adapter` 负责。
+在 DSH 中保留原文高亮、Markdown 贴纸和会话入口，并把选中的已完成回复连接到另一个真实会话。配套 ThoughtDAG 可显示接收会话的上下文主干；Obsidian 的笔记引用、回链和会话贴纸关联由对应 Bridge 服务协作完成。
 
-## 兼容版本
+当前源码版本为 **`dsh-session-sticker-board` 0.7.3-rc2.15**，本定制分支的验证基线为 **DeepSeek Harness 0.1.5-rc.2**。这里的版本指当前代码及本地验证包，不表示相同版本已发布到 npm 或提供公网下载。早期 0.6.x / DSH 0.1.2-alpha.1 的说明不能作为本轮安装依据。
 
-- DeepSeek Harness（当前客户端基线为官方 `0.1.2-alpha.1`，安装不限制版本）
-- `dsh-session-sticker-board` `0.6.x`
-- `dsh-annotation-core`（按运行时能力探测，不锁定版本）
+## 三种入口
 
-## 安装依赖
+| 入口 | 用途 |
+|---|---|
+| 普通贴纸与红色符号 | 为原文选区添加 Markdown、标签和高亮；查看与维护贴纸、Obsidian 回链。 |
+| 会话贴纸 | 从标题栏 **会话贴纸** 管理真实会话入口，选择已有会话，或先选工作区再创建独立会话。 |
+| 来源蓝色引用符号 | 标记哪些会话引用了这段已完成回复，进入对应真实会话，或精确删除其中一条引用。 |
 
-必须安装：
+普通贴纸、会话贴纸对象、上下文引用与真实会话有不同用途。删除一个贴纸对象不等于删除真实会话；要解除某条跨会话引用，应使用蓝色符号或图中对应连接的删除操作。
 
-推荐直接安装 [`dsh-obsidian-session-reference-suite`](https://github.com/linmu115/dsh-obsidian-session-reference-suite) Bundle。它以一个父组组合：
+## 配套组件
 
-1. `dsh-annotation-core`：通用引用状态、事务和基础上下文引用。
-2. `dsh-obsidian-bridge-lifecycle`：外部 Bridge 状态、租约和热插拔附件。
-3. `dsh-obsidian-reference-adapter`：Obsidian 文段引用、刷新、删除和回链。
-4. 本插件 `dsh-session-sticker-board`：贴纸状态、UI 和贴纸回链。
+| 组件 | 本轮本地验收版本 | 用途 |
+|---|---|---|
+| DeepSeek Harness | 0.1.5-rc.2 | 原生工作区、会话与输入框 |
+| 本插件 | 0.7.3-rc2.15 | 贴纸、会话选择与蓝色来源入口 |
+| Annotation Core | 0.3.12-rc2.9 | 统一引用气泡、发送与授权恢复 |
+| Maintenance 插件 / Engine | 0.2.26-rc2.14 / 0.1.33-rc2.18 | 会话贴纸存储、固定来源、关系撤销及归档同步 |
+| ThoughtDAG | 0.4.14-rc2.8 | 可选的会话主干图视图 |
 
-此外还需把 [`obsidian-deepharness-bridge`](https://github.com/linmu115/obsidian-deepharness-bridge) 安装到实际 Obsidian Vault。
+使用完整 Obsidian 工作流时，还需配套：
 
-推荐安装：
+- [Reference Suite](https://github.com/linmu115/dsh-obsidian-session-reference-suite/tree/codex/rc2-session-context-graph)：本轮组合入口为 0.3.4-rc2.15，按 `Core → Lifecycle → Reference Adapter → Sticker Board` 管理成员，卸载逆序释放。
+- [Obsidian Bridge Lifecycle](https://github.com/linmu115/dsh-obsidian-bridge-lifecycle/tree/codex/rc2-session-context-graph) 0.3.3-rc2.13：当前实例与 Bridge 的连接、租约和状态。
+- [Obsidian Reference Adapter](https://github.com/linmu115/dsh-obsidian-reference-adapter/tree/codex/rc2-session-context-graph) 0.3.4-rc2.13：Obsidian 文段引用及其发送、删除和回链。
+- [Obsidian 伴侣插件](https://github.com/linmu115/obsidian-deepharness-bridge/tree/codex/dsh-0-1-5-rc2)：安装到实际使用的 Vault。
+- [Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)：可选的右侧普通贴纸详情页；未启用时使用浮层入口。
 
-- [`dsh-better-sidebar`](https://github.com/omdsh-dev/DSH-better-sidebar)：提供右侧“贴纸”详情页。没有它时，贴纸仍可使用，但会回退到浮层菜单。
+会话贴纸与跨会话来源保存在当前实例的 Maintenance 中。基础会话贴纸不要求 Obsidian 在线；笔记打开、镜像和回链能力需要相应 Bridge。不要把其它实例的 Home、Engine 或 Vault 连接混入同一组合。
 
-Suite 的子插件顺序已经固定为 `Core → Lifecycle → Reference Adapter → Sticker Board`，卸载时逆序释放。然后安装并启用 Obsidian 伴侣插件，最后重启 DSH 和 Obsidian。
+## 安装与首次设置
 
-正式 npm 包发布后，使用标准 Profile Bundle 命令安装：
+本轮应使用同批构建并验证的本地包。通过 Launcher 更新目标实例的包组合，或在该实例原有的 Home/profile 环境里使用本地 `.tgz` 文件。若本插件已经是 Suite 的子成员，应随 Suite 更新，保留父子拓扑，不要另加一个重复的顶层成员。
+
+源码开发时，先准备配套 RC2 依赖，再执行：
 
 ```sh
-dsh plugin --profile web add dsh-obsidian-session-reference-suite
-dsh plugin --profile web add dsh-better-sidebar
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm pack
 ```
 
-`dsh-better-sidebar` 是可选项；Suite 是完整引用与贴纸工作流的组合入口。
+`pnpm test` 和 `pnpm pack` 会执行项目配置的构建步骤；打包生成本地 `dsh-session-sticker-board-0.7.3-rc2.15.tgz`。部分配套 RC2 依赖不一定存在于公开注册表，需要使用同批本地包或已配置的工作区依赖。
 
-## 首次设置
+对于已有依赖、且没有将本插件作为 Suite 子成员的 profile，可在包所在目录执行：
 
-1. 在 Obsidian 的 `DeepHarness Bridge` 设置中确认 Bridge 已启动。
-2. 在 DSH 的插件设置中打开 `dsh-session-sticker-board`，确认 `Bridge Origin` 与 Obsidian 显示的地址完全相同。默认是 `http://127.0.0.1:18473`。
-3. 重启 DSH。贴纸正文首先保存到当前 Launcher 实例自己的 DSH Home；Obsidian 暂时未启动时，创建、编辑和删除仍可用。重新打开 Obsidian 后，会话笔记镜像与双链会自动补同步。
+```sh
+dsh plugin --profile web add ./dsh-session-sticker-board-0.7.3-rc2.15.tgz
+```
 
-## 使用方法
+完成同批更新后重启目标 DSH 实例并刷新页面。裸包名或 `@latest` 不保证取得这个定制组合；本文没有提供尚未确认发布的下载地址。
 
-### 在 DSH 中添加贴纸
+如果使用 Obsidian：
 
-在用户或助手消息内选择文字，点击“添加贴纸”。消息旁会出现无编号的贴纸按钮；点击它可在右侧栏查看和编辑 Markdown、标签与高亮颜色。
+1. 在 Vault 的 **DeepHarness Bridge** 设置中确认 Bridge 已启动。
+2. 核对 DSH 插件连接与 Obsidian 显示的 **Bridge Origin** 完全一致；默认地址为 `http://127.0.0.1:18473`，实际配置优先。
+3. 按配置流程连接当前实例。贴纸本地修改可在 Bridge 暂时离线时继续；涉及笔记镜像和回链的操作会显示同步状态并在恢复连接后重试。
 
-“复制笔记链接”会生成可粘贴到 Obsidian 的受管链接。Obsidian 笔记引用该贴纸后，贴纸详情下方会出现反向链接；点击后只切换 Obsidian 主编辑区的 Markdown 笔记，不会关闭 DSH Web Viewer 页签。删除贴纸时先提交 DSH 本地记录，再由 Bridge 在线清理回链；Bridge 离线时清理与会话笔记镜像会等待重连，不会阻止本地删除。
+## 会话贴纸：开始一段真实对话
 
-多行、列表及跨加粗节点的选择使用规范化文字映射恢复到真实 DOM 范围，因此保存完成后仍会在原文位置显示高亮和贴纸按钮。
+从会话标题栏打开 **会话贴纸**，可以选择已有会话，或点击 **新建独立会话**：
 
-### 从 Obsidian 引用到 DSH
+1. 已有会话按“工作区 → 会话”分页选择。
+2. 新会话先选择工作区，再点击 **在「工作区」中新建会话**；取消选择不创建。
+3. 点击已保存的会话贴纸，进入完整原生会话页。这里没有另一套独立聊天输入框，也不替用户发送。
+4. 删除、恢复列表中的贴纸只修改贴纸对象，保留真实会话。笔记关联的卡片还显示来源笔记及短选文，**打开来源笔记** 是单独操作。
 
-在 Obsidian 中选择一段文字并执行 DeepHarness 的引用命令。引用会进入当前 DSH 输入框上方的统一注释气泡，而不会变成输入框里的引用文本。
+从 Obsidian 笔记选段建立的会话贴纸属于知识关联，单纯打开贴纸或来源笔记不会把内容自动交给模型。
 
-发送后：
+## 从已完成回复建立跨会话引用
 
-- 选中文字、可选注解和整篇笔记快照会成为会话上下文的一部分；
-- DSH 会在用户提问旁显示 `N 条注释`；
-- Obsidian 笔记中会写入回到对应 DSH 提问位置的链接；
-- 引用过的注释随会话历史保留，并遵循 DSH 的普通上下文压缩规则。
+1. 在来源会话 X 的已完成助手回复内选择文字，使用选区的会话贴纸入口。
+2. 选择接收会话 Y，或先选择工作区、确认创建独立会话。创建前会核对来源回复是否完整保存。
+3. 插件保留所选回复的固定版本、真实消息位置和选文，建立引用后进入 Y 的真实会话。
+4. 引用显示在目标输入框的统一气泡中。检查草稿后自行发送；已有正文和附件保留，不自动发起模型回答。
 
-如果笔记在发送前发生变化，插件会使用最新版重新校验；Obsidian 离线时使用引用时保存的快照。内容过大时会明确阻止发送，不会静默截断。
+来源选文长度为 1–4,000 字。确认的来源版本和已完成回复截止不会因 X 后来追加消息而扩大。首轮材料在预算内包含所选回复所在问答，此前获准历史由模型通过工具按需读取，而非复制全部来源历史。准备状态不等于已交付；实际范围可从 ThoughtDAG 对应边的读取日志查看。
+
+X → Y 属于 **Y 的主干**。安装 [ThoughtDAG 定制分支](https://github.com/linmu115/thoughtdag/tree/codex/rc2-maintenance-graph) 后，从标题栏 **思维图** 可看到来源在上、接收方在下的布局，并通过卡片/空白/边右键管理。图和贴纸面板跟随 DSH 的明暗主题。
+
+## 蓝色符号：跳转、精确删除与同步
+
+引用成功后，回到 X 可看到选文高亮与蓝色来源符号。普通贴纸保留红色符号；同一选区已有普通贴纸时，不覆盖其高亮颜色。
+
+- 一个目标：点击蓝色符号进入该真实会话。
+- 多个目标：先选择目标会话；同一目标的多条引用在跳转列表中去重。
+- 右键符号：选择 **进入会话** 或 **删除引用**。删除保留每条独立引用，同名目标可按引用序号区分。
+- 菜单支持方向键、Home/End、Escape、菜单键和 Shift+F10。
+
+删除先等待服务器确认精确引用已撤销，再更新蓝色符号与目标主干。同一选文的其他引用、普通红色贴纸、剩余引用和普通贴纸所需的高亮，以及源正文保留。最后一条引用解除后，不再保留仅属于该引用的蓝色入口。失败时原符号及菜单保留，可重试；本地气泡清理尚未完成时会提示，不把已成功的撤销当作失败或恢复引用。
+
+来源打开、窗口恢复、页面重新可见和引用事件都会核对蓝色入口；可见页面每 15 秒补充刷新。临时断线不被当作删除，导航前仍会重新检查权限。
+
+原生 DSH 或 Maintenance 归档会话时，会撤销以该会话为来源或目标的活动引用、清除相关待绑定连线并归档自身主干。蓝色入口与图自动同步。已经打开的主干变为只读并保留未保存布局；恢复会话不会复活已撤销引用或已清除连接。
+
+## 普通 Markdown 贴纸与 Obsidian 回链
+
+在用户或助手消息内选择文字并添加普通贴纸，可编辑 Markdown、标签和高亮颜色。多行、列表及跨加粗节点的选区通过真实文字位置恢复；消息旁的普通贴纸按钮可打开详情。
+
+**复制笔记链接** 生成可粘贴到 Obsidian 的受管链接；详情可查看反向链接并跳转到相应笔记。删除普通贴纸先提交 DSH 本地状态，在线时同步清理回链，离线时保留待同步任务。旧贴纸迁移按会话显式执行；若本地与 Vault 内容冲突，先选择保留哪一份，迁移后由 Maintenance 保存，避免两处继续写入。
+
+从 Obsidian 文段引用到 DSH 的流程由 Reference Adapter 负责：引用进入统一气泡，发送、快照校验和回链遵循 Adapter 的规则。它与从 DSH 回复建立的固定跨会话引用是不同来源类型，详见 [Reference Adapter 使用说明](https://github.com/linmu115/dsh-obsidian-reference-adapter/tree/codex/rc2-session-context-graph)。
 
 ## 常见问题
 
-- 看不到统一注释气泡：确认 `dsh-annotation-core` 已安装并启用，然后重启 DSH；版本组合由运行时能力探测和实测结果决定。
-- 看不到右侧贴纸页：安装并启用 `dsh-better-sidebar`；不安装时可使用贴纸浮层菜单。
-- Obsidian 引用没有到达 DSH：检查两边的 `Bridge Origin` 是否完全一致，并确认 Obsidian Bridge 状态为已启动。
-- 端口被占用：在 Obsidian 中换一个本机端口，再把同一地址填入 DSH 插件设置并重启。
+| 情况 | 处理方式 |
+|---|---|
+| 没有会话贴纸或统一气泡 | 检查当前实例的 Maintenance 与 Annotation 能力及配套版本，完成同批更新后重启。 |
+| 开始已有会话时提示提交记录缺失 | 使用本轮配套 Core 的权威授权恢复；从图刷新并重试，不手工改绑或重新发送旧引用。 |
+| 删除后蓝色入口仍在 | 先看是否有另一条独立引用；如果显示同步错误，重试并核对服务器状态。 |
+| 已归档会话不能进入 | 先从会话列表恢复。恢复不恢复旧引用，需要时明确重新建立来源。 |
+| 看不到右侧普通贴纸详情 | 启用可选 Better Sidebar，或使用浮层入口。 |
+| Obsidian 打不开或回链未同步 | 核对 Bridge 状态、Origin、当前实例/Vault 配对及连接状态；基础会话贴纸仍可独立使用。 |
+
+## 开发与验收记录
+
+本轮 Sticker 全量 **140 项测试**、类型检查与构建通过。合成测试覆盖工作区选择、取消与重试、固定来源、蓝色符号多目标、精确删除、服务失败保留和键盘菜单；真实业务删除/归档交互与公开发布不由这些测试替代。
+
+- [先选工作区再创建会话](docs/2026-09-14-workspace-first-session-stickers.md)
+- [来源蓝色符号与恢复](docs/2026-09-14-source-reference-markers.md)
+- [蓝色符号右键删除](docs/2026-09-15-source-marker-context-menu.md)
+- [笔记选段会话贴纸](docs/changes/2026-09-14-note-selection-sticker-display.md)
+- [整组生命周期与副本验收](https://github.com/linmu115/dsh-session-maintenance/blob/codex/rc2-session-context-graph/docs/reports/2026-09-15-graph-reference-lifecycle-release.md)
+
+[MIT 许可](LICENSE)
