@@ -173,6 +173,11 @@
 .dsh-source-reference-dot:focus-visible { outline:2px solid #3978df; outline-offset:3px; }
 .dsh-source-reference-dot:disabled { opacity:.55; cursor:wait; }
 .dsh-source-reference-menu { max-width:280px; max-height:min(320px,60vh); overflow:auto; }
+.dsh-source-reference-menu[role="menu"] button { display:flex; align-items:center; gap:8px; }
+.dsh-source-reference-menu[role="menu"] button svg { flex-shrink:0; }
+.dsh-source-reference-menu[role="menu"] button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dsh-source-reference-menu button:focus-visible { outline:2px solid var(--dsw-alias-accent-primary,#3978df); outline-offset:-2px; }
+.dsh-source-reference-menu-separator { height:1px; margin:4px; background:var(--dsw-alias-border-l1,rgba(0,0,0,.11)); }
 .dsh-source-reference-error { bottom:24px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; }
 
 .dsh-sticker-sidebar-detail {
