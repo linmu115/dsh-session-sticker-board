@@ -331,6 +331,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [geometryVersion, setGeometryVersion] = useState(0);
   const geometryCache = useMemo(() => new StickerGeometryCache(document), [props.sessionId]);
+  const needsGeometry = props.stickers.length > 0 || selection !== null;
 
   useEffect(() => {
     const handlers = createSelectionRecomputeHandlers(
@@ -353,6 +354,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   }, [props.sessionId]);
 
   useEffect(() => {
+    if (!needsGeometry) return;
     let frame = 0;
     const update = (): void => {
       if (frame) return;
@@ -381,7 +383,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       if (frame) window.cancelAnimationFrame(frame);
       geometryCache.clear();
     };
-  }, [geometryCache]);
+  }, [geometryCache, needsGeometry]);
 
   const geometry = useMemo(() => {
     const placed: OverlayPoint[] = [];
@@ -400,8 +402,8 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   }, [props.stickers, props.resolveAnchorKey, geometryVersion, geometryCache]);
 
   const sharedSelectionToolbar = useMemo(
-    () => findSharedSelectionToolbar(),
-    [geometryVersion],
+    () => selection ? findSharedSelectionToolbar() : null,
+    [geometryVersion, selection],
   );
 
   const selectionAction = useMemo(() => {

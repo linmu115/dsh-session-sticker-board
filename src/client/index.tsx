@@ -22,7 +22,7 @@ import {
 import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
 import "./styles.css";
 import { KnowledgePanel } from './knowledge-panel.tsx';
-import { knowledgeRequest } from './knowledge.ts';
+import { knowledgeRequest, migrateLegacyStickers } from './knowledge.ts';
 import { registerLinkedNotes } from './linked-notes.tsx';
 import { SourceMarkerOverlay } from './source-marker-overlay.tsx';
 
@@ -115,7 +115,13 @@ export function apply(ctx: Context): void {
           }),
           ...(surfaceId === undefined ? {} : { surfaceId }),
         });
-        const stickers = createStickerWorkspace(mountedRemote, bridge);
+        const stickers = createStickerWorkspace(mountedRemote.managed ? {
+          ...mountedRemote,
+          // Keep the engine's structured error code across the browser boundary.
+          readLocalState: sessionId => knowledgeRequest('legacy-state', { nativeSessionId: sessionId }),
+        } : mountedRemote, bridge, mountedRemote.managed ? {
+          migrateLegacy: sessionId => migrateLegacyStickers(sessionId, mountedRemote, bridge),
+        } : {});
         const knowledgeSlots = mountedRemote.managed ? ready.inject(['slots'], slotContext => {
           const slotsReady = slotContext as unknown as Context;
           const slots = slotsReady.slots;

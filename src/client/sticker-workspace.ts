@@ -42,7 +42,7 @@ interface StoreEntry {
 export function createStickerWorkspace(
   local: StickerLocalPersistence,
   bridge: StickerBridge,
-  options: { onSyncError?: (error: unknown) => void } = {},
+  options: { onSyncError?: (error: unknown) => void; migrateLegacy?: (sessionId: string) => Promise<unknown> } = {},
 ): StickerWorkspace {
   const entries = new Map<string, StoreEntry>();
   const loaded = new Set<string>();
@@ -274,7 +274,16 @@ export function createStickerWorkspace(
     },
     save(record) {
       return serialized(record.sessionId, async () => {
-        await ensure(record.sessionId);
+        try {
+          await ensure(record.sessionId);
+        } catch (error) {
+          // Only an explicit create/edit may migrate. Visiting sessions must stay read-only.
+          if (!local.managed || !options.migrateLegacy ||
+            (error as { code?: string } | null)?.code !== 'STICKER_MIGRATION_REQUIRED') throw error;
+          await options.migrateLegacy(record.sessionId);
+          if (disposed) return;
+          await ensure(record.sessionId);
+        }
         if (disposed) return;
         const store = entry(record.sessionId).store;
         const snapshot = store.snapshot();

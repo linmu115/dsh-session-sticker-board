@@ -113,6 +113,8 @@ export class StickerGeometryCache {
     };
     for (const record of records) {
       if (owned(record.target)) continue;
+      if (record.type === 'attributes' && record.attributeName &&
+        elementOf(record.target)?.getAttribute(record.attributeName) === record.oldValue) continue;
       const nodes = [...record.addedNodes, ...record.removedNodes];
       if (record.type === "childList" && nodes.length > 0 && nodes.every(owned)) continue;
       changed = true;

@@ -49,6 +49,14 @@ afterEach(() => {
 });
 
 describe("sticker geometry cache", () => {
+  it('ignores unchanged layout attributes written by panel measurements', () => {
+    const panel = document.createElement('aside'); panel.setAttribute('style', 'left: 10px');
+    document.body.append(panel); process();
+    panel.setAttribute('style', 'left: 10px');
+    expect(process()).toBe(false);
+    panel.setAttribute('style', 'left: 20px');
+    expect(process()).toBe(true);
+  });
   it.each([50, 200, 500])("searches and measures only near-viewport ranges among %i anchors", (count) => {
     const inputs = Array.from({ length: count }, (_, i) => { anchor(String(i), i < 10 ? 20 : 5000); return input(String(i)); });
     process();

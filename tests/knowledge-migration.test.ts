@@ -8,6 +8,35 @@ import { mergeLegacyStickers, migrateLegacyStickers } from '../src/client/knowle
 import type { LocalStickerState, StickerRecord } from '../src/protocol.ts';
 const record: StickerRecord = { stickerId:'bd823205-e8db-4909-aa27-844385bde244',sessionId:'native',anchorId:'reply',role:'assistant',quote:'重点',quoteHash:'sha256:quote',occurrence:0,markdown:'原贴纸',tags:[],color:'yellow' };
 const state: LocalStickerState = {document:{protocolVersion:1,type:'session-note',sessionId:'native',revision:'sha256:initial',stickers:[record]},pendingBacklinkDeletes:[]};
+it.each([false, true])('initializes on first save, retaining existing stickers: %s', async hasLegacy => {
+  let migrated = false;
+  let current = structuredClone({ ...state, document: { ...state.document, stickers: hasLegacy ? [record] : [] } });
+  const migrateLegacy = vi.fn(async () => { migrated = true; });
+  const local = { managed: true, readLocalState: async () => {
+    if (!migrated) throw Object.assign(new Error('migration required'), { code: 'STICKER_MIGRATION_REQUIRED' });
+    return current;
+  }, saveLocalSession: vi.fn(async ({ document }: { document: LocalStickerState['document'] }) => {
+    current = { ...current, document: { ...document, revision: 'sha256:saved' } }; return current;
+  }), acknowledgeBacklinkDelete: async () => current };
+  const workspace = createStickerWorkspace(local, { readSessionNote: vi.fn(), saveSessionNote: vi.fn(), deleteStickerBacklinks: vi.fn() }, { migrateLegacy });
+  try {
+    await expect(workspace.ensure('native')).rejects.toThrow('migration required');
+    expect(migrateLegacy).not.toHaveBeenCalled();
+    await Promise.all(['new1', 'new2'].map(stickerId => workspace.save({ ...record, stickerId, markdown: stickerId })));
+    expect(migrateLegacy).toHaveBeenCalledTimes(1);
+    expect(current.document.stickers.map(s => s.stickerId)).toEqual([...(hasLegacy ? [record.stickerId] : []), 'new1', 'new2']);
+  } finally { workspace.dispose(); }
+});
+it.each(['STICKER_MIGRATION_REQUIRED', 'NETWORK_ERROR'])('does not save after a migration conflict or unrelated error: %s', async code => {
+  const migrateLegacy = vi.fn(async () => { throw new Error('conflicting legacy edits'); });
+  const local = { managed: true, readLocalState: vi.fn(async () => { throw Object.assign(new Error('read failed'), { code }); }), saveLocalSession: vi.fn(), acknowledgeBacklinkDelete: vi.fn() };
+  const workspace = createStickerWorkspace(local, { readSessionNote: vi.fn(), saveSessionNote: vi.fn(), deleteStickerBacklinks: vi.fn() }, { migrateLegacy });
+  try {
+    await expect(workspace.save(record)).rejects.toThrow(code === 'NETWORK_ERROR' ? 'read failed' : 'conflicting legacy edits');
+    expect(migrateLegacy).toHaveBeenCalledTimes(code === 'NETWORK_ERROR' ? 0 : 1);
+    expect(local.saveLocalSession).not.toHaveBeenCalled();
+  } finally { workspace.dispose(); }
+});
 it('retains the local ownership fence across restart without changing the source document',async()=>{
   const root=await mkdtemp(join(tmpdir(),'synthetic-sticker-knowledge-'));
   try {

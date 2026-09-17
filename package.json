@@ -104,11 +104,11 @@
     "@deepseek-ai/dsh-typert-protocol": "^0.1.5-rc.2",
     "@deepseek-ai/schemastery": "*",
     "dsh-annotation-core": "^0.3.9 || 0.3.10-dev.2 || 0.3.11-rc2.1 || 0.3.11-rc2.2 || 0.3.12-rc2.1 || 0.3.12-rc2.2 || 0.3.12-rc2.3 || 0.3.12-rc2.4 || 0.3.12-rc2.5 || 0.3.12-rc2.6 || 0.3.12-rc2.7 || 0.3.12-rc2.8 || 0.3.12-rc2.9 || 0.3.12-rc2.10 || 0.3.12-rc2.11 || 0.3.12-rc2.12",
+    "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1",
     "dsh-obsidian-bridge-lifecycle": "^0.3.2 || 0.3.3-rc2.2 || 0.3.3-rc2.3 || 0.3.3-rc2.4 || 0.3.3-rc2.5 || 0.3.3-rc2.6 || 0.3.3-rc2.7 || 0.3.3-rc2.8 || 0.3.3-rc2.9 || 0.3.3-rc2.10 || 0.3.3-rc2.11 || 0.3.3-rc2.12 || 0.3.3-rc2.13 || 0.3.3-rc2.14 || 0.3.3-rc2.15 || 0.3.3-rc2.16",
     "dsh-obsidian-bridge-protocol": "^0.3.2 || 0.3.3-rc2.1",
     "react": "*",
-    "react-dom": "*",
-    "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1"
+    "react-dom": "*"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -145,12 +145,13 @@
     "@deepseek-ai/dsh-typert-protocol": "0.1.5-rc.2",
     "@deepseek-ai/dsh-typert-registry": "0.1.5-rc.2",
     "@deepseek-ai/schemastery": "3.18.2",
+    "@linmu/dsh-session-contracts": "file:../dsh-session-maintenance/packages/contracts",
     "@types/jsdom": "21.1.7",
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "file:D:/AI/DeepSeekHarness-Plugin/artifacts/session-main-graph-20260914/dsh-annotation-core-0.3.12-rc2.8.tgz",
-    "dsh-obsidian-bridge-lifecycle": "file:D:/AI/DeepSeekHarness-Plugin/artifacts/session-main-graph-20260914/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.12.tgz",
+    "dsh-annotation-core": "file:D:/AI/DeepSeekHarness-Plugin/artifacts/session-picker-titles-20260915/dsh-annotation-core-0.3.12-rc2.12.tgz",
+    "dsh-obsidian-bridge-lifecycle": "file:D:/AI/DeepSeekHarness-Plugin/artifacts/session-picker-titles-20260915/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.16.tgz",
     "dsh-obsidian-bridge-protocol": "file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
@@ -158,8 +159,7 @@
     "tsdown": "^0.22.14",
     "typescript": "^5.9.3",
     "unrun": "^0.3.1",
-    "vitest": "^4.1.11",
-    "@linmu/dsh-session-contracts": "file:../dsh-session-maintenance/packages/contracts"
+    "vitest": "^4.1.11"
   },
   "packageManager": "pnpm@11.19.0",
   "repository": {

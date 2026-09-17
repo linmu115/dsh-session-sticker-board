@@ -19,6 +19,7 @@ export function SourceMarkerOverlay({ ctx, sessionId, snapshot, ordinaryStickers
   const mounted = useRef(false);
   current.current = sessionId;
   const cache = useMemo(() => new StickerGeometryCache(document), [sessionId]);
+  const needsGeometry = markers.length > 0;
   const menuRef = useRef<HTMLDivElement>(null);
 
   const refresh = async (preserveOnError = false): Promise<SourceMarker[] | undefined> => {
@@ -61,6 +62,7 @@ export function SourceMarkerOverlay({ ctx, sessionId, snapshot, ordinaryStickers
   }, [sessionId]);
 
   useEffect(() => {
+    if (!needsGeometry) return;
     let frame = 0;
     const update = () => {
       if (frame) return;
@@ -72,7 +74,7 @@ export function SourceMarkerOverlay({ ctx, sessionId, snapshot, ordinaryStickers
     cache.clear(); update();
     document.addEventListener('scroll', update, true); window.addEventListener('resize', update);
     return () => { observer.disconnect(); document.removeEventListener('scroll', update, true); window.removeEventListener('resize', update); if (frame) window.cancelAnimationFrame(frame); cache.clear(); };
-  }, [cache]);
+  }, [cache, needsGeometry]);
 
   const groups = useMemo(() => groupSourceMarkers(markers), [markers]);
   const geometry = useMemo(() => {
