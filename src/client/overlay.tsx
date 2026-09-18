@@ -629,13 +629,13 @@ export function StickerEditor(props: {
   const [tags, setTags] = useState(props.record.tags.join(", "));
   const [color, setColor] = useState<StickerRecord["color"]>(props.record.color);
 
-  const left = Math.max(8, Math.min(window.innerWidth - Math.min(440, window.innerWidth - 16) - 8, props.point.x + 14));
+  const left = Math.max(8, Math.min(window.innerWidth - Math.min(312, window.innerWidth - 16) - 8, props.point.x + 14));
   const top = Math.max(8, Math.min(window.innerHeight - 330, props.point.y - 16));
   return (
     <div className="dsh-sticker-board-editor" style={{ left, top, maxHeight: window.innerHeight - top - 8 }} role="dialog" aria-label={props.isNew ? "新建贴纸" : "编辑贴纸"}>
-      <div className="dsh-sticker-board-editor-title">{props.isNew ? "新建贴纸" : "编辑贴纸"}<button type="button" className="dsh-sticker-sidebar-icon-button" aria-label="取消编辑" title="取消编辑" onClick={props.onCancel}><X size={16} /></button></div>
+      <div className="dsh-sticker-board-editor-title"><button type="button" className="dsh-sticker-sidebar-icon-button" aria-label="取消编辑" title="取消编辑" onClick={props.onCancel}><X size={16} /></button></div>
       <div className="dsh-sticker-board-quote">{props.record.quote}</div>
-      <textarea value={markdown} onChange={(event) => setMarkdown(event.target.value)} aria-label="贴纸正文" placeholder="写下你的理解…" rows={5} autoFocus />
+      <textarea value={markdown} onChange={(event) => setMarkdown(event.target.value)} aria-label="贴纸正文" placeholder="写下你的理解…" rows={3} autoFocus />
       <details className="dsh-sticker-extra"><summary>标签</summary><input aria-label="标签" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，以逗号分隔" /></details>
       {props.error && <div className="dsh-sticker-board-error">{props.error}</div>}
       <div className="dsh-sticker-board-editor-actions">
