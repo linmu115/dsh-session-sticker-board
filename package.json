@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-rc2.2",
+  "version": "0.7.4-rc2.3",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -105,10 +105,9 @@
     "@deepseek-ai/schemastery": "*",
     "dsh-annotation-core": "^0.3.9 || 0.3.10-dev.2 || 0.3.11-rc2.1 || 0.3.11-rc2.2 || 0.3.12-rc2.1 || 0.3.12-rc2.2 || 0.3.12-rc2.3 || 0.3.12-rc2.4 || 0.3.12-rc2.5 || 0.3.12-rc2.6 || 0.3.12-rc2.7 || 0.3.12-rc2.8 || 0.3.12-rc2.9 || 0.3.12-rc2.10 || 0.3.12-rc2.11 || 0.3.12-rc2.12 || 0.3.12-rc2.19",
     "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1",
-    "dsh-obsidian-bridge-lifecycle": "^0.4.0-rc2.2",
-    "dsh-obsidian-bridge-protocol": "0.4.0-rc2.1",
     "react": "*",
-    "react-dom": "*"
+    "react-dom": "*",
+    "dsh-obsidian-bridge": "0.4.1-rc2.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -118,15 +117,6 @@
       "optional": true
     },
     "@deepseek-ai/schemastery": {
-      "optional": true
-    },
-    "dsh-annotation-core": {
-      "optional": true
-    },
-    "dsh-obsidian-bridge-lifecycle": {
-      "optional": true
-    },
-    "dsh-obsidian-bridge-protocol": {
       "optional": true
     },
     "react": {
@@ -151,15 +141,14 @@
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
     "dsh-annotation-core": "link:../dsh-annotation-core",
-    "dsh-obsidian-bridge-lifecycle": "link:../dsh-obsidian-bridge-lifecycle",
-    "dsh-obsidian-bridge-protocol": "link:../../rc2-adapt-20260912/dsh-obsidian-bridge-protocol",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.14",
     "typescript": "^5.9.3",
     "unrun": "^0.3.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "dsh-obsidian-bridge": "link:../dsh-obsidian-bridge-lifecycle"
   },
   "packageManager": "pnpm@11.19.0",
   "repository": {

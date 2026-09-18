@@ -1,5 +1,10 @@
 # DSH Session Sticker Board
 
+## 0.7.4-rc2.3：独立 Sticker 与单一 Bridge
+
+本插件独立安装，普通贴纸功能同时需要 **Annotation Core、dsh-obsidian-bridge 0.4.1-rc2.1、Better Sidebar**。三者缺席时界面等待依赖就绪，不把缺失配置当作完整可用；服务晚加载后自动接入，卸载后释放界面。Maintenance 仍可选。无需分别安装 Suite、Reference Adapter、Lifecycle 或 Protocol，已有贴纸数据和归属保护不变。见 [包边界与验证](docs/changes/2026-09-18-single-bridge-package.md)。
+
+
 ## 0.7.4-rc2.2：多 Vault 笔记关联
 
 搜索和回链保留每条笔记的 Vault 身份；打开、关联和引用固定到该目标。旧关联没有归属时，请选择正确的 Vault，系统核验笔记身份后保存选择。旧贴纸同步与迁移保存所选 Vault；删除回链按原目标集合逐一确认。详情见 [路由与恢复报告](docs/changes/2026-09-18-vault-routing.md)。
@@ -8,7 +13,7 @@
 
 普通贴纸与笔记关联的界面、归属校验和数据操作继续由 Sticker Board 维护。Obsidian 请求借用 **Bridge Lifecycle 0.4.0-rc2.1** 的共享通道；贴纸只注册自己的定位处理器，不再创建连接、轮询或确认公共队列。关联笔记的引用通过 Bridge 交接给 Core，由 Core 保持引用状态、提交与失败补偿。通用 Obsidian 健康页由 Bridge 提供。
 
-Bridge 为可选组件；没有 Bridge 或 Maintenance 时，未纳管普通贴纸仍可在 DSH 本地创建、修改和删除。远端能力会显示未连接，待删除的回链保留在本地队列。已纳管会话仍遵守 Maintenance 与迁移冻结协议，不会因服务缺席改写旧副本。接入共享通道需要上述新 Bridge 版本，不兼容旧版 Bridge 接口。
+此段描述前序构建：当前普通贴纸依赖 Core、Bridge、Better Sidebar 三者，未满足时等待就绪。Maintenance 可选，待删除的回链保留在本地队列。已纳管会话仍遵守 Maintenance 与迁移冻结协议，不会因服务缺席改写旧副本。接入共享通道需要上述新 Bridge 版本，不兼容旧版 Bridge 接口。
 
 本轮仅本地构建验证，未发布或部署；详细边界和验证见 [施工报告](docs/changes/2026-09-18-shared-bridge-channel.md)。下文旧组合版本描述保留为前序功能背景，不作为本轮依赖安装清单。
 
@@ -44,11 +49,9 @@ Bridge 为可选组件；没有 Bridge 或 Maintenance 时，未纳管普通贴�
 
 使用完整 Obsidian 工作流时，还需配套：
 
-- [Reference Suite](https://github.com/linmu115/dsh-obsidian-session-reference-suite/tree/codex/rc2-session-context-graph)：本轮组合入口为 0.3.4-rc2.18，按 `Core → Lifecycle → Reference Adapter → Sticker Board` 管理成员，卸载逆序释放。
-- [Obsidian Bridge Lifecycle](https://github.com/linmu115/dsh-obsidian-bridge-lifecycle/tree/codex/rc2-session-context-graph) 0.4.0-rc2.2：当前实例与 Bridge 的连接、租约和状态。
-- [Obsidian Reference Adapter](https://github.com/linmu115/dsh-obsidian-reference-adapter/tree/codex/rc2-session-context-graph) 0.3.4-rc2.16：Obsidian 文段引用及其发送、删除和回链。
+- **dsh-obsidian-bridge 0.4.1-rc2.1**：统一连接、绑定、Obsidian 引用与业务信息页；通过同一个服务接入 Sticker。
 - [Obsidian 伴侣插件](https://github.com/linmu115/obsidian-deepharness-bridge/tree/codex/dsh-0-1-5-rc2)：安装到实际使用的 Vault。
-- [Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)：可选的右侧普通贴纸详情页；未启用时使用浮层入口。
+- [Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)：普通贴纸所需的侧栏服务。
 
 会话贴纸与跨会话来源保存在当前实例的 Maintenance 中。基础会话贴纸不要求 Obsidian 在线；笔记打开、镜像和回链能力需要相应 Bridge。不要把其它实例的 Home、Engine 或 Vault 连接混入同一组合。
 

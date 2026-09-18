@@ -1,4 +1,4 @@
-import type { ObsidianBridgeLifecycle, VaultConnectionSnapshot } from 'dsh-obsidian-bridge-lifecycle/api';
+import type { ObsidianBridgeLifecycle, VaultConnectionSnapshot } from 'dsh-obsidian-bridge/api';
 import type { BridgeClient } from "./bridge-client.ts";
 import { createStickerStore, type StickerStore, type StickerView } from "./sticker-store.ts";
 import { PROTOCOL_VERSION, type LocalStickerState, type SessionNoteDocument, type StickerRecord, type PendingBacklinkDelete } from "../protocol.ts";

@@ -1,1 +1,1 @@
-export * from "dsh-obsidian-bridge-lifecycle/transport";
+export * from "dsh-obsidian-bridge/transport";

@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import type { ObsidianBridgeLifecycle } from 'dsh-obsidian-bridge-lifecycle/api';
+import { Context } from '@deepseek-ai/cordis';
+import type { ObsidianBridgeLifecycle } from 'dsh-obsidian-bridge/api';
 import { createStickerBridgeChannel } from '../src/client/bridge-channel.ts';
 
 it('fails remote requests explicitly when Bridge is absent', async () => {
@@ -23,6 +24,25 @@ it('borrows the current service after a late mount, removal and replacement', as
   lifecycle = { transport: next } as unknown as ObsidianBridgeLifecycle;
   await expect(channel.knowledge('note-open', {})).resolves.toBe('next');
   expect(first.knowledge).toHaveBeenCalledOnce();
+});
+it('resolves late and replaced services through real Cordis without owning their lifetime', async () => {
+  const ctx = new Context();
+  let channel: ReturnType<typeof createStickerBridgeChannel>;
+  const consumer = await ctx.plugin(child => { channel = createStickerBridgeChannel(() => child.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined); });
+  const first = { knowledge: vi.fn(async () => 'first') }, replacement = { knowledge: vi.fn(async () => 'replacement') };
+  try {
+    await expect(channel!.knowledge('note-open', {})).rejects.toMatchObject({ name: 'BridgeUnavailableError' });
+    const provider = await ctx.plugin(child => { child.provide('obsidianBridgeLifecycle', { transport: first } as unknown as ObsidianBridgeLifecycle); });
+    await expect(channel!.knowledge('note-open', {})).resolves.toBe('first');
+    await provider.dispose();
+    await expect(channel!.knowledge('note-open', {})).rejects.toMatchObject({ name: 'BridgeUnavailableError' });
+    const next = await ctx.plugin(child => { child.provide('obsidianBridgeLifecycle', { transport: replacement } as unknown as ObsidianBridgeLifecycle); });
+    await expect(channel!.knowledge('note-open', {})).resolves.toBe('replacement');
+    expect(first.knowledge).toHaveBeenCalledOnce();
+    await consumer.dispose();
+    expect(ctx.get('obsidianBridgeLifecycle')).toBeDefined();
+    await next.dispose();
+  } finally { await ctx.fiber.dispose(); }
 });
 
 it('delegates reference handoff intact and preserves service receiver', async () => {

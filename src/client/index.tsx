@@ -1,5 +1,5 @@
-import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge-lifecycle/api';
-import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api";
+import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge/api';
+import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge/api";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -24,7 +24,9 @@ import { OrdinaryStickerTools } from './knowledge-panel.tsx';
 import { knowledgeRequest, migrateLegacyStickers } from './knowledge.ts';
 import { registerLinkedNotes } from './linked-notes.tsx';
 
-export const inject = ["sessions", "remote", "uiConversation"] as const;
+// Ordinary Sticker UI is available only with all three feature providers.
+// Cordis waits for late services and disposes the mounted fiber when any leaves.
+export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle", "betterSidebar"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;

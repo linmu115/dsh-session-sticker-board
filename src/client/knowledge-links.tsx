@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, CircleAlert, FileText, Link2, Loader2, Plus, Search } from 'lucide-react';
 import type { ExtensionObject, GraphSessionIdentity, KnowledgePage, NoteIdentity } from '@linmu/dsh-session-contracts';
-import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge-lifecycle/api';
+import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge/api';
 import { scopeLinkedNote } from './note-scope.ts';
 import { VaultChoice } from './vault-choice.tsx';
 import { pinKnowledge, type VaultKnowledgeBridge } from './bridge-channel.ts';

@@ -30,8 +30,8 @@ export type {
   ReferenceRefreshResultV2,
 } from "dsh-annotation-core/protocol";
 
-import { sessionNoteDocumentSchema, stableLogicalTargetShape, stickerSchema } from "dsh-obsidian-bridge-protocol/data";
-export * from "dsh-obsidian-bridge-protocol/data";
+import { sessionNoteDocumentSchema, stableLogicalTargetShape, stickerSchema } from "dsh-obsidian-bridge/protocol/data";
+export * from "dsh-obsidian-bridge/protocol/data";
 
 export const ReferenceDeleteRequestV2Schema = BaseReferenceDeleteRequestV2Schema.extend(stableLogicalTargetShape).strict();
 export type ReferenceDeleteRequestV2 = z.infer<typeof ReferenceDeleteRequestV2Schema>;

@@ -7,10 +7,11 @@ import { knowledgeRequest } from './knowledge.ts';
 import { unlinkNote } from './unlink-note.ts';
 import type { StickerBridgeChannel } from './bridge-channel.ts';
 import './linked-notes.css';
-import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge-lifecycle/api';
+import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge/api';
 import { scopeLinkedNote } from './note-scope.ts';
 import { VaultChoice } from './vault-choice.tsx';
 import type { VaultKnowledgeBridge } from './bridge-channel.ts';
+import { ObsidianNoteReferenceSourceSchema } from '../protocol.ts';
 
 type Bridge = VaultKnowledgeBridge & Pick<StickerBridgeChannel, 'handoffReference'>;
 type NoteBody = { logicalSessionId: string; note: { vaultId?: string; noteId: string; notePath: string; blockId?: string } };
@@ -72,7 +73,10 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
         sessionId,
         ...(scoped.vaultId ? { vaultId: scoped.vaultId } : {}),
         operationId: requestId,
-        prepare: async () => await scoped.route.knowledge('link-reference-prepare', input) as { referenceId: string; source: Parameters<AnnotationCoreClient['addReference']>[1] },
+        prepare: async () => {
+          const prepared = await scoped.route.knowledge('link-reference-prepare', input) as { referenceId: string; source: unknown };
+          return { referenceId: prepared.referenceId, source: ObsidianNoteReferenceSourceSchema.parse(prepared.source) };
+        },
         commit: async (result) => { await scoped.route.knowledge('link-reference-commit', { ...input, setId: result.setId }); },
         assertCurrent: () => {
           if (ctx.sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请在目标会话重新引用');

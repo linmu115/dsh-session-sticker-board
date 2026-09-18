@@ -57,12 +57,9 @@ importers:
       dsh-annotation-core:
         specifier: link:../dsh-annotation-core
         version: link:../dsh-annotation-core
-      dsh-obsidian-bridge-lifecycle:
+      dsh-obsidian-bridge:
         specifier: link:../dsh-obsidian-bridge-lifecycle
         version: link:../dsh-obsidian-bridge-lifecycle
-      dsh-obsidian-bridge-protocol:
-        specifier: link:../../rc2-adapt-20260912/dsh-obsidian-bridge-protocol
-        version: link:../../rc2-adapt-20260912/dsh-obsidian-bridge-protocol
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
@@ -609,32 +606,6 @@ packages:
         optional: true
       react-dom:
         optional: true
-
-  dsh-obsidian-bridge-lifecycle@file:../../../artifacts/session-picker-titles-20260915/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.16.tgz:
-    resolution: {integrity: sha512-HffyvFf6q9L0CV/JAQwJRPF5AQa8W1oS78ijD6MUU68pmUIe6m9zXxDKvIqpqhpuzk21f5jyDqwrW3sjffWXig==, tarball: file:../../../artifacts/session-picker-titles-20260915/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.16.tgz}
-    version: 0.3.3-rc2.16
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@deepseek-ai/cordis': '*'
-      '@deepseek-ai/dsh-typert-protocol': 0.1.5-rc.2
-      '@deepseek-ai/schemastery': '*'
-      dsh-annotation-core: 0.3.11-rc2.2 || 0.3.12-rc2.1 || 0.3.12-rc2.2 || 0.3.12-rc2.3 || 0.3.12-rc2.4 || 0.3.12-rc2.5 || 0.3.12-rc2.6 || 0.3.12-rc2.7 || 0.3.12-rc2.8 || 0.3.12-rc2.9 || 0.3.12-rc2.10 || 0.3.12-rc2.11 || 0.3.12-rc2.12
-      dsh-obsidian-bridge-protocol: 0.3.3-rc2.1
-    peerDependenciesMeta:
-      '@deepseek-ai/cordis':
-        optional: true
-      '@deepseek-ai/dsh-typert-protocol':
-        optional: true
-      '@deepseek-ai/schemastery':
-        optional: true
-      dsh-annotation-core:
-        optional: true
-      dsh-obsidian-bridge-protocol:
-        optional: true
-
-  dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz:
-    resolution: {integrity: sha512-N4SlrVPUAGJyK1pK3RK1CbpSFSYH43jN2mYid3f3Wd1OerYWWA0t0R44HoQvs/z3iR9Ged4cREYnNzlEt3C2Bg==, tarball: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz}
-    version: 0.3.3-rc2.1
 
   dts-resolver@3.0.0:
     resolution: {integrity: sha512-1T1f+z+4tl9XD+m+0HBgWoL/nm0bOIffyWaUuUSBlFg/86IWvfx+wjNaO/ybU0AJzG9/Mi5hBUgGV6zCmWEN7Q==}
@@ -1513,20 +1484,6 @@ snapshots:
       '@deepseek-ai/schemastery': 3.18.2
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-
-  dsh-obsidian-bridge-lifecycle@file:../../../artifacts/session-picker-titles-20260915/dsh-obsidian-bridge-lifecycle-0.3.3-rc2.16.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(dsh-annotation-core@file:../../../artifacts/session-picker-titles-20260915/dsh-annotation-core-0.3.12-rc2.12.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz):
-    dependencies:
-      zod: 4.4.3
-    optionalDependencies:
-      '@deepseek-ai/cordis': 4.0.2
-      '@deepseek-ai/dsh-typert-protocol': 0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)
-      '@deepseek-ai/schemastery': 3.18.2
-      dsh-annotation-core: file:../../../artifacts/session-picker-titles-20260915/dsh-annotation-core-0.3.12-rc2.12.tgz(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/schemastery@3.18.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      dsh-obsidian-bridge-protocol: file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz
-
-  dsh-obsidian-bridge-protocol@file:.dev-packages/dsh-obsidian-bridge-protocol-0.3.3-rc2.1.tgz:
-    dependencies:
-      zod: 4.4.3
 
   dts-resolver@3.0.0: {}
 

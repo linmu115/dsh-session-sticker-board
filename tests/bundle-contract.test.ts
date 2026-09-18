@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,12 +19,34 @@ async function text(path: string): Promise<string> {
 }
 
 describe("sticker-board 0.6 package boundary", () => {
+  it("keeps a standalone single-node patch and declares all ordinary Sticker feature peers", async () => {
+    const patch = await text("cordis.patch.yml");
+    expect(patch.match(/name:\s*'dsh-session-sticker-board'/g)).toHaveLength(1);
+    expect(patch).not.toMatch(/name:\s*['"]?dsh-obsidian|inject:/);
+    expect(patch).toContain("bridgeOrigin: 'http://127.0.0.1:18473'");
+    const pkg = JSON.parse(await text("package.json"));
+    for (const name of ['dsh-obsidian-bridge', 'dsh-annotation-core', 'dsh-better-sidebar']) {
+      expect(pkg.peerDependencies[name]).toBeTruthy();
+      expect(pkg.peerDependenciesMeta[name]?.optional).not.toBe(true);
+    }
+    expect(pkg.peerDependencies).not.toHaveProperty('dsh-session-maintenance');
+    expect(pkg.devDependencies['dsh-obsidian-bridge']).toBe('link:../dsh-obsidian-bridge-lifecycle');
+  });
+  it("emits declarations without retired Bridge or standalone Protocol imports", async () => {
+    const files = await readdir(join(repositoryRoot, 'lib/types'), { recursive: true });
+    expect(files.some(file => file.endsWith('.d.ts'))).toBe(true);
+    for (const file of files.filter(file => file.endsWith('.d.ts'))) {
+      expect(await text(`lib/types/${file}`)).not.toMatch(/["']dsh-obsidian-bridge-(?:lifecycle|protocol)(?:\/[^"']*)?["']/);
+    }
+  });
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.4-rc2.2");
+    expect(packageJson.version).toBe("0.7.4-rc2.3");
     expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("^0.1.5-rc.2");
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toContain("0.3.11-rc2.2");
-    expect(packageJson.peerDependencies["dsh-obsidian-bridge-lifecycle"]).toBe("^0.4.0-rc2.2");
+    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-rc2.1");
+    expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-lifecycle");
+    expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-protocol");
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toContain("0.3.12-rc2.1");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
     expect(packageJson.exports).toHaveProperty("./typert");
@@ -54,7 +76,7 @@ describe("sticker-board 0.6 package boundary", () => {
       expect(source).not.toContain(forbidden);
     }
     expect(source).toContain('export const inject = [] as const');
-    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation"] as const');
+    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle", "betterSidebar"] as const');
     expect(source).not.toContain('registerSourceAdapter("obsidian-note"');
   });
 
@@ -82,6 +104,7 @@ describe("sticker-board 0.6 package boundary", () => {
     const client = await text("lib/client.js");
     const bundle = `${host}\n${client}`;
     expect(bundle).not.toMatch(/(?:from\s+|require\()["']dsh-annotation-core(?:\/[^"']*)?["']/);
+    expect(bundle).not.toMatch(/(?:from\s+|require\()["']dsh-obsidian-bridge(?:-lifecycle|-protocol)?(?:\/[^"']*)?["']/);
     for (const forbidden of [
       "AnnotationStore",
       "AnnotationCoreRemoteService",

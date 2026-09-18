@@ -1,4 +1,5 @@
 # dsh-session-sticker-board bundle patch
+# Independent plugin. Its client waits for Core, Bridge and Better Sidebar services.
 - insert:
     - id: session-sticker-board
       name: 'dsh-session-sticker-board'

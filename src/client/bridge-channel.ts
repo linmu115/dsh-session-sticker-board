@@ -1,4 +1,4 @@
-import type { BorrowedBridgeTransport, ObsidianBridgeLifecycle, VaultConnectionSnapshot } from 'dsh-obsidian-bridge-lifecycle/api';
+import type { BorrowedBridgeTransport, ObsidianBridgeLifecycle, VaultConnectionSnapshot } from 'dsh-obsidian-bridge/api';
 import type { BridgeHttpClient } from '../bridge/http-client.ts';
 
 export type VaultKnowledgeBridge = Pick<BridgeHttpClient, 'knowledge'> & {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4-rc2.3 — 2026-09-18
+
+- Consume the single dsh-obsidian-bridge package through its public API, transport and data protocol exports.
+- Remove standalone Lifecycle/Protocol installation peers; preserve local data and wait for Core, Bridge and Better Sidebar before mounting ordinary Sticker UI. Maintenance remains optional.
+
 ## 0.7.4-rc2.2 — 2026-09-18
 
 - Preserve Vault scope for search, links, references, navigation, legacy synchronization and migration.

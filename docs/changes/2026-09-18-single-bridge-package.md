@@ -1,0 +1,11 @@
+# Single Bridge package boundary — 2026-09-18
+
+Sticker Board 0.7.4-rc2.3 remains an independent plugin. Ordinary Sticker features require Annotation Core, `dsh-obsidian-bridge@0.4.1-rc2.1`, and Better Sidebar. These are declared non-optional peers. Maintenance remains optional. Client mounting waits for all three feature services; absence is a waiting state, not a complete standalone feature or a failure/retry loop. Unloading a dependency disposes the mounted feature fiber; late replacement can attach again.
+
+Sticker consumes the unified Bridge `/api`, `/transport` and `/protocol/data` entries. Old Lifecycle and standalone Protocol names are no longer published peers or source imports. Browser/host builds inline the transport and data helpers; type declarations refer only to the new public entries. No separate Protocol installation is required. The service key stays `obsidianBridgeLifecycle`, and Sticker never owns or disposes shared Bridge transport.
+
+The standalone Cordis patch contains only the Sticker plugin and retains the existing `bridgeOrigin` configuration. It does not insert Core, Bridge or Sidebar on the user's behalf. Host persistence may initialize while client dependencies are pending, preserving existing data rather than migrating or deleting anything.
+
+Ordinary sticker schema, local store, migration ownership and existing Vault routing are unchanged. Cross-session references and session stickers remain Core + ThoughtDAG responsibilities. The developer alias maps the new package name to the physical `../dsh-obsidian-bridge-lifecycle` source directory. Obsolete lockfile package snapshots were removed without reinstalling dependencies.
+
+Validation: TypeScript typecheck and a fresh declaration/host/browser build passed against Bridge 0.4.1-rc2.1. All 20 test files / 123 tests passed. Focused tests include real Cordis late service load, removal, replacement and required-provider waiting; emitted JS and declarations contain no retired Lifecycle/Protocol bare imports. The linked-note preparation fixture now supplies the complete Obsidian source schema, which is validated before handoff. Core still owns reference state, bubbles, context organization and injection; the retained linked-note rail is business navigation/association UI. No installation or live data change is part of this change.

@@ -4,7 +4,7 @@ import { normalizeBridgeOrigin } from "./bridge/http-client.ts";
 import type { Context } from "./context-types.ts";
 import { StickerBoardRemoteService } from "./remote/service.ts";
 import { defaultStickerStorageDirectory, StickerLocalStore } from "./host/local-store.ts";
-import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api";
+import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge/api";
 
 export const name = "dsh-session-sticker-board";
 
