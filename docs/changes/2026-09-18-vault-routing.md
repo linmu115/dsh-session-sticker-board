@@ -1,0 +1,11 @@
+# Explicit Vault routing for ordinary stickers — 2026-09-18
+
+Version 0.7.4-rc2.2 consumes Bridge 0.4.0-rc2.2 and Protocol 0.4.0-rc2.1. Note search and backlink lists aggregate bound Vaults and preserve Vault identity per row and page cursor. Open/register/link/unlink/reference handoff pin the selected route. Legacy note relations require a unique verified Vault or an explicit choice, then verify their stable note ID and persist the chosen scope before remote mutation. Managed session availability is checked before relation writes, reference handoff and navigation.
+
+Legacy session-note sync persists its selected Vault in the local document and direct note links; another newly sole online Vault cannot replace that target. The sidebar exposes explicit selection. Migration ownership also stores the chosen Vault across restart and refuses a different destination. Managed ordinary stickers remain instance knowledge objects, with multiple Vault backlinks rather than a single global Vault owner.
+
+Deletion outbox entries contain an optional fixed `pendingVaultIds` set. Each successful Vault deletion durably removes only that target using CAS `updateBacklinkDelete`; the empty set survives lost acknowledgement and is then acknowledged. Partial failures/restart do not resend to successful targets or newly connected Vaults. Old unscoped deletion entries can be explicitly assigned in the tools panel; no available Bridge keeps ordinary local CRUD working.
+
+Validated with typecheck, in-place build, existing full tests and focused multi-Vault/cursor, availability, local persistence, migration and restart/outbox cases. Tests use synthetic services, jsdom and temporary files only. No real installation, restart, Vault/session edits or push. A legacy unscoped record without a provable sole Vault deliberately requires user selection; existing per-Vault identities and target sets are never replaced based on connection order.
+
+Final local validation: TypeScript checks and in-place declaration/browser/host builds passed; 19 test files / 119 tests passed. The deletion recovery test persists A/B targets, succeeds A, fails B, restarts with C newly online, and proves only original B is retried.

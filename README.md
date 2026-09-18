@@ -1,5 +1,9 @@
 # DSH Session Sticker Board
 
+## 0.7.4-rc2.2：多 Vault 笔记关联
+
+搜索和回链保留每条笔记的 Vault 身份；打开、关联和引用固定到该目标。旧关联没有归属时，请选择正确的 Vault，系统核验笔记身份后保存选择。旧贴纸同步与迁移保存所选 Vault；删除回链按原目标集合逐一确认。详情见 [路由与恢复报告](docs/changes/2026-09-18-vault-routing.md)。
+
 ## 0.7.4-rc2.1：统一 Bridge 通道
 
 普通贴纸与笔记关联的界面、归属校验和数据操作继续由 Sticker Board 维护。Obsidian 请求借用 **Bridge Lifecycle 0.4.0-rc2.1** 的共享通道；贴纸只注册自己的定位处理器，不再创建连接、轮询或确认公共队列。关联笔记的引用通过 Bridge 交接给 Core，由 Core 保持引用状态、提交与失败补偿。通用 Obsidian 健康页由 Bridge 提供。
@@ -41,7 +45,7 @@ Bridge 为可选组件；没有 Bridge 或 Maintenance 时，未纳管普通贴�
 使用完整 Obsidian 工作流时，还需配套：
 
 - [Reference Suite](https://github.com/linmu115/dsh-obsidian-session-reference-suite/tree/codex/rc2-session-context-graph)：本轮组合入口为 0.3.4-rc2.18，按 `Core → Lifecycle → Reference Adapter → Sticker Board` 管理成员，卸载逆序释放。
-- [Obsidian Bridge Lifecycle](https://github.com/linmu115/dsh-obsidian-bridge-lifecycle/tree/codex/rc2-session-context-graph) 0.3.3-rc2.16：当前实例与 Bridge 的连接、租约和状态。
+- [Obsidian Bridge Lifecycle](https://github.com/linmu115/dsh-obsidian-bridge-lifecycle/tree/codex/rc2-session-context-graph) 0.4.0-rc2.2：当前实例与 Bridge 的连接、租约和状态。
 - [Obsidian Reference Adapter](https://github.com/linmu115/dsh-obsidian-reference-adapter/tree/codex/rc2-session-context-graph) 0.3.4-rc2.16：Obsidian 文段引用及其发送、删除和回链。
 - [Obsidian 伴侣插件](https://github.com/linmu115/obsidian-deepharness-bridge/tree/codex/dsh-0-1-5-rc2)：安装到实际使用的 Vault。
 - [Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)：可选的右侧普通贴纸详情页；未启用时使用浮层入口。

@@ -1,8 +1,9 @@
+import type { ObsidianBridgeLifecycle, VaultConnectionSnapshot } from 'dsh-obsidian-bridge-lifecycle/api';
 import type { BridgeClient } from "./bridge-client.ts";
 import { createStickerStore, type StickerStore, type StickerView } from "./sticker-store.ts";
-import { PROTOCOL_VERSION, type LocalStickerState, type SessionNoteDocument, type StickerRecord } from "../protocol.ts";
+import { PROTOCOL_VERSION, type LocalStickerState, type SessionNoteDocument, type StickerRecord, type PendingBacklinkDelete } from "../protocol.ts";
 
-type StickerBridge = Pick<BridgeClient, "readSessionNote" | "saveSessionNote" | "deleteStickerBacklinks">;
+type StickerBridge = Pick<BridgeClient, "readSessionNote" | "saveSessionNote" | "deleteStickerBacklinks"> & Pick<ObsidianBridgeLifecycle, "forVault" | "listVaults">;
 
 export interface StickerLocalPersistence {
   managed?: boolean;
@@ -10,7 +11,8 @@ export interface StickerLocalPersistence {
   saveLocalSession(request: {
     document: SessionNoteDocument;
     expectedRevision: string;
-    enqueueBacklinkDelete?: StickerRecord;
+    enqueueBacklinkDelete?: PendingBacklinkDelete;
+    updateBacklinkDelete?: PendingBacklinkDelete;
   }): Promise<LocalStickerState>;
   acknowledgeBacklinkDelete(request: { sessionId: string; stickerId: string }): Promise<LocalStickerState>;
 }
@@ -18,6 +20,8 @@ export interface StickerLocalPersistence {
 export type StickerSyncStatus = "local-only" | "syncing" | "synced" | "conflict" | "error";
 
 export interface StickerWorkspace {
+  vaults?(): readonly VaultConnectionSnapshot[];
+  selectVault?(sessionId: string, vaultId: string): Promise<void>;
   getSnapshot(): number;
   subscribe(listener: () => void): () => void;
   ensure(sessionId: string): Promise<void>;
@@ -44,6 +48,7 @@ export function createStickerWorkspace(
   bridge: StickerBridge,
   options: { onSyncError?: (error: unknown) => void; migrateLegacy?: (sessionId: string) => Promise<unknown> } = {},
 ): StickerWorkspace {
+  const sessionVaults = new Map<string, string>();
   const entries = new Map<string, StoreEntry>();
   const loaded = new Set<string>();
   const loads = new Map<string, Promise<void>>();
@@ -94,6 +99,7 @@ export function createStickerWorkspace(
     const load = local.readLocalState(sessionId)
       .then((state) => {
         if (disposed) return;
+        if (state.document.vaultId) sessionVaults.set(sessionId, state.document.vaultId);
         attach(sessionId, createStickerStore(state.document.stickers, state.document.revision));
         loaded.add(sessionId);
         syncIssues.delete(sessionId);
@@ -128,9 +134,10 @@ export function createStickerWorkspace(
   ): SessionNoteDocument => ({
     protocolVersion: PROTOCOL_VERSION,
     type: "session-note",
+    ...(sessionVaults.get(sessionId) ? { vaultId: sessionVaults.get(sessionId)! } : {}),
     sessionId,
     revision,
-    stickers: [...stickers],
+    stickers: stickers.map(record => !local.managed && record.notePath && !record.vaultId && sessionVaults.get(sessionId) ? {...record,vaultId:sessionVaults.get(sessionId)!} : record),
   });
 
   const sync = (sessionId: string): Promise<void> => {
@@ -148,7 +155,28 @@ export function createStickerWorkspace(
         const localState = await local.readLocalState(sessionId);
         if (disposed) return;
         for (const deleted of localState.pendingBacklinkDeletes) {
-          await bridge.deleteStickerBacklinks(deleted);
+          let remaining = deleted.pendingVaultIds;
+          const legacyVault = deleted.vaultId ?? localState.document.vaultId;
+          if (!remaining && (legacyVault || bridge.listVaults)) {
+            if (legacyVault) remaining = [legacyVault];
+            else {
+              const choices = bridge.listVaults?.().filter(vault => vault.state === 'bound') ?? [];
+              if (choices.length !== 1) throw Object.assign(new Error('旧回链删除尚未选择目标 Vault'), { name: choices.length ? 'AmbiguousVaultError' : 'BridgeUnavailableError' });
+              remaining = [choices[0]!.vaultId];
+            }
+            const current = await local.readLocalState(sessionId);
+            await local.saveLocalSession({document:current.document,expectedRevision:current.document.revision,updateBacklinkDelete:{...deleted,pendingVaultIds:remaining}});
+          }
+          if (remaining) {
+            for (const vaultId of [...remaining]) {
+              if (!bridge.forVault) throw new Error('Bridge 不支持 Vault 路由');
+              await bridge.forVault(vaultId).deleteStickerBacklinks({...deleted,vaultId});
+              if (disposed) return;
+              remaining = remaining.filter(id => id !== vaultId);
+              const current = await local.readLocalState(sessionId);
+              await local.saveLocalSession({document:current.document,expectedRevision:current.document.revision,updateBacklinkDelete:{...deleted,pendingVaultIds:remaining}});
+            }
+          } else await bridge.deleteStickerBacklinks(deleted);
           if (disposed) return;
           await local.acknowledgeBacklinkDelete({ sessionId, stickerId: deleted.stickerId });
           if (disposed) return;
@@ -158,7 +186,19 @@ export function createStickerWorkspace(
           if (current.document.revision !== entry(sessionId).store.snapshot().revision) attach(sessionId, createStickerStore(current.document.stickers, current.document.revision));
           syncIssues.delete(sessionId); setSyncStatus(sessionId, 'synced'); return;
         }
-        const remote = await bridge.readSessionNote(sessionId);
+        let vaultId = localState.document.vaultId ?? sessionVaults.get(sessionId);
+        if (!vaultId && bridge.listVaults) {
+          const choices = bridge.listVaults().filter(vault => vault.state === 'bound');
+          if (choices.length !== 1) throw Object.assign(new Error('请在贴纸详情中选择旧贴纸所在 Vault'), { name: choices.length ? 'AmbiguousVaultError' : 'BridgeUnavailableError' });
+          vaultId = choices[0]!.vaultId;
+        }
+        if (vaultId && !localState.document.vaultId) {
+          const saved = await local.saveLocalSession({ document: { ...localState.document, vaultId, stickers:localState.document.stickers.map(record=>record.notePath&&!record.vaultId?{...record,vaultId}:record) }, expectedRevision: localState.document.revision });
+          sessionVaults.set(sessionId, vaultId);
+          attach(sessionId, createStickerStore(saved.document.stickers, saved.document.revision));
+        }
+        const route = vaultId && bridge.forVault ? bridge.forVault(vaultId) : bridge;
+        const remote = await route.readSessionNote(sessionId);
         if (disposed) return;
         let snapshot = entry(sessionId).store.snapshot();
         if (snapshot.revision === "sha256:empty" && snapshot.stickers.length === 0 && remote.stickers.length > 0) {
@@ -180,7 +220,7 @@ export function createStickerWorkspace(
         }
         const stickers = snapshot.stickers.map((view) => view.record as StickerRecord);
         if (disposed) return;
-        await bridge.saveSessionNote(documentWith(sessionId, remote.revision, stickers), remote.revision);
+        await route.saveSessionNote(documentWith(sessionId, remote.revision, stickers), remote.revision);
         if (disposed) return;
         syncIssues.delete(sessionId);
         setSyncStatus(sessionId, "synced");
@@ -210,6 +250,24 @@ export function createStickerWorkspace(
   };
 
   return {
+    vaults: () => bridge.listVaults?.() ?? [],
+    selectVault: async (sessionId, vaultId) => {
+      await serialized(sessionId, async () => {
+        await ensure(sessionId); await synchronizations.get(sessionId);
+        bridge.forVault?.(vaultId);
+        let current = await local.readLocalState(sessionId);
+        if (local.managed) {
+          for (const pending of current.pendingBacklinkDeletes.filter(record => record.pendingVaultIds === undefined && !record.vaultId)) {
+            current = await local.saveLocalSession({document:current.document,expectedRevision:current.document.revision,updateBacklinkDelete:{...pending,pendingVaultIds:[vaultId]}});
+          }
+          return;
+        }
+        if (current.document.vaultId && current.document.vaultId !== vaultId) throw new Error('旧贴纸已固定到 Vault：' + current.document.vaultId);
+        const saved = await local.saveLocalSession({ document: { ...current.document, vaultId, stickers:current.document.stickers.map(record=>record.notePath&&!record.vaultId?{...record,vaultId}:record) }, expectedRevision: current.document.revision });
+        sessionVaults.set(sessionId, vaultId); attach(sessionId, createStickerStore(saved.document.stickers, saved.document.revision));
+      });
+      await sync(sessionId);
+    },
     getSnapshot: () => version,
     subscribe(listener) {
       if (disposed) return () => undefined;
@@ -247,7 +305,8 @@ export function createStickerWorkspace(
         if (disposed) return;
         if (choice === "use-obsidian") {
           if (local.managed) throw new Error('已迁移对象以 Maintenance 为准，请在扩展面板处理冲突');
-          const remote = await bridge.readSessionNote(sessionId);
+          const vaultId = sessionVaults.get(sessionId);
+          const remote = await (vaultId && bridge.forVault ? bridge.forVault(vaultId) : bridge).readSessionNote(sessionId);
           if (disposed) return;
           const current = await local.readLocalState(sessionId);
           if (disposed) return;
@@ -273,6 +332,7 @@ export function createStickerWorkspace(
       }));
     },
     save(record) {
+      if (!local.managed && record.notePath && !record.vaultId && sessionVaults.get(record.sessionId)) record={...record,vaultId:sessionVaults.get(record.sessionId)!};
       return serialized(record.sessionId, async () => {
         try {
           await ensure(record.sessionId);
@@ -314,10 +374,18 @@ export function createStickerWorkspace(
         const next = snapshot.stickers
           .filter((view) => view.record.stickerId !== stickerId)
           .map((view) => view.record as StickerRecord);
+        const pendingVaultIds = [...new Set([
+          ...(current.record.vaultId ? [current.record.vaultId] : []),
+          ...(sessionVaults.get(sessionId) ? [sessionVaults.get(sessionId)!] : []),
+          ...(bridge.listVaults?.().filter(vault => vault.state === 'bound' || (vault.state === 'offline' && current.record.dshInstanceId && vault.binding.target?.instanceId === current.record.dshInstanceId)).map(vault => vault.vaultId) ?? []),
+        ])];
         const saved = await local.saveLocalSession({
           document: documentWith(sessionId, snapshot.revision, next),
           expectedRevision: snapshot.revision,
-          enqueueBacklinkDelete: current.record as StickerRecord,
+          enqueueBacklinkDelete: { ...current.record,
+            ...(sessionVaults.get(sessionId) ? { vaultId: sessionVaults.get(sessionId)! } : {}),
+            ...(pendingVaultIds.length ? { pendingVaultIds } : {}),
+          } as PendingBacklinkDelete,
         });
         if (disposed) return;
         store.remove(stickerId);

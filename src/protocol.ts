@@ -36,9 +36,12 @@ export * from "dsh-obsidian-bridge-protocol/data";
 export const ReferenceDeleteRequestV2Schema = BaseReferenceDeleteRequestV2Schema.extend(stableLogicalTargetShape).strict();
 export type ReferenceDeleteRequestV2 = z.infer<typeof ReferenceDeleteRequestV2Schema>;
 
+export const pendingBacklinkDeleteSchema = stickerSchema.extend({ pendingVaultIds: z.array(z.string().min(1)).max(256).optional() });
+export type PendingBacklinkDelete = z.infer<typeof pendingBacklinkDeleteSchema>;
+
 // This persisted local outbox is DSH-owned, outside the cross-app wire schema.
 export const localStickerStateSchema = z.object({
   document: sessionNoteDocumentSchema,
-  pendingBacklinkDeletes: z.array(stickerSchema),
+  pendingBacklinkDeletes: z.array(pendingBacklinkDeleteSchema),
 }).strict();
 export type LocalStickerState = z.infer<typeof localStickerStateSchema>;

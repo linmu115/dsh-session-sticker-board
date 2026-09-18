@@ -12,7 +12,8 @@ export interface StickerBoardRemoteNamespace {
   saveLocalSession(request: {
     document: SessionNoteDocument;
     expectedRevision: string;
-    enqueueBacklinkDelete?: import("../protocol.ts").StickerRecord;
+    enqueueBacklinkDelete?: import("../protocol.ts").PendingBacklinkDelete;
+    updateBacklinkDelete?: import("../protocol.ts").PendingBacklinkDelete;
   }): Promise<RemoteResult<LocalStickerState>>;
   acknowledgeBacklinkDelete(request: { sessionId: string; stickerId: string }): Promise<RemoteResult<LocalStickerState>>;
 }
@@ -37,7 +38,8 @@ export async function mountStickerRemote(ctx: Context): Promise<{
   saveLocalSession(request: {
     document: SessionNoteDocument;
     expectedRevision: string;
-    enqueueBacklinkDelete?: import("../protocol.ts").StickerRecord;
+    enqueueBacklinkDelete?: import("../protocol.ts").PendingBacklinkDelete;
+    updateBacklinkDelete?: import("../protocol.ts").PendingBacklinkDelete;
   }): Promise<LocalStickerState>;
   acknowledgeBacklinkDelete(request: { sessionId: string; stickerId: string }): Promise<LocalStickerState>;
   dispose(): Promise<void>;

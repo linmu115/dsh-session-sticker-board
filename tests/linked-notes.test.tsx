@@ -9,8 +9,8 @@ import type { StickerBridgeChannel } from '../src/client/bridge-channel.ts';
 vi.mock('../src/client/knowledge.ts',()=>({knowledgeRequest:vi.fn()}));
 let root:ReturnType<typeof createRoot>,host:HTMLDivElement;
 const object={objectId:'link',revision:1,deleted:false,content:{title:'Note',body:{logicalSessionId:'logical',note:{noteId:'note',notePath:'Folder/Note.md',blockId:'block'}}}};
-beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});host=document.createElement('div');document.body.append(host);root=createRoot(host);vi.mocked(knowledgeRequest).mockImplementation(async(op:any)=>op==='resolve'?{nativeSessionId:'native',logicalSessionId:'logical'}:op==='status'?{profileId:'web'}:op==='get'?object:{items:[object],nextCursor:null});});
-afterEach(async()=>{await act(()=>root.unmount());host.remove();vi.clearAllMocks();});
+beforeEach(()=>{vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({logicalSessionId:'logical',status:'available'}),{headers:{'content-type':'application/json'}})));Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});host=document.createElement('div');document.body.append(host);root=createRoot(host);vi.mocked(knowledgeRequest).mockImplementation(async(op:any)=>op==='resolve'?{nativeSessionId:'native',logicalSessionId:'logical'}:op==='status'?{profileId:'web'}:op==='get'?object:{items:[object],nextCursor:null});});
+afterEach(async()=>{await act(()=>root.unmount());host.remove();vi.clearAllMocks();vi.unstubAllGlobals();});
 async function fixture(){const core={addReference:vi.fn(async()=>({setId:'set',referenceId:'ref',created:true})),discardPendingOperation:vi.fn(async()=>{}),fenceReferenceOperation:vi.fn(),removeReference:vi.fn()};const ctx={get:()=>core,sessions:{scope:()=>({get:()=>core}),list:{getSnapshot:()=>({current:'native'})}}} as any;const bridge={knowledge:vi.fn(async(op:string)=>op==='link-reference-prepare'?{referenceId:'ref',source:{sourceType:'obsidian-note'}}:{committed:true}),handoffReference:vi.fn<StickerBridgeChannel['handoffReference']>(async input=>{input.assertCurrent();const prepared=await input.prepare();input.assertCurrent();const result={setId:'set',referenceId:prepared.referenceId};await input.commit(result);return result;})};await act(async()=>root.render(<LinkedNotes sessionId="native" ctx={ctx} bridge={bridge}/>));return{ctx,core,bridge};}
 async function click(text:string){await act(async()=>{const b=[...host.querySelectorAll('button')].find(b=>b.textContent?.includes(text));expect(b).toBeTruthy();b!.click();});}
 it('shows a persistent relation without loading material, and opens Obsidian explicitly',async()=>{const f=await fixture();expect(host.textContent).toContain('关联笔记');expect(f.bridge.knowledge).not.toHaveBeenCalled();await click('Note');await click('在 Obsidian 打开');expect(f.bridge.knowledge).toHaveBeenCalledWith('note-open',{noteId:'note',blockId:'block'});expect(f.core.addReference).not.toHaveBeenCalled();});
@@ -49,4 +49,10 @@ it('does not delete a relation belonging to another session',async()=>{
   const bridge={knowledge:vi.fn()};
   await expect(unlinkNote('link',{nativeSessionId:'other',logicalSessionId:'other'} as any,bridge)).rejects.toThrow('不属于当前会话');
   expect(bridge.knowledge).not.toHaveBeenCalled();
+});
+
+it('shows workspace exclusion before preparing a reference or deleting a relation',async()=>{
+ const f=await fixture();vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({logicalSessionId:'logical',status:'not-synced'}))));
+ await click('Note');await click('引用到本轮');expect(host.textContent).toContain('当前绑定实例未同步此工作区');expect(f.bridge.handoffReference).not.toHaveBeenCalled();expect(f.bridge.knowledge).not.toHaveBeenCalled();
+ await click('解除关联');expect(f.bridge.knowledge).not.toHaveBeenCalled();
 });

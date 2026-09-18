@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4-rc2.2 — 2026-09-18
+
+- Preserve Vault scope for search, links, references, navigation, legacy synchronization and migration.
+- Add explicit legacy target selection and session-availability checks before managed actions.
+- Persist remaining Vault targets in the backlink deletion outbox and shrink them after each successful remote deletion.
+
 ## 0.7.4-rc2.1 — 2026-09-18
 
 - Borrow the unified Bridge 0.4.0-rc2.1 transport and register ordinary sticker navigation with its shared action dispatcher.

@@ -77,3 +77,11 @@ it('edits managed stickers without importing or overwriting Vault documents',asy
   const workspace=createStickerWorkspace(local,bridge);
   try{await workspace.ensure('native');await workspace.save({...record,markdown:'Maintenance编辑'});await workspace.sync('native');expect(bridge.readSessionNote).not.toHaveBeenCalled();expect(bridge.saveSessionNote).not.toHaveBeenCalled();expect(current.document.stickers[0]!.markdown).toBe('Maintenance编辑');}finally{workspace.dispose();}
 });
+
+it('persists a migration Vault fence across restart and refuses another candidate',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'synthetic-vault-fence-'));
+ try {const store=new StickerLocalStore(root);const frozen=await store.freeze('native','vault-a') as {migrationId:string};
+ await expect(new StickerLocalStore(root).freeze('native','vault-b')).rejects.toThrow('vault-a');
+ await store.activate('native',frozen.migrationId,'receipt');expect(await new StickerLocalStore(root).ownership('native')).toMatchObject({vaultId:'vault-a',phase:'active'});
+ } finally {await rm(root,{recursive:true,force:true});}
+});

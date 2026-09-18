@@ -1,3 +1,7 @@
+import {mkdtemp,rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {StickerLocalStore} from '../src/host/local-store.ts';
 import { describe, expect, it, vi } from "vitest";
 
 import { createStickerWorkspace } from "../src/client/sticker-workspace.ts";
@@ -198,4 +202,32 @@ describe("sticker workspace", () => {
     }));
     expect(restarted.list("session-demo")).toHaveLength(0);
   });
+});
+
+it('persists partial multi-Vault deletion and retries only the original remaining target after restart',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'synthetic-sticker-outbox-'));
+ const store=new StickerLocalStore(directory);
+ let choices=['a','b'];let onlineB=false;
+ const deletes={a:vi.fn(async()=>({notesChanged:1,linksRemoved:1})),b:vi.fn(async()=>{if(!onlineB)throw new Error('B offline');return{notesChanged:1,linksRemoved:1};}),c:vi.fn(async()=>({notesChanged:0,linksRemoved:0}))};
+ const persistence={managed:true,readLocalState:(id:string)=>store.read(id),saveLocalSession:store.save.bind(store),acknowledgeBacklinkDelete:({sessionId,stickerId}:{sessionId:string;stickerId:string})=>store.acknowledgeBacklinkDelete(sessionId,stickerId)};
+ const bridge={...offlineBridge(),listVaults:()=>choices.map(vaultId=>({vaultId,state:'bound',binding:{target:{instanceId:'instance'}}})) as never,forVault:(vaultId:string)=>({deleteStickerBacklinks:deletes[vaultId as keyof typeof deletes]}) as never};
+ let workspace=createStickerWorkspace(persistence,bridge);
+ try {
+  await workspace.save(sticker);await workspace.sync(sticker.sessionId);await workspace.remove(sticker.sessionId,sticker.stickerId);await workspace.sync(sticker.sessionId);
+  expect((await store.read(sticker.sessionId)).pendingBacklinkDeletes[0]?.pendingVaultIds).toEqual(['b']);expect(deletes.a).toHaveBeenCalledOnce();
+  workspace.dispose();choices=['c'];workspace=createStickerWorkspace(persistence,bridge);await workspace.ensure(sticker.sessionId);await workspace.sync(sticker.sessionId);
+  expect(deletes.c).not.toHaveBeenCalled();expect(deletes.a).toHaveBeenCalledOnce();expect((await store.read(sticker.sessionId)).pendingBacklinkDeletes[0]?.pendingVaultIds).toEqual(['b']);
+  onlineB=true;await workspace.sync(sticker.sessionId);expect((await store.read(sticker.sessionId)).pendingBacklinkDeletes).toEqual([]);expect(deletes.c).not.toHaveBeenCalled();
+ }finally{workspace.dispose();await rm(directory,{recursive:true,force:true});}
+});
+it('requires an explicit legacy Vault and keeps it pinned when another becomes the only online Vault',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'synthetic-sticker-route-'));const store=new StickerLocalStore(directory);
+ let choices=['a','b'];const routes=Object.fromEntries(['a','b'].map(id=>[id,{readSessionNote:vi.fn(async()=>({...document(),vaultId:id})),saveSessionNote:vi.fn(async()=>({revision:'saved'})),deleteStickerBacklinks:vi.fn()}]));
+ const persistence={readLocalState:(id:string)=>store.read(id),saveLocalSession:store.save.bind(store),acknowledgeBacklinkDelete:({sessionId,stickerId}:{sessionId:string;stickerId:string})=>store.acknowledgeBacklinkDelete(sessionId,stickerId)};
+ const bridge={...offlineBridge(),listVaults:()=>choices.map(vaultId=>({vaultId,state:'bound'})) as never,forVault:(id:string)=>{if(!choices.includes(id))throw new Error('original Vault offline');return routes[id] as never;}};
+ const workspace=createStickerWorkspace(persistence,bridge);
+ try{await workspace.save({...sticker,notePath:'Same.md'});await workspace.sync(sticker.sessionId);expect(routes.a!.readSessionNote).not.toHaveBeenCalled();expect(routes.b!.readSessionNote).not.toHaveBeenCalled();
+ await workspace.selectVault!(sticker.sessionId,'a');expect((await store.read(sticker.sessionId)).document).toMatchObject({vaultId:'a',stickers:[{vaultId:'a'}]});
+ choices=['b'];await workspace.sync(sticker.sessionId);expect(routes.b!.readSessionNote).not.toHaveBeenCalled();expect(workspace.syncIssue(sticker.sessionId)).toContain('original Vault offline');
+ }finally{workspace.dispose();await rm(directory,{recursive:true,force:true});}
 });

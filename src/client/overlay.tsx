@@ -713,6 +713,7 @@ export interface StickerCommandDependencies {
     type: "open-note";
     actionId: string;
     notePath: string;
+    vaultId?: string;
     blockId?: string;
   }): Promise<void>;
   remove(): Promise<void>;
@@ -737,6 +738,7 @@ export function createStickerCommands(sticker: StickerRecord, dependencies: Stic
         type: "open-note",
         actionId: crypto.randomUUID(),
         notePath: sticker.notePath,
+        ...(sticker.vaultId ? { vaultId: sticker.vaultId } : {}),
         ...(sticker.blockId ? { blockId: sticker.blockId } : {}),
       });
       return true;

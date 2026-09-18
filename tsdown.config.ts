@@ -65,7 +65,7 @@ export default [
     clean: false,
     deps: {
       neverBundle: CLIENT_EXTERNALS,
-      alwaysBundle: ["dsh-annotation-core/protocol", "dsh-obsidian-bridge-protocol/data", "dsh-obsidian-bridge-lifecycle/transport", "zod", "lucide-react"],
+      alwaysBundle: ["dsh-annotation-core/protocol", "dsh-obsidian-bridge-protocol/data", "dsh-obsidian-bridge-lifecycle/transport", "dsh-obsidian-bridge-lifecycle/api", "zod", "lucide-react"],
     },
     plugins: [browserPlugin],
     outputOptions: {

@@ -42,6 +42,7 @@ export function backlinkOpenAction(
     type: "open-note",
     actionId: createActionId(),
     notePath: backlink.notePath,
+    ...(backlink.vaultId ? { vaultId: backlink.vaultId } : {}),
     ...(backlink.blockId ? { blockId: backlink.blockId } : {}),
     line: backlink.line,
     ...(backlink.column !== undefined ? { column: backlink.column } : {}),
@@ -141,6 +142,7 @@ function StickerDetailForm(props: {
   listBacklinks(record: StickerRecord): Promise<StickerBacklink[]>;
   close(): void;
 }): ReactNode {
+  const [vaultSelection, setVaultSelection] = useState("");
   const [markdown, setMarkdown] = useState(props.record.markdown);
   const [tags, setTags] = useState(props.record.tags.join(", "));
   const [color, setColor] = useState<StickerRecord["color"]>(props.record.color);
@@ -279,7 +281,7 @@ function StickerDetailForm(props: {
             <button type="button" disabled={dirty || phase === "saving"} onClick={() => void resolveConflict("keep-local")}>使用 DSH 贴纸内容</button>
             <button type="button" disabled={dirty || phase === "saving"} onClick={() => void resolveConflict("use-obsidian")}>使用 Obsidian 贴纸内容</button>
           </> : <button type="button" onClick={() => void props.workspace.sync(props.record.sessionId)}>重试同步</button>}
-          {syncIssue && <details><summary>查看同步详情</summary><p>{syncIssue}</p></details>}
+          {props.workspace.selectVault && (props.workspace.vaults?.().length ?? 0) > 0 && <label>旧贴纸所在 Vault<select aria-label="旧贴纸所在 Vault" value={vaultSelection} onChange={event => setVaultSelection(event.target.value)}><option value="">请选择 Vault</option>{props.workspace.vaults?.().filter(vault => vault.state === 'bound').map(vault => <option key={vault.vaultId} value={vault.vaultId}>{vault.displayName} · {vault.vaultId}</option>)}</select><button disabled={!vaultSelection || phase === 'saving'} onClick={() => { setPhase('saving'); void props.workspace.selectVault!(props.record.sessionId, vaultSelection).then(() => setPhase('saved')).catch(reason => { setError(reason instanceof Error ? reason.message : String(reason)); setPhase('error'); }); }}>保存目标</button></label>}{syncIssue && <details><summary>查看同步详情</summary><p>{syncIssue}</p></details>}
         </div>
       )}
       <section className="dsh-sticker-sidebar-backlinks" aria-label="反向链接">
@@ -302,7 +304,7 @@ function StickerDetailForm(props: {
         {backlinks.length > 0 ? (
           <ul className="dsh-sticker-sidebar-backlink-list">
             {backlinks.map((backlink) => (
-              <li key={`${backlink.notePath}:${backlink.blockId ?? `${backlink.line}:${backlink.column ?? 0}`}`}>
+              <li key={`${backlink.vaultId ?? ""}:${backlink.notePath}:${backlink.blockId ?? `${backlink.line}:${backlink.column ?? 0}`}`}>
                 <button
                   type="button"
                   title={`在 Obsidian 中打开 ${backlink.notePath}`}
@@ -312,7 +314,7 @@ function StickerDetailForm(props: {
                   })}
                 >
                   <span className="dsh-sticker-sidebar-backlink-title">{backlink.heading ?? backlink.notePath.split("/").at(-1)?.replace(/\.md$/i, "") ?? backlink.notePath}</span>
-                  <span className="dsh-sticker-sidebar-backlink-path">{backlink.notePath} · 第 {backlink.line + 1} 行</span>
+                  <span className="dsh-sticker-sidebar-backlink-path">{backlink.vaultId ? backlink.vaultId + " · " : ""}{backlink.notePath} · 第 {backlink.line + 1} 行</span>
                   <span className="dsh-sticker-sidebar-backlink-excerpt">{backlink.excerpt}</span>
                 </button>
               </li>

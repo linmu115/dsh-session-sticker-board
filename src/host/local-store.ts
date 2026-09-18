@@ -9,6 +9,8 @@ import {
   sessionNoteDocumentSchema,
   type SessionNoteDocument,
   stickerSchema,
+  pendingBacklinkDeleteSchema,
+  type PendingBacklinkDelete,
   type StickerRecord,
 } from "../protocol.ts";
 import type { LocalStickerState } from "../protocol.ts";
@@ -17,7 +19,8 @@ export type { LocalStickerState } from "../protocol.ts";
 export interface SaveLocalSessionRequest {
   document: SessionNoteDocument;
   expectedRevision: string;
-  enqueueBacklinkDelete?: StickerRecord;
+  enqueueBacklinkDelete?: PendingBacklinkDelete;
+  updateBacklinkDelete?: PendingBacklinkDelete;
 }
 
 export function defaultStickerStorageDirectory(
@@ -39,9 +42,9 @@ function emptyDocument(sessionId: string): SessionNoteDocument {
   };
 }
 
-function documentRevision(document: Pick<SessionNoteDocument, "sessionId" | "stickers">): string {
+function documentRevision(document: Pick<SessionNoteDocument, "sessionId" | "stickers" | "vaultId">): string {
   const digest = createHash("sha256")
-    .update(JSON.stringify({ sessionId: document.sessionId, stickers: document.stickers }))
+    .update(JSON.stringify({ sessionId: document.sessionId, stickers: document.stickers, ...(document.vaultId ? { vaultId: document.vaultId } : {}) }))
     .digest("hex");
   return `sha256:${digest}`;
 }
@@ -60,16 +63,19 @@ export class StickerLocalStore {
 
   constructor(readonly root: string = defaultStickerStorageDirectory()) {}
 
-  async ownership(sessionId: string): Promise<{ migrationId: string; phase: 'frozen' | 'active'; receiptId?: string } | null> {
+  async ownership(sessionId: string): Promise<{ migrationId: string; phase: 'frozen' | 'active'; receiptId?: string; vaultId?: string } | null> {
     try {
       const value = JSON.parse(await readFile(sessionFile(this.root, sessionId) + '.ownership', 'utf8'));
       if (typeof value.migrationId !== 'string' || !['frozen','active'].includes(value.phase)) throw new Error('贴纸迁移登记损坏，暂停写入');
       return value;
     } catch (error) { if (isMissing(error)) return null; throw error; }
   }
-  freeze(sessionId: string): Promise<unknown> {
+  freeze(sessionId: string, vaultId?: string): Promise<unknown> {
     return this.serialized(sessionId, async () => {
-      const ownership = await this.ownership(sessionId) ?? { migrationId: randomUUID(), phase: 'frozen' as const };
+      const ownership = await this.ownership(sessionId) ?? { migrationId: randomUUID(), phase: 'frozen' as const, vaultId: undefined as string | undefined };
+      const originalVault = ownership.vaultId ?? (await this.read(sessionId)).document.vaultId;
+      if (originalVault && vaultId && originalVault !== vaultId) throw new Error('旧贴纸已固定到 Vault：' + originalVault);
+      if (vaultId && !ownership.vaultId) ownership.vaultId = vaultId;
       await this.writeOwnership(sessionId, ownership);
       return { ...ownership, state: await this.read(sessionId) };
     });
@@ -78,7 +84,7 @@ export class StickerLocalStore {
     return this.serialized(sessionId, async () => {
       const ownership = await this.ownership(sessionId);
       if (!ownership || ownership.migrationId !== migrationId || (ownership.receiptId && ownership.receiptId !== receiptId)) throw new Error('迁移回执与本地冻结记录不同');
-      await this.writeOwnership(sessionId, { migrationId, phase: 'active', receiptId });
+      await this.writeOwnership(sessionId, { ...ownership, migrationId, phase: 'active', receiptId });
     });
   }
   private async writeOwnership(sessionId: string, value: unknown): Promise<void> {
@@ -120,6 +126,7 @@ export class StickerLocalStore {
       error.code = "REVISION_CONFLICT";
       throw error;
     }
+    if (current.document.vaultId && input.vaultId !== current.document.vaultId) throw new Error("旧贴纸的 Vault 归属不能被隐式改变");
     const document = sessionNoteDocumentSchema.parse({
       ...input,
       revision: documentRevision(input),
@@ -127,7 +134,15 @@ export class StickerLocalStore {
       const pendingBacklinkDeletes = [...current.pendingBacklinkDeletes];
       if (request.enqueueBacklinkDelete !== undefined
         && !pendingBacklinkDeletes.some((record) => record.stickerId === request.enqueueBacklinkDelete?.stickerId)) {
-        pendingBacklinkDeletes.push(stickerSchema.parse(request.enqueueBacklinkDelete));
+        pendingBacklinkDeletes.push(pendingBacklinkDeleteSchema.parse(request.enqueueBacklinkDelete));
+      }
+      if (request.updateBacklinkDelete) {
+        const index = pendingBacklinkDeletes.findIndex(record => record.stickerId === request.updateBacklinkDelete!.stickerId);
+        if (index < 0 || request.updateBacklinkDelete.sessionId !== input.sessionId) throw new Error('待删除回链不属于当前队列');
+        const before = pendingBacklinkDeletes[index]!;
+        const after = pendingBacklinkDeleteSchema.parse(request.updateBacklinkDelete);
+        if (before.pendingVaultIds && after.pendingVaultIds?.some(vaultId => !before.pendingVaultIds!.includes(vaultId))) throw new Error('不得将待删除回链改投新的 Vault');
+        pendingBacklinkDeletes[index] = after;
       }
       const state = localStickerStateSchema.parse({ document, pendingBacklinkDeletes });
       await this.write(input.sessionId, state);

@@ -34,3 +34,13 @@ it('delegates reference handoff intact and preserves service receiver', async ()
   await expect(createStickerBridgeChannel(() => lifecycle).handoffReference(input)).resolves.toEqual({ setId: 'set', referenceId: 'reference' });
   expect(input.prepare).not.toHaveBeenCalled();
 });
+
+it('aggregates same-name notes and backlinks with explicit Vault routes and independent cursors', async () => {
+ const routes = Object.fromEntries(['a','b'].map(vaultId => [vaultId, { knowledge:vi.fn(async (_op:string,input:Record<string,unknown>)=>({items:[{notePath:'Same.md'}],nextCursor:input.after?null:vaultId==='a'?'a-next':null})), listBacklinks:vi.fn(async()=>[{notePath:'Same.md',line:0}]), openNote:vi.fn(async()=>{}) }]));
+ const lifecycle={listVaults:()=>['a','b'].map(vaultId=>({vaultId,displayName:vaultId,state:'bound'})),forVault:(id:string)=>routes[id],transport:{knowledge:()=>{throw new Error('ambiguous');}}} as unknown as ObsidianBridgeLifecycle;
+ const channel=createStickerBridgeChannel(()=>lifecycle);
+ const page=await channel.knowledge('notes',{query:''}) as {items:{vaultId:string}[];nextCursor:string};expect(page.items.map(x=>x.vaultId)).toEqual(['a','b']);
+ await channel.knowledge('notes',{query:'',after:page.nextCursor});expect(routes.a!.knowledge).toHaveBeenLastCalledWith('notes',{query:'',after:'a-next'});expect(routes.b!.knowledge).toHaveBeenCalledTimes(1);
+ const backlinks=await channel.listBacklinks({} as never);expect(backlinks.map(x=>x.vaultId)).toEqual(['a','b']);
+ await channel.openNote({protocolVersion:1,type:'open-note',actionId:'action',vaultId:'b',notePath:'Same.md'});expect(routes.b!.openNote).toHaveBeenCalledOnce();expect(routes.a!.openNote).not.toHaveBeenCalled();
+});

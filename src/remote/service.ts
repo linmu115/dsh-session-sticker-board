@@ -47,7 +47,7 @@ export class StickerBoardRemoteService extends TypertRemoteService {
     const knowledge = this.knowledge();
     if (!knowledge) throw new Error('Maintenance 知识接口暂不可用');
     if (typeof input.sessionId !== 'string' || !input.sessionId || input.sessionId.length > 256) throw new Error('无效会话身份');
-    if (operation === 'freeze') return JSON.stringify(await this.localStore.freeze(input.sessionId));
+    if (operation === 'freeze') return JSON.stringify(await this.localStore.freeze(input.sessionId, typeof input.vaultId === 'string' ? input.vaultId : undefined));
     if (operation === 'activate') {
       const receipt = await knowledge.dispatch('get', { namespace: 'stickers', objectId: input.receiptId }) as { content: { body: { kind: string; phase: string; migrationId: string; legacySessionId: string } } };
       if (receipt.content.body.kind !== 'migration' || receipt.content.body.phase !== 'active' || receipt.content.body.migrationId !== input.migrationId || receipt.content.body.legacySessionId !== input.sessionId) throw new Error('Maintenance 未确认迁移');

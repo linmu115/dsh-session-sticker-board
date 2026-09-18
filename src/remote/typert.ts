@@ -1,7 +1,7 @@
 import type { InvocationDescriptor, TypertRemoteContribution } from "@deepseek-ai/dsh-typert-protocol";
 import type { TypertContribution } from "@deepseek-ai/dsh-typert-registry/types";
 import { z } from "zod";
-import { localStickerStateSchema, sessionNoteDocumentSchema, stickerSchema } from "../protocol.ts";
+import { localStickerStateSchema, sessionNoteDocumentSchema, pendingBacklinkDeleteSchema } from "../protocol.ts";
 
 const jsonParameter = (name: string, schema: z.ZodType, typeSymbol: string) => ({
   name,
@@ -19,7 +19,8 @@ const localStateCodec = {
 const saveLocalSessionRequestSchema = z.object({
   document: sessionNoteDocumentSchema,
   expectedRevision: z.string().min(1),
-  enqueueBacklinkDelete: stickerSchema.optional(),
+  enqueueBacklinkDelete: pendingBacklinkDeleteSchema.optional(),
+  updateBacklinkDelete: pendingBacklinkDeleteSchema.optional(),
 }).strict();
 
 const backlinkDeleteAcknowledgementSchema = z.object({

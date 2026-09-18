@@ -7,13 +7,18 @@ import { knowledgeRequest } from './knowledge.ts';
 import { unlinkNote } from './unlink-note.ts';
 import type { StickerBridgeChannel } from './bridge-channel.ts';
 import './linked-notes.css';
+import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge-lifecycle/api';
+import { scopeLinkedNote } from './note-scope.ts';
+import { VaultChoice } from './vault-choice.tsx';
+import type { VaultKnowledgeBridge } from './bridge-channel.ts';
 
-type Bridge = Pick<StickerBridgeChannel, 'knowledge' | 'handoffReference'>;
-type NoteBody = { logicalSessionId: string; note: { noteId: string; notePath: string; blockId?: string } };
+type Bridge = VaultKnowledgeBridge & Pick<StickerBridgeChannel, 'handoffReference'>;
+type NoteBody = { logicalSessionId: string; note: { vaultId?: string; noteId: string; notePath: string; blockId?: string } };
 
 /** The session dock owns this rail: it never follows a floating canvas or another session. */
 export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx: Context; bridge: Bridge }) {
   const [items, setItems] = useState<ExtensionObject[]>([]), [selected, setSelected] = useState<string>();
+  const [vaultSelection, setVaultSelection] = useState('');
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const active = useRef(false), generation = useRef(0), operation = useRef<string>();
@@ -55,17 +60,20 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
     const core = (ctx.sessions.scope(sessionId)?.get('annotationCore') ?? ctx.get('annotationCore')) as AnnotationCoreClient | undefined;
     if (!core?.addReference) throw new Error('注释插件尚未就绪');
     const target = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: sessionId });
+    await assertMaintenanceSessionAvailable(target.logicalSessionId);
     const current = await knowledgeRequest<ExtensionObject>('get', { namespace: 'obsidian-links', objectId: object.objectId });
     if (current.deleted || (current.content.body as NoteBody).logicalSessionId !== target.logicalSessionId) throw new Error('关联已解除或会话已改变');
+    const scoped = await scopeLinkedNote(current, bridge, vaultSelection);
     const requestId = operation.current ??= crypto.randomUUID();
     const status = await knowledgeRequest<{profileId:string}>('status');
     const input = { objectId: object.objectId, operationId: requestId, nativeSessionId: target.nativeSessionId, logicalSessionId: target.logicalSessionId, profileId: status.profileId };
     try {
       await bridge.handoffReference({
         sessionId,
+        ...(scoped.vaultId ? { vaultId: scoped.vaultId } : {}),
         operationId: requestId,
-        prepare: async () => await bridge.knowledge('link-reference-prepare', input) as { referenceId: string; source: Parameters<AnnotationCoreClient['addReference']>[1] },
-        commit: async (result) => { await bridge.knowledge('link-reference-commit', { ...input, setId: result.setId }); },
+        prepare: async () => await scoped.route.knowledge('link-reference-prepare', input) as { referenceId: string; source: Parameters<AnnotationCoreClient['addReference']>[1] },
+        commit: async (result) => { await scoped.route.knowledge('link-reference-commit', { ...input, setId: result.setId }); },
         assertCurrent: () => {
           if (ctx.sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请在目标会话重新引用');
         },
@@ -81,7 +89,8 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
     const epoch = generation.current;
     const target = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: sessionId });
     if (epoch !== generation.current || ctx.sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请在目标会话解除关联');
-    await unlinkNote(object.objectId, target, bridge);
+    await assertMaintenanceSessionAvailable(target.logicalSessionId);
+    await unlinkNote(object.objectId, target, bridge, vaultSelection);
     if (epoch !== generation.current) return;
     setItems(old => old.filter(item => item.objectId !== object.objectId));
     setSelected(undefined); operation.current = undefined;
@@ -91,10 +100,10 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
   const focused = items.find(i => i.objectId === selected);
   return <div className="dsh-linked-notes" aria-label="当前会话关联笔记">
     <div className="dsh-linked-notes-row"><span className="dsh-linked-notes-label"><Link2 size={13} />关联笔记</span>
-      {items.map(item => { const note = (item.content.body as NoteBody).note; return <button key={item.objectId} type="button" className={'dsh-linked-note-chip' + (selected === item.objectId ? ' is-selected' : '')} aria-expanded={selected === item.objectId} title={note.notePath} onClick={() => { setSelected(selected === item.objectId ? undefined : item.objectId); setMessage(''); setError(''); operation.current = undefined; }} disabled={busy}><FileText size={13} /><span>{note.notePath.split('/').at(-1)?.replace(/\.md$/, '')}</span></button>; })}
+      {items.map(item => { const note = (item.content.body as NoteBody).note; return <button key={item.objectId} type="button" className={'dsh-linked-note-chip' + (selected === item.objectId ? ' is-selected' : '')} aria-expanded={selected === item.objectId} title={(note.vaultId ?? '待选择 Vault') + ' · ' + note.notePath} onClick={() => { setSelected(selected === item.objectId ? undefined : item.objectId); setMessage(''); setError(''); operation.current = undefined; }} disabled={busy}><FileText size={13} /><span>{note.vaultId ? note.vaultId + ' · ' : ''}{note.notePath.split('/').at(-1)?.replace(/\.md$/, '')}</span></button>; })}
       {cursor && <button type="button" className="dsh-linked-note-chip" disabled={busy} onClick={() => void run(async () => { const target = await knowledgeRequest<GraphSessionIdentity>('resolve', { nativeSessionId: sessionId }); const page = await knowledgeRequest<KnowledgePage>('list', { namespace: 'obsidian-links', logicalSessionId: target.logicalSessionId, after: cursor }); setItems(old => [...old, ...page.items.filter(i => !old.some(o => o.objectId === i.objectId))]); pagesShown.current++; setCursor(page.nextCursor); })}>更多</button>}
     </div>
-    {focused && <section className="dsh-linked-note-detail" aria-label="关联笔记操作"><div><strong>{(focused.content.body as NoteBody).note.notePath}</strong><button type="button" aria-label="收起关联笔记" onClick={() => setSelected(undefined)} disabled={busy}><X size={14} /></button></div><p>此关联长期保留。引用到本轮后，内容才会随消息交给 AI。</p><div className="dsh-linked-note-actions"><button type="button" disabled={busy} onClick={() => void run(async () => { const note = (focused.content.body as NoteBody).note; await bridge.knowledge('note-open', { noteId: note.noteId, ...(note.blockId ? { blockId: note.blockId } : {}) }); })}><ArrowUpRight size={14} />在 Obsidian 打开</button><button type="button" disabled={busy} onClick={() => void run(() => reference(focused))}>{busy ? <Loader2 size={14} /> : <Quote size={14} />}引用到本轮</button><button type="button" className="dsh-linked-note-unlink" title="仅解除当前会话与笔记的关联" disabled={busy} onClick={() => void run(() => unlink(focused))}><Unlink size={14} />解除关联</button></div></section>}
+    {focused && <section className="dsh-linked-note-detail" aria-label="关联笔记操作"><div><strong>{(focused.content.body as NoteBody).note.notePath}</strong><button type="button" aria-label="收起关联笔记" onClick={() => setSelected(undefined)} disabled={busy}><X size={14} /></button></div>{!(focused.content.body as NoteBody).note.vaultId && <VaultChoice bridge={bridge} value={vaultSelection} onChange={setVaultSelection} label="旧关联的目标 Vault" />}<p>此关联长期保留。引用到本轮后，内容才会随消息交给 AI。</p><div className="dsh-linked-note-actions"><button type="button" disabled={busy} onClick={() => void run(async () => { const scoped = await scopeLinkedNote(focused, bridge, vaultSelection); const note = scoped.note; await scoped.route.knowledge('note-open', { noteId: note.noteId, ...(note.blockId ? { blockId: note.blockId } : {}) }); })}><ArrowUpRight size={14} />在 Obsidian 打开</button><button type="button" disabled={busy} onClick={() => void run(() => reference(focused))}>{busy ? <Loader2 size={14} /> : <Quote size={14} />}引用到本轮</button><button type="button" className="dsh-linked-note-unlink" title="仅解除当前会话与笔记的关联" disabled={busy} onClick={() => void run(() => unlink(focused))}><Unlink size={14} />解除关联</button></div></section>}
     {message && <p role="status" className="dsh-linked-note-message">{message}</p>}{error && <p role="alert" className="dsh-linked-note-error">{error}</p>}
   </div>;
 }

@@ -1,3 +1,4 @@
+import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge-lifecycle/api';
 import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -81,7 +82,7 @@ function StickerBoardRoot(props: {
   if (!sessionId) return null;
   const title = sessionList.byId?.[sessionId]?.title ?? sessionId;
   return (
-    <>{props.knowledge && <OrdinaryStickerTools sessionId={sessionId} local={props.knowledge.local} bridge={props.knowledge.bridge} onMigrated={() => props.workspace.ensure(sessionId)} />}
+    <>{props.knowledge && <OrdinaryStickerTools sessionId={sessionId} local={props.knowledge.local} bridge={props.knowledge.bridge} onMigrated={() => props.workspace.ensure(sessionId)} {...(props.workspace.selectVault ? {onSelectLegacyVault:(vaultId:string)=>props.workspace.selectVault!(sessionId,vaultId)} : {})} />}
     <StickerOverlay
       {...(selectionActions ? { selectionActions } : {})}
       sessionId={sessionId}
@@ -181,6 +182,11 @@ export function apply(ctx: Context): void {
           signal?.throwIfAborted();
           if (action.type !== "deep-link" || action.setId !== undefined) return false;
           if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
+          const logicalSessionId = action.logicalSessionId ?? (mountedRemote.managed
+            ? (await knowledgeRequest<{logicalSessionId:string}>('resolve', {nativeSessionId:action.sessionId})).logicalSessionId
+            : undefined);
+          await assertMaintenanceSessionAvailable(logicalSessionId);
+          signal?.throwIfAborted();
           if (action.anchorId === '@session' && action.logicalSessionId) {
             const target = await knowledgeRequest<{ nativeSessionId: string }>('resolve', { logicalSessionId: action.logicalSessionId });
             signal?.throwIfAborted(); await ready.sessions.open(target.nativeSessionId); return true;

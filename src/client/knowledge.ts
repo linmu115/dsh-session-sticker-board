@@ -1,3 +1,4 @@
+import { pinKnowledge, selectedVault, type VaultKnowledgeBridge } from './bridge-channel.ts';
 import type { KnowledgeMigration } from '@linmu/dsh-session-contracts';
 import type { LocalStickerState, SessionNoteDocument, StickerRecord } from '../protocol.ts';
 export async function knowledgeRequest<T>(operation: string, input: Record<string, unknown> = {}): Promise<T> {
@@ -27,16 +28,20 @@ export function mergeLegacyStickers(local: LocalStickerState, remote: SessionNot
   if (conflicts.length && !choice) throw new MigrationConflict(conflicts);
   return [...records.values()].sort((a,b) => a.stickerId.localeCompare(b.stickerId));
 }
-export async function migrateLegacyStickers(sessionId: string, local: { knowledgeOperation(operation: string, input: Record<string, unknown>): Promise<unknown> }, bridge: { knowledge(operation: string, input: Record<string, unknown>): Promise<unknown> }, choice?: 'local' | 'vault', request = knowledgeRequest): Promise<number> {
-  const frozen = await local.knowledgeOperation('freeze', { sessionId }) as { migrationId: string; state: LocalStickerState };
-  const vault = await bridge.knowledge('session-freeze', { sessionId, migrationId: frozen.migrationId }) as { vaultId: string; document: SessionNoteDocument };
+export async function migrateLegacyStickers(sessionId: string, local: { knowledgeOperation(operation: string, input: Record<string, unknown>): Promise<unknown> }, bridge: VaultKnowledgeBridge, choice?: 'local' | 'vault', request = knowledgeRequest, vaultSelection?: string): Promise<number> {
+  const vaultId = selectedVault(bridge, vaultSelection);
+  const route = pinKnowledge(bridge, vaultId);
+  const frozen = await local.knowledgeOperation('freeze', { sessionId, ...(vaultId ? { vaultId } : {}) }) as { migrationId: string; vaultId?: string; state: LocalStickerState };
+  if (frozen.vaultId && frozen.vaultId !== vaultId) throw new Error('请继续使用上次迁移选择的 Vault：' + frozen.vaultId);
+  const vault = await route.knowledge('session-freeze', { sessionId, migrationId: frozen.migrationId }) as { vaultId: string; document: SessionNoteDocument };
+  if (vaultId && vault.vaultId !== vaultId) throw new Error('迁移 Vault 身份不匹配');
   const stickers = mergeLegacyStickers(frozen.state, vault.document, choice);
   const source = stable({ local: frozen.state, remote: vault.document, stickers });
   const sourceDigest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source)))].map(b => b.toString(16).padStart(2,'0')).join('');
   const input: KnowledgeMigration = { migrationId: frozen.migrationId, vaultId: vault.vaultId, nativeSessionId: sessionId, sourceDigest, sourceRevision: vault.document.revision, phase: 'stage', stickers: stickers.map(s => ({ legacyId: s.stickerId, title: (s.quote || s.markdown || '贴纸').slice(0,500), record: JSON.parse(JSON.stringify(s)) })), pendingBacklinkDeletes: JSON.parse(JSON.stringify(frozen.state.pendingBacklinkDeletes)) };
   await request('migrate', input);
   const receipt = await request<{ object: { objectId: string } }>('migrate', { ...input, phase: 'activate' });
-  await bridge.knowledge('session-activate', { sessionId, migrationId: frozen.migrationId, receiptId: receipt.object.objectId });
+  await route.knowledge('session-activate', { sessionId, migrationId: frozen.migrationId, receiptId: receipt.object.objectId });
   await local.knowledgeOperation('activate', { sessionId, migrationId: frozen.migrationId, receiptId: receipt.object.objectId });
   return stickers.length;
 }
