@@ -571,3 +571,14 @@
 .dsh-sticker-board-editor textarea { min-height:80px; margin:0; resize:none; }
 .dsh-sticker-board-editor-title { justify-content:flex-end; margin-bottom:4px; }
 .dsh-sticker-board-editor-actions .dsh-sticker-color-palette { left:auto; right:0; }
+
+/* Quote and dismissal share one row, with no empty title strip. */
+.dsh-sticker-board-editor-title { align-items:flex-start; gap:8px; margin-bottom:6px; }
+.dsh-sticker-board-editor-title .dsh-sticker-board-quote { flex:1; min-width:0; margin:0; }
+.dsh-sticker-board-editor-title button { flex:none; }
+header .dsh-knowledge-trigger { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:34px; min-height:34px; padding:0 10px; border:0; border-radius:9px; background:transparent; font-size:12px; white-space:nowrap; }
+.dsh-knowledge-trigger svg { flex:none; width:16px; height:16px; }
+.dsh-vault-choice { display:grid; gap:6px; margin:12px 0; font-size:12px; color:var(--dsw-alias-label-secondary,#666); }
+.dsh-vault-choice select { box-sizing:border-box; width:100%; min-width:0; height:36px; padding:0 10px; border:1px solid var(--dsw-alias-border-l2,#ddd); border-radius:9px; background:var(--dsw-alias-bg-layer-0,#fff); color:var(--dsw-alias-label-primary,#202124); font:inherit; }
+.dsh-vault-choice select:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+.dsh-sticker-board-dot,.dsh-sticker-board-dot.dsh-source-reference-dot { box-sizing:border-box; width:18px; height:18px; border:1px solid #202124; border-radius:50%; corner-shape:round; background:var(--dsw-alias-bg-layer-0,#fff); color:var(--dsw-alias-label-primary,#202124); font-size:10px; line-height:1; }

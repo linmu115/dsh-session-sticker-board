@@ -29,3 +29,22 @@ it('closes the palette with Escape and clears the nonpersistent color preview on
   await act(async () => root.render(null)); expect(events.at(-1)).toEqual({stickerId:'test'});
  } finally { window.removeEventListener('dsh-sticker-color-preview',listener); }
 });
+
+it('saves on Enter, preserves Shift+Enter and IME input, and cancels outside like the close button', async () => {
+ const save = vi.fn(), cancel = vi.fn();
+ await act(async () => root.render(<StickerEditor record={record} point={{x:10,y:20}} isNew={false} error={null} onSave={save} onCancel={cancel}/>));
+ const input = host.querySelector('textarea')!;
+ expect(input.placeholder).toBe('');
+ for (const options of [{shiftKey:true}, {isComposing:true}, {keyCode:229}]) {
+  await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true,cancelable:true,...options})));
+ }
+ expect(save).not.toHaveBeenCalled();
+ await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true,cancelable:true})));
+ expect(save).toHaveBeenCalledOnce();
+ await act(async () => input.dispatchEvent(new Event('pointerdown', {bubbles:true})));
+ expect(cancel).not.toHaveBeenCalled();
+ await act(async () => document.body.dispatchEvent(new Event('pointerdown', {bubbles:true})));
+ expect(cancel).toHaveBeenCalledOnce();
+ await click('取消编辑');
+ expect(cancel).toHaveBeenCalledTimes(2);
+});

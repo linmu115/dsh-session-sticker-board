@@ -1,6 +1,7 @@
 import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge/api';
 import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge/api";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { StickyNote } from "lucide-react";
 import { createRoot } from "react-dom/client";
 
 import type { BetterSidebarService, Context } from "../context-types.ts";
@@ -123,7 +124,7 @@ export function apply(ctx: Context): void {
           const slotsReady = slotContext as unknown as Context;
           const slots = slotsReady.slots;
           slotsReady.effect(() => registerLinkedNotes(slotsReady, bridge));
-          return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-ordinary-sticker-tools'))}>贴纸与笔记链接</button>));
+          return slots.inject('conversation.session.header.utilities', () => slots.register({ name: 'conversation.session.header.utilities', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-ordinary-sticker-tools'))}><StickyNote size={16} aria-hidden="true" /><span>贴纸与笔记链接</span></button>));
         }) : undefined;
         const stickerSidebar = createStickerSidebarController();
         let betterSidebar: BetterSidebarService | undefined;

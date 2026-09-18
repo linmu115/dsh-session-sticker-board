@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Check, X, Quote } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 import { StickerGeometryCache } from "./sticker-geometry.ts";
 export { rangeOfSticker } from "./sticker-geometry.ts";
@@ -406,7 +406,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       const rects = rectangles[index] ?? [];
       if (!rects.length) return { view, rects, point: null };
       const last = rects.at(-1)!;
-      const point = spreadDotPoint({ x: last.right + 7, y: last.top + last.height / 2 }, placed);
+      const point = spreadDotPoint({ x: Math.min(window.innerWidth - 22, last.right + 2), y: Math.max(12, last.top) }, placed);
       placed.push(point);
       return { view, rects, point };
     });
@@ -548,7 +548,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
             setEditor(null);
           }}
         >
-          <Quote size={14} strokeWidth={1.6} aria-hidden="true" />
+          <span aria-hidden="true">{view.displayNumber}</span>
         </button>
       ) : null)}
       {menu && (
@@ -628,14 +628,24 @@ export function StickerEditor(props: {
   const [markdown, setMarkdown] = useState(props.record.markdown);
   const [tags, setTags] = useState(props.record.tags.join(", "));
   const [color, setColor] = useState<StickerRecord["color"]>(props.record.color);
+  const root = useRef<HTMLDivElement>(null);
+  const saveDraft = () => props.onSave({ markdown, tags: tags.split(/[,，]/).map(tag => tag.trim()).filter(Boolean), color });
+  useEffect(() => {
+    const cancel = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) props.onCancel();
+    };
+    document.addEventListener('pointerdown', cancel, true);
+    return () => document.removeEventListener('pointerdown', cancel, true);
+  }, [props.onCancel]);
 
   const left = Math.max(8, Math.min(window.innerWidth - Math.min(312, window.innerWidth - 16) - 8, props.point.x + 14));
   const top = Math.max(8, Math.min(window.innerHeight - 330, props.point.y - 16));
   return (
-    <div className="dsh-sticker-board-editor" style={{ left, top, maxHeight: window.innerHeight - top - 8 }} role="dialog" aria-label={props.isNew ? "新建贴纸" : "编辑贴纸"}>
-      <div className="dsh-sticker-board-editor-title"><button type="button" className="dsh-sticker-sidebar-icon-button" aria-label="取消编辑" title="取消编辑" onClick={props.onCancel}><X size={16} /></button></div>
-      <div className="dsh-sticker-board-quote">{props.record.quote}</div>
-      <textarea value={markdown} onChange={(event) => setMarkdown(event.target.value)} aria-label="贴纸正文" placeholder="写下你的理解…" rows={3} autoFocus />
+    <div ref={root} className="dsh-sticker-board-editor" style={{ left, top, maxHeight: window.innerHeight - top - 8 }} role="dialog" aria-label={props.isNew ? "新建贴纸" : "编辑贴纸"} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); props.onCancel(); } }}>
+      <div className="dsh-sticker-board-editor-title"><div className="dsh-sticker-board-quote">{props.record.quote}</div><button type="button" className="dsh-sticker-sidebar-icon-button" aria-label="取消编辑" title="取消编辑" onClick={props.onCancel}><X size={16} /></button></div>
+      <textarea value={markdown} onChange={(event) => setMarkdown(event.target.value)} aria-label="贴纸正文" rows={3} autoFocus onKeyDown={event => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); event.stopPropagation(); saveDraft(); }
+      }} />
       <details className="dsh-sticker-extra"><summary>标签</summary><input aria-label="标签" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，以逗号分隔" /></details>
       {props.error && <div className="dsh-sticker-board-error">{props.error}</div>}
       <div className="dsh-sticker-board-editor-actions">
@@ -643,11 +653,7 @@ export function StickerEditor(props: {
         <button
           type="button"
           className="dsh-sticker-board-primary" aria-label="保存贴纸" title="保存贴纸"
-          onClick={() => props.onSave({
-            markdown,
-            tags: tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean),
-            color,
-          })}
+          onClick={saveDraft}
         >
           <Check size={17} />
         </button>
