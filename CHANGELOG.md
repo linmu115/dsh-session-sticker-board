@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4-rc2.4 — 2026-09-18
+
+- Accept Bridge 0.4.1-rc2.1 or 0.4.1-rc2.2 so the folder-binding release can be installed with strict peer validation. No runtime code or other peer ranges change.
+- Typecheck, build and the complete 123-test suite passed. Existing restart-profile activation requirement remains; live package replacement is not validated.
+
 ## 0.7.4-rc2.3 — 2026-09-18
 
 - Consume the single dsh-obsidian-bridge package through its public API, transport and data protocol exports.

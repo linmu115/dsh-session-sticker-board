@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-rc2.3",
+  "version": "0.7.4-rc2.4",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -107,7 +107,7 @@
     "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1",
     "react": "*",
     "react-dom": "*",
-    "dsh-obsidian-bridge": "0.4.1-rc2.1"
+    "dsh-obsidian-bridge": "0.4.1-rc2.1 || 0.4.1-rc2.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
