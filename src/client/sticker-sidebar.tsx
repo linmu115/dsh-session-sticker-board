@@ -1,3 +1,4 @@
+import { StickerColorPicker } from './sticker-color-picker.tsx';
 import {
   Copy,
   ExternalLink,
@@ -5,7 +6,7 @@ import {
   Quote,
   RefreshCw,
   RotateCcw,
-  Save,
+  Check,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -135,7 +136,7 @@ function StickerDetailPanel(props: {
   );
 }
 
-function StickerDetailForm(props: {
+export function StickerDetailForm(props: {
   record: StickerRecord;
   workspace: StickerWorkspace;
   openNote(action: OpenNoteAction): Promise<void>;
@@ -151,7 +152,7 @@ function StickerDetailForm(props: {
   const [backlinks, setBacklinks] = useState<StickerBacklink[]>([]);
   const [backlinkPhase, setBacklinkPhase] = useState<"loading" | "ready" | "error">("loading");
   const [backlinkError, setBacklinkError] = useState("");
-  const colors: StickerRecord["color"][] = ["yellow", "green", "pink", "blue"];
+
   const syncStatus = props.workspace.syncStatus(props.record.sessionId);
   const syncIssue = props.workspace.syncIssue(props.record.sessionId);
   const dirty = markdown !== props.record.markdown
@@ -225,37 +226,24 @@ function StickerDetailForm(props: {
     <section className="dsh-sticker-sidebar-detail" aria-label="贴纸内容">
       <header className="dsh-sticker-sidebar-heading">
         <h3>贴纸内容</h3>
-        <div className="dsh-sticker-sidebar-actions">
+
+      </header>
+      <div className="dsh-sticker-sidebar-quote"><Quote size={14} aria-hidden="true" /> {props.record.quote}</div>
+      <label className="dsh-sticker-sidebar-field">
+        <span className="dsh-sticker-sr-only">贴纸正文</span>
+        <textarea value={markdown} onChange={(event) => { setMarkdown(event.target.value); setPhase("idle"); }} placeholder="写下与这段对话相关的长期笔记" />
+      </label>
+      <details className="dsh-sticker-extra"><summary>标签</summary><label className="dsh-sticker-sidebar-field">
+        <span className="dsh-sticker-sr-only">标签</span>
+        <input value={tags} onChange={(event) => { setTags(event.target.value); setPhase("idle"); }} placeholder="标签，以逗号分隔" />
+      </label></details>
+      <footer className="dsh-sticker-sidebar-footer"><StickerColorPicker stickerId={props.record.stickerId} value={color} onChange={value => { setColor(value); setPhase("idle"); }} disabled={phase === "saving"} />        <div className="dsh-sticker-sidebar-actions">
           <button type="button" className="dsh-sticker-sidebar-icon-button" title="重置未保存修改" aria-label="重置未保存修改" disabled={!dirty || phase === "saving"} onClick={reset}><RotateCcw size={15} /></button>
           <button type="button" className="dsh-sticker-sidebar-icon-button" title="打开关联笔记" aria-label="打开关联笔记" disabled={!props.record.notePath} onClick={() => void commands.openLinkedNote()}><ExternalLink size={15} /></button>
           <button type="button" className="dsh-sticker-sidebar-icon-button" title="复制笔记链接" aria-label="复制笔记链接" onClick={() => void commands.copyLogicalLink()}><Link size={15} /></button>
           <button type="button" className="dsh-sticker-sidebar-icon-button" title="复制引用 Markdown" aria-label="复制引用 Markdown" onClick={() => void commands.copyReferenceMarkdown()}><Copy size={15} /></button>
           <button type="button" className="dsh-sticker-sidebar-icon-button dsh-sticker-sidebar-icon-button-danger" title="删除引用" aria-label="删除引用" onClick={() => void commands.deleteSticker().then((deleted) => { if (deleted) props.close(); })}><Trash2 size={15} /></button>
         </div>
-      </header>
-      <div className="dsh-sticker-sidebar-quote"><Quote size={14} aria-hidden="true" /> {props.record.quote}</div>
-      <label className="dsh-sticker-sidebar-field">
-        <span>Markdown 笔记</span>
-        <textarea value={markdown} onChange={(event) => { setMarkdown(event.target.value); setPhase("idle"); }} placeholder="写下与这段对话相关的长期笔记" />
-      </label>
-      <label className="dsh-sticker-sidebar-field">
-        <span>标签</span>
-        <input value={tags} onChange={(event) => { setTags(event.target.value); setPhase("idle"); }} placeholder="标签，以逗号分隔" />
-      </label>
-      <div className="dsh-sticker-board-color-row" aria-label="高亮颜色">
-        {colors.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            className={`dsh-sticker-board-swatch dsh-sticker-board-swatch-${candidate}`}
-            data-selected={candidate === color ? "true" : "false"}
-            title={`${candidate} 高亮`}
-            aria-label={`${candidate} 高亮`}
-            onClick={() => { setColor(candidate); setPhase("idle"); }}
-          />
-        ))}
-      </div>
-      <footer className="dsh-sticker-sidebar-footer">
         <span className={`dsh-sticker-sidebar-status${phase === "error" ? " dsh-sticker-sidebar-status-error" : ""}`}>
           {phase === "saving"
             ? "正在保存到 DSH..."
@@ -273,7 +261,7 @@ function StickerDetailForm(props: {
                     ? "已保存到 DSH；正在同步 Obsidian 双链"
                     : "已保存到 DSH；Obsidian 双链待连接"}
         </span>
-        <button type="button" className="dsh-sticker-sidebar-save" disabled={!dirty || phase === "saving"} onClick={() => void save()}><Save size={14} />保存</button>
+        <button type="button" className="dsh-sticker-sidebar-save" aria-label="保存贴纸" title="保存贴纸" disabled={!dirty || phase === "saving"} onClick={() => void save()}><Check size={17} /></button>
       </footer>
       {(syncStatus === "conflict" || syncStatus === "error" || syncStatus === "local-only") && (
         <div className="dsh-sticker-sidebar-sync-recovery" role="status">

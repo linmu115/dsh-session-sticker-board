@@ -1,3 +1,4 @@
+import { StickerColorPicker } from './sticker-color-picker.tsx';
 import {
   Component,
   useCallback,
@@ -7,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Quote } from "lucide-react";
+import { Check, X, Quote } from "lucide-react";
 
 import { StickerGeometryCache } from "./sticker-geometry.ts";
 export { rangeOfSticker } from "./sticker-geometry.ts";
@@ -324,13 +325,23 @@ export function StickerOverlay(props: StickerOverlayProps): ReactNode {
 }
 
 function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
+  const [previewColors, setPreviewColors] = useState<Record<string, StickerRecord['color']>>({});
+  useEffect(() => {
+    const preview = (event: Event) => { const { stickerId, color } = (event as CustomEvent<{stickerId: string; color?: StickerRecord['color']}>).detail;
+      setPreviewColors(current => { const next = { ...current }; if (color) next[stickerId] = color; else delete next[stickerId]; return next; });
+    };
+    window.addEventListener('dsh-sticker-color-preview', preview);
+    return () => window.removeEventListener('dsh-sticker-color-preview', preview);
+  }, []);
   const [selection, setSelection] = useState<MessageSelectionSnapshot | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [geometryVersion, setGeometryVersion] = useState(0);
   const geometryCache = useMemo(() => new StickerGeometryCache(document), [props.sessionId]);
-  const needsGeometry = props.stickers.length > 0 || selection !== null;
+  const displayStickers = useMemo<readonly StickerView[]>(() => editor?.isNew && !props.stickers.some(view => view.record.stickerId === editor.record.stickerId)
+    ? [...props.stickers, { record: editor.record, status: 'active', displayNumber: props.stickers.length + 1 }] : props.stickers, [props.stickers, editor]);
+  const needsGeometry = displayStickers.length > 0 || selection !== null;
 
   useEffect(() => {
     if (props.selectionActions) { setSelection(null); return; }
@@ -387,19 +398,19 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
 
   const geometry = useMemo(() => {
     const placed: OverlayPoint[] = [];
-    const rectangles = geometryCache.measure(props.stickers.map((view) => ({
+    const rectangles = geometryCache.measure(displayStickers.map((view) => ({
       record: view.record as StickerRecord,
       renderedAnchorKey: props.resolveAnchorKey(view.record.anchorId),
     })), { width: window.innerWidth, height: window.innerHeight });
-    return props.stickers.map((view, index) => {
+    return displayStickers.map((view, index) => {
       const rects = rectangles[index] ?? [];
       if (!rects.length) return { view, rects, point: null };
       const last = rects.at(-1)!;
-      const point = spreadDotPoint({ x: last.right + 7, y: rects[0]!.top + rects[0]!.height / 2 }, placed);
+      const point = spreadDotPoint({ x: last.right + 7, y: last.top + last.height / 2 }, placed);
       placed.push(point);
       return { view, rects, point };
     });
-  }, [props.stickers, props.resolveAnchorKey, geometryVersion, geometryCache]);
+  }, [displayStickers, props.resolveAnchorKey, geometryVersion, geometryCache]);
 
   const sharedSelectionToolbar = useMemo(
     () => selection ? findSharedSelectionToolbar() : null,
@@ -512,7 +523,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       {geometry.flatMap(({ view, rects }) => rects.map((rect, index) => (
         <span
           key={`${view.record.stickerId}-highlight-${index}`}
-          className={`dsh-sticker-board-highlight dsh-sticker-board-highlight-${view.record.color}`}
+          className={`dsh-sticker-board-highlight dsh-sticker-board-highlight-${previewColors[view.record.stickerId] ?? view.record.color}`}
           style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
         />
       )))}
@@ -537,7 +548,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
             setEditor(null);
           }}
         >
-          <Quote size={11} strokeWidth={2.4} aria-hidden="true" />
+          <Quote size={14} strokeWidth={1.6} aria-hidden="true" />
         </button>
       ) : null)}
       {menu && (
@@ -606,7 +617,7 @@ function StickerMenu(props: {
   );
 }
 
-function StickerEditor(props: {
+export function StickerEditor(props: {
   record: StickerRecord;
   point: OverlayPoint;
   isNew: boolean;
@@ -617,41 +628,28 @@ function StickerEditor(props: {
   const [markdown, setMarkdown] = useState(props.record.markdown);
   const [tags, setTags] = useState(props.record.tags.join(", "));
   const [color, setColor] = useState<StickerRecord["color"]>(props.record.color);
-  const colors: StickerRecord["color"][] = ["yellow", "green", "pink", "blue"];
-  const left = Math.max(8, Math.min(window.innerWidth - 356, props.point.x + 14));
+
+  const left = Math.max(8, Math.min(window.innerWidth - Math.min(440, window.innerWidth - 16) - 8, props.point.x + 14));
   const top = Math.max(8, Math.min(window.innerHeight - 330, props.point.y - 16));
   return (
-    <div className="dsh-sticker-board-editor" style={{ left, top }} role="dialog" aria-label={props.isNew ? "新建贴纸" : "编辑贴纸"}>
-      <div className="dsh-sticker-board-editor-title">{props.isNew ? "新建贴纸" : "编辑贴纸"}</div>
+    <div className="dsh-sticker-board-editor" style={{ left, top, maxHeight: window.innerHeight - top - 8 }} role="dialog" aria-label={props.isNew ? "新建贴纸" : "编辑贴纸"}>
+      <div className="dsh-sticker-board-editor-title">{props.isNew ? "新建贴纸" : "编辑贴纸"}<button type="button" className="dsh-sticker-sidebar-icon-button" aria-label="取消编辑" title="取消编辑" onClick={props.onCancel}><X size={16} /></button></div>
       <div className="dsh-sticker-board-quote">{props.record.quote}</div>
-      <textarea value={markdown} onChange={(event) => setMarkdown(event.target.value)} placeholder="Markdown 笔记" rows={5} autoFocus />
-      <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，以逗号分隔" />
-      <div className="dsh-sticker-board-color-row" aria-label="高亮颜色">
-        {colors.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            className={`dsh-sticker-board-swatch dsh-sticker-board-swatch-${candidate}`}
-            data-selected={candidate === color ? "true" : "false"}
-            title={`${candidate} 高亮`}
-            aria-label={`${candidate} 高亮`}
-            onClick={() => setColor(candidate)}
-          />
-        ))}
-      </div>
+      <textarea value={markdown} onChange={(event) => setMarkdown(event.target.value)} aria-label="贴纸正文" placeholder="写下你的理解…" rows={5} autoFocus />
+      <details className="dsh-sticker-extra"><summary>标签</summary><input aria-label="标签" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="标签，以逗号分隔" /></details>
       {props.error && <div className="dsh-sticker-board-error">{props.error}</div>}
       <div className="dsh-sticker-board-editor-actions">
-        <button type="button" onClick={props.onCancel}>取消</button>
+        <StickerColorPicker stickerId={props.record.stickerId} value={color} onChange={setColor} />
         <button
           type="button"
-          className="dsh-sticker-board-primary"
+          className="dsh-sticker-board-primary" aria-label="保存贴纸" title="保存贴纸"
           onClick={() => props.onSave({
             markdown,
             tags: tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean),
             color,
           })}
         >
-          保存
+          <Check size={17} />
         </button>
       </div>
     </div>
