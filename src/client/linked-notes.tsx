@@ -5,9 +5,10 @@ import type { AnnotationCoreClient } from 'dsh-annotation-core/client-api';
 import type { Context } from '../context-types.ts';
 import { knowledgeRequest } from './knowledge.ts';
 import { unlinkNote } from './unlink-note.ts';
+import type { StickerBridgeChannel } from './bridge-channel.ts';
 import './linked-notes.css';
 
-type Bridge = { knowledge(operation: string, input: Record<string, unknown>): Promise<unknown> };
+type Bridge = Pick<StickerBridgeChannel, 'knowledge' | 'handoffReference'>;
 type NoteBody = { logicalSessionId: string; note: { noteId: string; notePath: string; blockId?: string } };
 
 /** The session dock owns this rail: it never follows a floating canvas or another session. */
@@ -59,14 +60,18 @@ export function LinkedNotes({ sessionId, ctx, bridge }: { sessionId: string; ctx
     const requestId = operation.current ??= crypto.randomUUID();
     const status = await knowledgeRequest<{profileId:string}>('status');
     const input = { objectId: object.objectId, operationId: requestId, nativeSessionId: target.nativeSessionId, logicalSessionId: target.logicalSessionId, profileId: status.profileId };
-    const prepared = await bridge.knowledge('link-reference-prepare', input) as { referenceId: string; source: Parameters<AnnotationCoreClient['addReference']>[1] };
-    if (ctx.sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请在目标会话重新引用');
     try {
-      const result = await core.addReference(sessionId, prepared.source, { operationId: requestId, referenceId: prepared.referenceId });
-      await bridge.knowledge('link-reference-commit', { ...input, setId: result.setId });
+      await bridge.handoffReference({
+        sessionId,
+        operationId: requestId,
+        prepare: async () => await bridge.knowledge('link-reference-prepare', input) as { referenceId: string; source: Parameters<AnnotationCoreClient['addReference']>[1] },
+        commit: async (result) => { await bridge.knowledge('link-reference-commit', { ...input, setId: result.setId }); },
+        assertCurrent: () => {
+          if (ctx.sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请在目标会话重新引用');
+        },
+      });
     } catch (e) {
-      // The Core owns fencing and compensation, including an add whose response was lost.
-      await core.discardPendingOperation(sessionId, requestId);
+      // Bridge coordinates the handoff; Core owns fencing and compensation.
       operation.current = undefined;
       throw e;
     }

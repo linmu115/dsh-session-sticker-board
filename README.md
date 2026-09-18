@@ -1,5 +1,13 @@
 # DSH Session Sticker Board
 
+## 0.7.4-rc2.1：统一 Bridge 通道
+
+普通贴纸与笔记关联的界面、归属校验和数据操作继续由 Sticker Board 维护。Obsidian 请求借用 **Bridge Lifecycle 0.4.0-rc2.1** 的共享通道；贴纸只注册自己的定位处理器，不再创建连接、轮询或确认公共队列。关联笔记的引用通过 Bridge 交接给 Core，由 Core 保持引用状态、提交与失败补偿。通用 Obsidian 健康页由 Bridge 提供。
+
+Bridge 为可选组件；没有 Bridge 或 Maintenance 时，未纳管普通贴纸仍可在 DSH 本地创建、修改和删除。远端能力会显示未连接，待删除的回链保留在本地队列。已纳管会话仍遵守 Maintenance 与迁移冻结协议，不会因服务缺席改写旧副本。接入共享通道需要上述新 Bridge 版本，不兼容旧版 Bridge 接口。
+
+本轮仅本地构建验证，未发布或部署；详细边界和验证见 [施工报告](docs/changes/2026-09-18-shared-bridge-channel.md)。下文旧组合版本描述保留为前序功能背景，不作为本轮依赖安装清单。
+
 ## 当前功能归属
 
 自 0.7.3-rc2.19 起，本插件保留普通贴纸、普通贴纸旧数据迁移和 Obsidian 双向链接。会话贴纸面板、跨会话蓝色来源标记由 ThoughtDAG 0.4.14-rc2.14 提供；原有 stickers 对象身份与数据不迁库。旧贴纸冲突处理入口为「贴纸与笔记链接 → 迁移旧贴纸」。

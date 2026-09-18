@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4-rc2.1 — 2026-09-18
+
+- Borrow the unified Bridge 0.4.0-rc2.1 transport and register ordinary sticker navigation with its shared action dispatcher.
+- Pass validated linked-note prepare/commit callbacks through Bridge reference handoff; Core retains state and compensation ownership.
+- Remove the sticker-owned action poller and general Bridge health tab. Preserve local ordinary stickers when Bridge is absent, managed ownership fencing, migration, note associations and native selection actions.
+- See docs/changes/2026-09-18-shared-bridge-channel.md for local verification and rollout boundaries.
+
 ## 0.7.3-rc2.3 — 2026-09-13
 
 - Accept Core 0.3.12-rc2.1 and Lifecycle 0.3.3-rc2.3 alongside the previous RC2 peers.

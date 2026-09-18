@@ -21,7 +21,7 @@ export const Config = s.object({
 export const inject = [] as const;
 
 export function apply(ctx: Context, config: Config): void {
-  const lifecycle = (ctx as unknown as { obsidianBridgeLifecycle?: ObsidianBridgeLifecycle }).obsidianBridgeLifecycle;
+  const lifecycle = ctx.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
   const configuredOrigin = config.bridgeOrigin?.trim();
   const bridgeOrigin = normalizeBridgeOrigin(configuredOrigin || lifecycle?.bridgeOrigin || "http://127.0.0.1:18473");
   if (lifecycle && bridgeOrigin !== lifecycle.bridgeOrigin) {

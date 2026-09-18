@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createStickerWorkspace } from "../src/client/sticker-workspace.ts";
+import { createStickerBridgeChannel } from '../src/client/bridge-channel.ts';
 import type { SessionNoteDocument, StickerRecord } from "../src/protocol.ts";
 
 const sticker: StickerRecord = {
@@ -56,6 +57,30 @@ function offlineBridge() {
 }
 
 describe("sticker workspace", () => {
+  it('keeps independent local CRUD available without any Bridge or Maintenance service', async () => {
+    const persistence = local();
+    const workspace = createStickerWorkspace(persistence, createStickerBridgeChannel(() => undefined));
+    await workspace.save(sticker);
+    await workspace.save({ ...sticker, markdown: '无 Bridge 的编辑' });
+    expect(workspace.list(sticker.sessionId)[0]?.record.markdown).toBe('无 Bridge 的编辑');
+    await workspace.remove(sticker.sessionId, sticker.stickerId);
+    expect(workspace.list(sticker.sessionId)).toHaveLength(0);
+    await workspace.syncAll();
+    expect(workspace.syncStatus(sticker.sessionId)).toBe('local-only');
+    expect((await persistence.readLocalState()).pendingBacklinkDeletes).toHaveLength(1);
+    workspace.dispose();
+  });
+
+  it('does not replace unavailable managed storage with legacy writes when Bridge is absent', async () => {
+    const persistence = { ...local(), managed: true };
+    persistence.readLocalState.mockRejectedValue(new Error('Maintenance unavailable; migrated ownership retained'));
+    const workspace = createStickerWorkspace(persistence, createStickerBridgeChannel(() => undefined));
+    await expect(workspace.save(sticker)).rejects.toThrow('migrated ownership retained');
+    expect(persistence.saveLocalSession).not.toHaveBeenCalled();
+    expect(workspace.list(sticker.sessionId)).toHaveLength(0);
+    workspace.dispose();
+  });
+
   it("keeps a write conflict visible and requires a content choice before retrying", async () => {
     const persistence = local(document([sticker], "sha256:local"));
     const bridge = {

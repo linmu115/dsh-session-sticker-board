@@ -1,6 +1,5 @@
 export {
   BridgeHttpError,
-  createBridgeHttpClient as createBridgeClient,
   normalizeBridgeOrigin,
 } from "../bridge/http-client.ts";
 export type {

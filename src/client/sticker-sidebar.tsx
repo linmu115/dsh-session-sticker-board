@@ -9,7 +9,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api";
 
 import type { BetterSidebarService, Context, SidebarTab, TabComponentProps } from "../context-types.ts";
 import {
@@ -20,7 +19,6 @@ import {
 } from "../protocol.ts";
 import { createStickerCommands } from "./overlay.tsx";
 import type { StickerWorkspace } from "./sticker-workspace.ts";
-import { BridgeHealthPanel } from "./bridge-health-panel.tsx";
 
 export const STICKER_DETAIL_TAB_TYPE = "dsh-session-sticker-board:detail";
 export const STICKER_DETAIL_TAB_ID = "dsh-session-sticker-board:detail";
@@ -331,7 +329,6 @@ export function registerStickerSidebar(
   workspace: StickerWorkspace,
   openNote: (action: OpenNoteAction) => Promise<void>,
   listBacklinks: (record: StickerRecord) => Promise<StickerBacklink[]>,
-  lifecycle?: ObsidianBridgeLifecycle,
 ): () => void {
   const unregisterDetail = ctx.betterSidebar.registerTab({
     id: STICKER_DETAIL_TAB_TYPE,
@@ -351,13 +348,5 @@ export function registerStickerSidebar(
       />
     ),
   });
-  const unregisterHealth = lifecycle?.getHealth ? ctx.betterSidebar.registerTab({
-    id: "dsh-session-sticker-board:health",
-    title: "Obsidian",
-    icon: (size) => <Link size={size} />,
-    order: 66,
-    single: true,
-    component: () => <BridgeHealthPanel lifecycle={lifecycle} />,
-  }) : undefined;
-  return () => { unregisterHealth?.(); unregisterDetail(); };
+  return unregisterDetail;
 }

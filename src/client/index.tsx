@@ -2,10 +2,9 @@ import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api"
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { bridgeSurfaceIdFromUrl, createBridgeHttpClient } from "../bridge/http-client.ts";
 import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { StickerRecord } from "../protocol.ts";
-import { startBridgePolling } from "./bridge-polling.ts";
+import { createStickerBridgeChannel } from './bridge-channel.ts';
 import { applyDeepLink, resolveMaintenanceProjection } from "./deep-link.ts";
 import { matchesRuntimeScope } from "./runtime-scope.ts";
 import {
@@ -105,20 +104,11 @@ export function apply(ctx: Context): void {
     ctx.inject(inject, async (injectedContext) => {
       try {
         const ready = injectedContext as unknown as Context & { obsidianBridgeLifecycle?: ObsidianBridgeLifecycle };
-        const lifecycle = ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
         const mountedRemote = await mountStickerRemote(ready);
         const managedIdentity = mountedRemote.managed ? await knowledgeRequest<{ instanceId: string }>('status') : undefined;
-        const runtimeIdentity = lifecycle?.runtimeIdentity ?? (managedIdentity ? { dshInstanceId: managedIdentity.instanceId } : undefined);
-        const surfaceId = typeof location === "undefined"
-          ? undefined
-          : bridgeSurfaceIdFromUrl(location.href);
-        const bridge = createBridgeHttpClient({
-          origin: mountedRemote.origin,
-          ...(runtimeIdentity?.dshInstanceId === undefined ? {} : {
-            dshInstanceId: runtimeIdentity.dshInstanceId,
-          }),
-          ...(surfaceId === undefined ? {} : { surfaceId }),
-        });
+        const resolveBridge = () => ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
+        const currentIdentity = () => resolveBridge()?.runtimeIdentity ?? (managedIdentity ? { dshInstanceId: managedIdentity.instanceId } : undefined);
+        const bridge = createStickerBridgeChannel(resolveBridge);
         const stickers = createStickerWorkspace(mountedRemote.managed ? {
           ...mountedRemote,
           // Keep the engine's structured error code across the browser boundary.
@@ -132,11 +122,6 @@ export function apply(ctx: Context): void {
           slotsReady.effect(() => registerLinkedNotes(slotsReady, bridge));
           return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-ordinary-sticker-tools'))}>贴纸与笔记链接</button>));
         }) : undefined;
-        const unregisterHealth = lifecycle?.registerHealthSource?.("stickers", {
-          getHealth: () => stickers.health(),
-          subscribe: (listener) => stickers.subscribe(listener),
-          retry: () => { void stickers.syncAll(); },
-        });
         const stickerSidebar = createStickerSidebarController();
         let betterSidebar: BetterSidebarService | undefined;
         const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
@@ -150,7 +135,6 @@ export function apply(ctx: Context): void {
               stickers,
               (action) => bridge.openNote(action),
               (record) => bridge.listBacklinks(record),
-              lifecycle,
             );
             return () => {
               unregister();
@@ -173,6 +157,7 @@ export function apply(ctx: Context): void {
             openNote={(action) => bridge.openNote(action)}
             openSticker={(record) => stickerSidebar.openSticker(record)}
             resolveLogicalLocation={async ({ sessionId, anchorId }) => {
+              const runtimeIdentity = currentIdentity();
               const resolved = await resolveMaintenanceProjection({
                 referenceType: "sticker",
                 legacySessionId: sessionId,
@@ -192,6 +177,7 @@ export function apply(ctx: Context): void {
         );
 
         const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction, signal?: AbortSignal): Promise<boolean> => {
+          const runtimeIdentity = currentIdentity();
           signal?.throwIfAborted();
           if (action.type !== "deep-link" || action.setId !== undefined) return false;
           if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
@@ -235,31 +221,36 @@ export function apply(ctx: Context): void {
           }
           return true;
         };
-        const unregisterBridgeAttachment = lifecycle?.mountWhenReady(
-          "session-sticker-board:client-transport",
-          () => {
-            void stickers.syncAll();
-            const polling = startBridgePolling(bridge, applyAction, {
+        const bridgeFiber = ready.inject(['obsidianBridgeLifecycle'], bridgeContext => {
+          const shared = bridgeContext.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle;
+          bridgeContext.effect(() => {
+            const unregisterHealth = shared.registerHealthSource?.('stickers', {
+              getHealth: () => stickers.health(),
+              subscribe: listener => stickers.subscribe(listener),
+              retry: () => { void stickers.syncAll(); },
+            });
+            const unregisterActions = shared.registerActionHandler?.('session-sticker-board', {
               accepts: (action) => action.type === "deep-link"
-                && matchesRuntimeScope(action, runtimeIdentity)
+                && matchesRuntimeScope(action, currentIdentity())
                 && action.setId === undefined
                 && (action.stickerId !== undefined || action.quoteHash !== undefined || action.anchorId === '@session'),
-              onError: (error) => console.warn("[dsh-session-sticker-board] Obsidian bridge unavailable", error),
-              onActionError: (error, action) => console.warn(
-                "[dsh-session-sticker-board] Obsidian bridge action failed",
-                { actionId: action.actionId, type: action.type, error },
-              ),
+              handle: applyAction,
             });
-            return () => polling.stop();
-          },
-        );
+            const unregisterSync = shared.mountWhenReady('session-sticker-board:sync', () => {
+              void stickers.syncAll();
+            });
+            return () => {
+              unregisterSync();
+              unregisterActions?.();
+              unregisterHealth?.();
+            };
+          }, 'stickers: shared Bridge channel');
+        });
         ready.effect(() => () => {
-          unregisterBridgeAttachment?.();
-          unregisterHealth?.();
+          void bridgeFiber.dispose();
           stickers.dispose();
           void sidebarFiber.dispose();
           void knowledgeSlots?.dispose();
-          bridge.dispose();
           void mountedRemote.dispose();
           setTimeout(() => root.unmount());
           overlayHost.remove();
