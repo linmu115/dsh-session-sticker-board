@@ -1,5 +1,5 @@
 import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge-lifecycle/api";
-import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { bridgeSurfaceIdFromUrl, createBridgeHttpClient } from "../bridge/http-client.ts";
@@ -10,7 +10,6 @@ import { applyDeepLink, resolveMaintenanceProjection } from "./deep-link.ts";
 import { matchesRuntimeScope } from "./runtime-scope.ts";
 import {
   resolveDurableAnchorId,
-  resolveSessionStickerAnchorId,
   resolveRenderedAnchorKey,
   StickerOverlay,
 } from "./overlay.tsx";
@@ -21,21 +20,31 @@ import {
 } from "./sticker-sidebar.tsx";
 import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
 import "./styles.css";
-import { KnowledgePanel } from './knowledge-panel.tsx';
+import { OrdinaryStickerTools } from './knowledge-panel.tsx';
 import { knowledgeRequest, migrateLegacyStickers } from './knowledge.ts';
 import { registerLinkedNotes } from './linked-notes.tsx';
-import { SourceMarkerOverlay } from './source-marker-overlay.tsx';
 
 export const inject = ["sessions", "remote", "uiConversation"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;
-  knowledge?: Pick<Parameters<typeof KnowledgePanel>[0], 'local' | 'bridge'>;
+  knowledge?: Pick<Parameters<typeof OrdinaryStickerTools>[0], 'local' | 'bridge'>;
   workspace: StickerWorkspace;
   openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
   openSticker: (record: StickerRecord) => boolean | Promise<boolean>;
   resolveLogicalLocation: NonNullable<Parameters<typeof StickerOverlay>[0]["resolveLogicalLocation"]>;
 }): ReactNode {
+  const [selectionActions, setSelectionActions] = useState<Parameters<typeof StickerOverlay>[0]['selectionActions']>();
+  useEffect(() => {
+    const fiber = props.ctx.inject(['annotationCore'], ready => {
+      const core = ready.get('annotationCore') as NonNullable<Parameters<typeof StickerOverlay>[0]['selectionActions']> | undefined;
+      ready.effect(() => {
+        if (core?.registerSelectionAction) setSelectionActions(core);
+        return () => setSelectionActions(undefined);
+      }, 'stickers: native selection action availability');
+    });
+    return () => { void fiber.dispose(); };
+  }, [props.ctx]);
   const sessionList = useSyncExternalStore(
     useCallback((listener: () => void) => props.ctx.sessions.list.subscribe(listener), [props.ctx]),
     () => props.ctx.sessions.list.getSnapshot(),
@@ -73,8 +82,9 @@ function StickerBoardRoot(props: {
   if (!sessionId) return null;
   const title = sessionList.byId?.[sessionId]?.title ?? sessionId;
   return (
-    <>{props.knowledge && <KnowledgePanel ctx={props.ctx} sessionId={sessionId} local={props.knowledge.local} bridge={props.knowledge.bridge} onMigrated={() => props.workspace.ensure(sessionId)} />}
+    <>{props.knowledge && <OrdinaryStickerTools sessionId={sessionId} local={props.knowledge.local} bridge={props.knowledge.bridge} onMigrated={() => props.workspace.ensure(sessionId)} />}
     <StickerOverlay
+      {...(selectionActions ? { selectionActions } : {})}
       sessionId={sessionId}
       sessionTitle={title}
       stickers={props.workspace.list(sessionId)}
@@ -84,14 +94,8 @@ function StickerBoardRoot(props: {
       onOpenSticker={props.openSticker}
       resolveAnchorId={resolveAnchorId}
       resolveAnchorKey={resolveAnchorKey}
-      resolveSessionStickerAnchorId={key => {
-        if (!chatSnapshot) throw new Error('来源会话尚未加载完成');
-        return resolveSessionStickerAnchorId(chatSnapshot, key);
-      }}
       resolveLogicalLocation={props.resolveLogicalLocation}
-      onSessionSticker={capture => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open', { detail: capture }))}
     />
-    {props.knowledge && <SourceMarkerOverlay key={sessionId} ctx={props.ctx} sessionId={sessionId} snapshot={chatSnapshot} ordinaryStickers={props.workspace.list(sessionId)} />}
     </>
   );
 }
@@ -126,7 +130,7 @@ export function apply(ctx: Context): void {
           const slotsReady = slotContext as unknown as Context;
           const slots = slotsReady.slots;
           slotsReady.effect(() => registerLinkedNotes(slotsReady, bridge));
-          return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-session-sticker-open'))}>会话贴纸</button>));
+          return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-ordinary-sticker-tools'))}>贴纸与笔记链接</button>));
         }) : undefined;
         const unregisterHealth = lifecycle?.registerHealthSource?.("stickers", {
           getHealth: () => stickers.health(),

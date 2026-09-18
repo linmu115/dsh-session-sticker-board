@@ -79,7 +79,7 @@ function rangeRects(range: Range): DOMRect[] {
 }
 
 const ANCHOR = "[data-chat-anchor-key]";
-const OWNED = ".dsh-sticker-board-highlight, .dsh-sticker-board-dot, .dsh-sticker-board-selection-action, .dsh-sticker-board-selection-action-shared, .dsh-sticker-board-editor, .dsh-sticker-board-menu";
+const OWNED = ".dsh-thoughtdag-source-highlight, .dsh-thoughtdag-source-dot, .dsh-thoughtdag-source-menu, .dsh-sticker-board-highlight, .dsh-sticker-board-dot, .dsh-sticker-board-selection-action, .dsh-sticker-board-selection-action-shared, .dsh-sticker-board-editor, .dsh-sticker-board-menu";
 interface AnchorGeometry {
   root: HTMLElement | null;
   characters?: SearchCharacter[];

@@ -12,7 +12,7 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 export class MigrationConflict extends Error {
-  constructor(readonly ids: string[]) { super('同一张旧贴纸在 DSH 和 Vault 中有不同编辑。请打开「会话贴纸 → 迁移旧贴纸」选择冲突版本，再重试创建；输入内容已保留。'); }
+  constructor(readonly ids: string[]) { super('同一张旧贴纸在 DSH 和 Vault 中有不同编辑。请打开「贴纸与笔记链接 → 迁移旧贴纸」选择冲突版本，再重试创建；输入内容已保留。'); }
 }
 export function mergeLegacyStickers(local: LocalStickerState, remote: SessionNoteDocument, choice?: 'local' | 'vault'): StickerRecord[] {
   const deleted = new Set(local.pendingBacklinkDeletes.map(s => s.stickerId));

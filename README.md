@@ -1,5 +1,9 @@
 # DSH Session Sticker Board
 
+## 当前功能归属
+
+自 0.7.3-rc2.19 起，本插件保留普通贴纸、普通贴纸旧数据迁移和 Obsidian 双向链接。会话贴纸面板、跨会话蓝色来源标记由 ThoughtDAG 0.4.14-rc2.14 提供；原有 stickers 对象身份与数据不迁库。旧贴纸冲突处理入口为「贴纸与笔记链接 → 迁移旧贴纸」。
+
 本补丁配套 Annotation Core **0.3.12-rc2.12**，跨会话引用选择器使用 DSH 会话栏的可读标题。见[组合兼容说明](docs/changes/2026-09-15-picker-title-cohort.md)。
 
 在 DSH 中保留原文高亮、Markdown 贴纸和会话入口，并把选中的已完成回复连接到另一个真实会话。配套 ThoughtDAG 可显示接收会话的上下文主干；Obsidian 的笔记引用、回链和会话贴纸关联由对应 Bridge 服务协作完成。

@@ -273,8 +273,7 @@ export function resolveSelectionForStickerAction(
 type StickerDraft = Pick<StickerRecord, "markdown" | "tags" | "color">;
 
 export interface StickerOverlayProps {
-  readonly onSessionSticker?: (source: { sessionId: string; anchorId: string; selectedText: string; occurrence: number }) => void;
-  readonly resolveSessionStickerAnchorId?: (renderedKey: string) => string;
+  readonly selectionActions?: { registerSelectionAction(action: { id: string; label: string; order: number; iconPath: string; available?(): boolean; run(input: { sourceSessionId: string; selectedText: string }): Promise<unknown> }): () => void };
   readonly sessionId: string;
   readonly sessionTitle: string;
   readonly stickers: readonly StickerView[];
@@ -334,6 +333,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   const needsGeometry = props.stickers.length > 0 || selection !== null;
 
   useEffect(() => {
+    if (props.selectionActions) { setSelection(null); return; }
     const handlers = createSelectionRecomputeHandlers(
       () => setSelection(captureMessageSelection(props.sessionId)),
       {
@@ -351,7 +351,7 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
       document.removeEventListener("keyup", handlers.onKeyUp);
       handlers.dispose();
     };
-  }, [props.sessionId]);
+  }, [props.sessionId, props.selectionActions]);
 
   useEffect(() => {
     if (!needsGeometry) return;
@@ -458,17 +458,21 @@ function StickerOverlayInner(props: StickerOverlayProps): ReactNode {
   useEffect(() => {
     if (editor || menu || !sharedSelectionToolbar) return;
     const remove = mountNativeSelectionAction(sharedSelectionToolbar, () => void beginCreate());
-    const removeSession = props.onSessionSticker && selection?.role === 'assistant' ? mountNativeSelectionAction(sharedSelectionToolbar, () => {
-      const active = resolveSelectionForStickerAction(selection, props.sessionId);
-      if (active?.role === 'assistant') {
-        try {
-          if (!props.resolveSessionStickerAnchorId) throw new Error('当前会话尚未提供完整回复定位');
-          props.onSessionSticker?.({ sessionId: active.sessionId, anchorId: props.resolveSessionStickerAnchorId(active.anchorId), selectedText: active.quote, occurrence: active.occurrence });
-        } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-      }
-    }, document, '会话贴纸') : undefined;
-    return () => { remove(); removeSession?.(); };
-  }, [beginCreate, editor, menu, sharedSelectionToolbar, selection, props.onSessionSticker, props.resolveSessionStickerAnchorId, props.sessionId]);
+    return remove;
+  }, [beginCreate, editor, menu, sharedSelectionToolbar]);
+
+  useEffect(() => {
+    if (!props.selectionActions) return;
+    return props.selectionActions.registerSelectionAction({ id: 'stickers.ordinary', label: '添加贴纸', order: 50, iconPath: 'M4 3h16v18H4ZM8 8h8M8 12h8',
+      available: () => !editor && !menu,
+      run: async input => {
+        const current = captureMessageSelection(props.sessionId);
+        if (!current || current.sessionId !== input.sourceSessionId || current.quote !== input.selectedText) throw new Error('选区已变化，请重新选择后添加贴纸');
+        await beginCreate();
+      },
+    });
+  }, [props.selectionActions, props.sessionId, beginCreate, editor, menu]);
+
 
   const save = async (draft: StickerDraft): Promise<void> => {
     if (!editor) return;
