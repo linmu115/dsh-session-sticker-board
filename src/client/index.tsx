@@ -108,8 +108,7 @@ export function apply(ctx: Context): void {
       try {
         const ready = injectedContext as unknown as Context & { obsidianBridgeLifecycle?: ObsidianBridgeLifecycle };
         const mountedRemote = await mountStickerRemote(ready);
-        let managedIdentity: { instanceId: string } | undefined;
-        if (mountedRemote.managed) void knowledgeRequest<{ instanceId: string }>('status').then(identity => { managedIdentity = identity; }).catch(() => undefined);
+        const managedIdentity = mountedRemote.managed ? await knowledgeRequest<{ instanceId: string }>('status') : undefined;
         const resolveBridge = () => ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
         const currentIdentity = () => resolveBridge()?.runtimeIdentity ?? (managedIdentity ? { dshInstanceId: managedIdentity.instanceId } : undefined);
         const bridge = createStickerBridgeChannel(resolveBridge);

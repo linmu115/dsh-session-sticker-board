@@ -44,14 +44,10 @@ export async function resolveMaintenanceProjection(input: {
   readonly sessionId: string;
   readonly anchorId?: string;
 } | undefined> {
-  // Creation waits for this optional identity enrichment before opening its editor.
-  // Bound both headers and body without discarding an explicit caller cancellation.
-  const deadline = AbortSignal.timeout(15000);
-  const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline;
   const response = await (input.fetchImpl ?? fetch)("/dsh-session-maintenance/api", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    signal,
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
     body: JSON.stringify({
       operation: "reference:resolve",
       referenceType: input.referenceType,
