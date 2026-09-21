@@ -7,7 +7,7 @@ import type { Context as StickerContext } from '../src/context-types.ts';
 // Keep real Cordis service access rules while avoiding host I/O in this startup test.
 vi.mock('../src/remote/service.ts', () => ({ StickerBoardRemoteService: vi.fn(function () {}) }));
 
-it('starts its host fiber with no injected Bridge or Maintenance service', async () => {
+it('starts its host fiber with no remote knowledge service injected', async () => {
   const ctx = new Context();
   const fiber = ctx.plugin({ inject: [], apply: context => {
     apply(context as unknown as StickerContext, { bridgeOrigin: '' });

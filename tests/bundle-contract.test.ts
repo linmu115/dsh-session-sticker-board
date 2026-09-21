@@ -33,6 +33,15 @@ describe("sticker-board 0.6 package boundary", () => {
     expect(pkg.peerDependenciesMeta['dsh-better-sidebar'].optional).toBe(true);
     expect(pkg.devDependencies['dsh-obsidian-bridge']).toBe('link:../dsh-obsidian-bridge-lifecycle');
   });
+  it("keeps every Maintenance endpoint out of the client bundle", async () => {
+    const client = await text("lib/client.js");
+    // This is a negative guard, not a live integration: no Maintenance provider is ever asked for
+    // state any more, so the bundle must not carry the endpoint, its probing path or the status code
+    // that used to turn an absent provider into a user-visible failure.
+    expect(client).not.toContain("maintenance-knowledge");
+    expect(client).not.toContain("dsh-session-maintenance");
+    expect(client).not.toContain("无法核验当前实例会话状态");
+  });
   it("emits declarations without retired Bridge or standalone Protocol imports", async () => {
     const files = await readdir(join(repositoryRoot, 'lib/types'), { recursive: true });
     expect(files.some(file => file.endsWith('.d.ts'))).toBe(true);
@@ -42,7 +51,7 @@ describe("sticker-board 0.6 package boundary", () => {
   });
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.4-rc2.8");
+    expect(packageJson.version).toBe("0.7.4-rc2.9");
     expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("^0.1.5-rc.2");
     expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-rc2.22");
     expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-rc2.8");

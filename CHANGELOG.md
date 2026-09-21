@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4-rc2.9 — 2026-09-21
+
+- Remove the last Maintenance coupling. Delete the knowledge-link/knowledge-panel client entries, the note-scope and linked-note helpers, the unlink-note action, the vault-choice component and the linked-notes stylesheet, together with their tests; drop the retired Bridge `/api` bundle entry from the client build.
+- Keep the local `.ownership` write fence read path in the host store as a migration guard only. Nothing in this package writes that marker any more (the writer was part of the deleted migration surface), so a session whose stickers were moved out by an older build still refuses local writes instead of resurrecting a stale local copy.
+- Reword the remaining test titles that still described a live Bridge/Maintenance integration; the negative guards that prove Maintenance is gone keep their exact assertions.
+- Typecheck, build and the complete 113-test suite (20 files) passed. Existing restart-profile activation requirement remains; no installation, restart or live package replacement is part of this change.
+
 ## 0.7.4-rc2.8 — 2026-09-21
 
 - Limit the sticker detail recovery block to the two failed sync states. "local-only" no longer renders the "旧贴纸所在 Vault" selector, "保存目标" or "重试同步", so merely visiting a sticker stops showing migration-era controls; a recorded sync issue stays readable as read-only details.

@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-rc2.8",
+  "version": "0.7.4-rc2.9",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
