@@ -159,6 +159,17 @@ export function StickerDetailForm(props: {
     || tags !== props.record.tags.join(", ")
     || color !== props.record.color;
 
+  // Presentation split. The recovery block carries migration-era controls ("旧贴纸所在
+  // Vault" / "保存目标") that only mean something when a write actually failed, so it is
+  // limited to the two failed states. "local-only" is also the status before the first
+  // sync runs, which is why showing the controls there produced a wall of stray buttons;
+  // it keeps only the read-only diagnostics when a sync issue was actually recorded.
+  const showsVaultTarget = (syncStatus === "conflict" || syncStatus === "error")
+    && props.workspace.selectVault !== undefined
+    && (props.workspace.vaults?.().length ?? 0) > 0;
+  const showsSyncRecovery = syncStatus === "conflict" || syncStatus === "error"
+    || (syncStatus === "local-only" && syncIssue !== undefined);
+
   const loadBacklinks = useCallback(async (): Promise<void> => {
     setBacklinkPhase("loading");
     setBacklinkError("");
@@ -263,13 +274,13 @@ export function StickerDetailForm(props: {
         </span>
         <button type="button" className="dsh-sticker-sidebar-save" aria-label="保存贴纸" title="保存贴纸" disabled={!dirty || phase === "saving"} onClick={() => void save()}><Check size={17} /></button>
       </footer>
-      {(syncStatus === "conflict" || syncStatus === "error" || syncStatus === "local-only") && (
+      {showsSyncRecovery && (
         <div className="dsh-sticker-sidebar-sync-recovery" role="status">
           {syncStatus === "conflict" ? <>
             <button type="button" disabled={dirty || phase === "saving"} onClick={() => void resolveConflict("keep-local")}>使用 DSH 贴纸内容</button>
             <button type="button" disabled={dirty || phase === "saving"} onClick={() => void resolveConflict("use-obsidian")}>使用 Obsidian 贴纸内容</button>
-          </> : <button type="button" onClick={() => void props.workspace.sync(props.record.sessionId)}>重试同步</button>}
-          {props.workspace.selectVault && (props.workspace.vaults?.().length ?? 0) > 0 && <label>旧贴纸所在 Vault<select aria-label="旧贴纸所在 Vault" value={vaultSelection} onChange={event => setVaultSelection(event.target.value)}><option value="">请选择 Vault</option>{props.workspace.vaults?.().filter(vault => vault.state === 'bound').map(vault => <option key={vault.vaultId} value={vault.vaultId}>{vault.displayName} · {vault.vaultId}</option>)}</select><button disabled={!vaultSelection || phase === 'saving'} onClick={() => { setPhase('saving'); void props.workspace.selectVault!(props.record.sessionId, vaultSelection).then(() => setPhase('saved')).catch(reason => { setError(reason instanceof Error ? reason.message : String(reason)); setPhase('error'); }); }}>保存目标</button></label>}{syncIssue && <details><summary>查看同步详情</summary><p>{syncIssue}</p></details>}
+          </> : syncStatus === "error" ? <button type="button" onClick={() => void props.workspace.sync(props.record.sessionId)}>重试同步</button> : null}
+          {showsVaultTarget && <label>旧贴纸所在 Vault<select aria-label="旧贴纸所在 Vault" value={vaultSelection} onChange={event => setVaultSelection(event.target.value)}><option value="">请选择 Vault</option>{props.workspace.vaults?.().filter(vault => vault.state === 'bound').map(vault => <option key={vault.vaultId} value={vault.vaultId}>{vault.displayName} · {vault.vaultId}</option>)}</select><button disabled={!vaultSelection || phase === 'saving'} onClick={() => { setPhase('saving'); void props.workspace.selectVault!(props.record.sessionId, vaultSelection).then(() => setPhase('saved')).catch(reason => { setError(reason instanceof Error ? reason.message : String(reason)); setPhase('error'); }); }}>保存目标</button></label>}{syncIssue && <details><summary>查看同步详情</summary><p>{syncIssue}</p></details>}
         </div>
       )}
       <section className="dsh-sticker-sidebar-backlinks" aria-label="反向链接">

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4-rc2.8 — 2026-09-21
+
+- Limit the sticker detail recovery block to the two failed sync states. "local-only" no longer renders the "旧贴纸所在 Vault" selector, "保存目标" or "重试同步", so merely visiting a sticker stops showing migration-era controls; a recorded sync issue stays readable as read-only details.
+- Keep the revision-conflict copy, both conflict choices and the bound-Vault target on a conflict, and keep retry for a failed sync. Conflict detection in the workspace is unchanged; no automatic re-read/merge retry is added.
+- Typecheck, build and the complete 136-test suite passed. Existing restart-profile activation requirement remains; live package replacement is not validated.
+
 ## 0.7.4-rc2.4 — 2026-09-18
 
 - Accept Bridge 0.4.1-rc2.1 or 0.4.1-rc2.2 so the folder-binding release can be installed with strict peer validation. No runtime code or other peer ranges change.
