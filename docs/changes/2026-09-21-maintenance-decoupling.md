@@ -25,4 +25,4 @@
 
 ## 边界
 
-未安装到活动 DSH profile、未重启或触碰运行中的 DSH、未推送、未打 tag、未产出发行附件。仓库内 `.tgz` 附件仍由 `scripts/package-independent-release.py` 流水线产出，不在本轮范围。
+未安装到活动 DSH profile、未重启或触碰运行中的 DSH、未推送、未打 tag、未产出发行附件。发行附件由独立发行流水线（维护于 Maintenance 仓库 `dsh-obsidian-bridge`，不在本仓库内）产出，本仓库不包含打包脚本；发行流程不在本轮范围。
