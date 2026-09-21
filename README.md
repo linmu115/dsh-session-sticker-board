@@ -8,8 +8,24 @@
 
 本批更新对齐独立会话数据接入和发布依赖。实际测试实例已验证加载正常；完整创建、编辑、删除及跨端回链组合仍须按使用场景验收，不以自动测试代替全部真实操作。
 
-## 安装、配置与使用
+## 部署方法
 
-[完整命令行与手动安装教程](docs/INSTALL.md) · [下载本版本附件](https://github.com/linmu115/dsh-session-sticker-board/releases/tag/v0.7.4-rc2.7)
+**环境要求**：Node.js 24，可正常启动的 DSH `0.1.5-rc.2` / `web` profile。**必须先安装 Annotation Core 和 DSH Obsidian Bridge**，贴纸依赖这两者。Better Sidebar 是可选展示位置，不是启动条件。
 
-本批为预发布，安装顺序、数据保留、更新卸载和故障定位均在教程中。无需用户的 LLM 才能完成基础配置。当前能力和未完成验收见 [发布验证记录](docs/RELEASE-20260920.md)。
+从 [Release v0.7.4-rc2.7](https://github.com/linmu115/dsh-session-sticker-board/releases/tag/v0.7.4-rc2.7) 下载 `dsh-session-sticker-board-0.7.4-rc2.7.tgz`，然后：
+
+```powershell
+$env:DSH_HOME = '<你的 DSH_HOME>'
+dsh plugin --profile web add ./dsh-session-sticker-board-0.7.4-rc2.7.tgz
+```
+
+安装顺序为 Core → Bridge → 贴纸。安装命令会把包写进 profile 并在 `dsh.profile.bundles` 注册，**不要**再手工插入同名插件节点。随后正常重启 DSH 使新版本加载。
+
+**用法**：在会话中选中文字，选择普通贴纸动作，编辑后保存；使用插件入口查看贴纸和笔记关联。笔记跳转需要目标 Vault 已安装 Companion 并完成绑定。
+
+普通贴纸与 DAG 提供的「会话贴纸」是两项不同功能，安装本包不会替代 DAG。
+
+**更新**：停止 DSH，备份 DSH_HOME，`plugin add` 新 tgz，重启并刷新页面。
+**卸载**：`dsh plugin --profile web remove dsh-session-sticker-board`。
+
+完整说明（安装顺序、数据保留、故障定位）：[INSTALL.md](docs/INSTALL.md)。本批为预发布，当前能力和未完成验收见 [发布验证记录](docs/RELEASE-20260920.md)。
