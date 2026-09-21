@@ -26,7 +26,7 @@ import { registerLinkedNotes } from './linked-notes.tsx';
 
 // Ordinary Sticker UI is available only with all three feature providers.
 // Cordis waits for late services and disposes the mounted fiber when any leaves.
-export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle", "betterSidebar"] as const;
+export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;

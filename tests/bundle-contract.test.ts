@@ -25,11 +25,12 @@ describe("sticker-board 0.6 package boundary", () => {
     expect(patch).not.toMatch(/name:\s*['"]?dsh-obsidian|inject:/);
     expect(patch).toContain("bridgeOrigin: 'http://127.0.0.1:18473'");
     const pkg = JSON.parse(await text("package.json"));
-    for (const name of ['dsh-obsidian-bridge', 'dsh-annotation-core', 'dsh-better-sidebar']) {
+    for (const name of ['dsh-obsidian-bridge', 'dsh-annotation-core']) {
       expect(pkg.peerDependencies[name]).toBeTruthy();
       expect(pkg.peerDependenciesMeta[name]?.optional).not.toBe(true);
     }
     expect(pkg.peerDependencies).not.toHaveProperty('dsh-session-maintenance');
+    expect(pkg.peerDependenciesMeta['dsh-better-sidebar'].optional).toBe(true);
     expect(pkg.devDependencies['dsh-obsidian-bridge']).toBe('link:../dsh-obsidian-bridge-lifecycle');
   });
   it("emits declarations without retired Bridge or standalone Protocol imports", async () => {
@@ -41,13 +42,12 @@ describe("sticker-board 0.6 package boundary", () => {
   });
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.4-rc2.4");
+    expect(packageJson.version).toBe("0.7.4-rc2.7");
     expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("^0.1.5-rc.2");
-    expect(packageJson.peerDependencies["dsh-annotation-core"]).toContain("0.3.11-rc2.2");
-    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-rc2.1 || 0.4.1-rc2.2");
+    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-rc2.22");
+    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-rc2.8");
     expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-lifecycle");
     expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-protocol");
-    expect(packageJson.peerDependencies["dsh-annotation-core"]).toContain("0.3.12-rc2.1");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
     expect(packageJson.exports).toHaveProperty("./typert");
     expect(packageJson.dshKnowledge).toEqual({
@@ -75,8 +75,8 @@ describe("sticker-board 0.6 package boundary", () => {
     ]) {
       expect(source).not.toContain(forbidden);
     }
-    expect(source).toContain('export const inject = [] as const');
-    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle", "betterSidebar"] as const');
+    expect(source).toContain("export const inject = ['annotationCoreHost', 'obsidianBridgeLifecycle'] as const");
+    expect(source).toContain('export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle"] as const');
     expect(source).not.toContain('registerSourceAdapter("obsidian-note"');
   });
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-rc2.4",
+  "version": "0.7.4-rc2.7",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -32,7 +32,8 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "docs/changes"
+    "docs/changes",
+    "docs"
   ],
   "scripts": {
     "build": "node -e \"fs.rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && tsdown --config-loader unrun --config tsdown.config.ts",
@@ -103,13 +104,16 @@
     "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-typert-protocol": "^0.1.5-rc.2",
     "@deepseek-ai/schemastery": "*",
-    "dsh-annotation-core": "^0.3.9 || 0.3.10-dev.2 || 0.3.11-rc2.1 || 0.3.11-rc2.2 || 0.3.12-rc2.1 || 0.3.12-rc2.2 || 0.3.12-rc2.3 || 0.3.12-rc2.4 || 0.3.12-rc2.5 || 0.3.12-rc2.6 || 0.3.12-rc2.7 || 0.3.12-rc2.8 || 0.3.12-rc2.9 || 0.3.12-rc2.10 || 0.3.12-rc2.11 || 0.3.12-rc2.12 || 0.3.12-rc2.19",
+    "dsh-annotation-core": "0.3.12-rc2.22",
     "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1",
     "react": "*",
     "react-dom": "*",
-    "dsh-obsidian-bridge": "0.4.1-rc2.1 || 0.4.1-rc2.2"
+    "dsh-obsidian-bridge": "0.4.1-rc2.8"
   },
   "peerDependenciesMeta": {
+    "dsh-better-sidebar": {
+      "optional": true
+    },
     "@deepseek-ai/cordis": {
       "optional": true
     },

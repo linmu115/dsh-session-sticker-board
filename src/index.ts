@@ -18,7 +18,7 @@ export const Config = s.object({
   storageDirectory: s.string(),
 });
 
-export const inject = [] as const;
+export const inject = ['annotationCoreHost', 'obsidianBridgeLifecycle'] as const;
 
 export function apply(ctx: Context, config: Config): void {
   const lifecycle = ctx.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;

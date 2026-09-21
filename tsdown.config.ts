@@ -52,7 +52,7 @@ export default [
     dts: false,
     clean: false,
     deps: {
-      alwaysBundle: ["dsh-annotation-core/protocol", "dsh-obsidian-bridge/protocol/data", "dsh-obsidian-bridge/transport"],
+      alwaysBundle: ["dsh-annotation-core/protocol", "dsh-annotation-core/host-api", "dsh-obsidian-bridge/protocol/data", "dsh-obsidian-bridge/transport"],
     },
   },
   {

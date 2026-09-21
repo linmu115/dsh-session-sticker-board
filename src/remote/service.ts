@@ -1,4 +1,5 @@
 import type { Context } from "@deepseek-ai/cordis";
+import { assertSessionWritable, observeSessionWriteAccess } from 'dsh-annotation-core/host-api';
 import { TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
 
 import { normalizeBridgeOrigin } from "../bridge/http-client.ts";
@@ -10,8 +11,10 @@ export class StickerBoardRemoteService extends TypertRemoteService {
   readonly origin: string;
 
   constructor(private readonly hostContext: Context, origin: string, readonly localStore = new StickerLocalStore()) {
-    super(hostContext, "stickerBoard");
+    // Linked peers may resolve separate Cordis type augmentations; the runtime context is shared.
+    super(hostContext as never, "stickerBoard");
     this.origin = normalizeBridgeOrigin(origin);
+    observeSessionWriteAccess(hostContext);
   }
 
   private knowledge(): Knowledge | undefined { return this.hostContext.get('maintenanceKnowledge') as unknown as Knowledge | undefined; }
@@ -26,13 +29,15 @@ export class StickerBoardRemoteService extends TypertRemoteService {
     return this.localStore.read(sessionId);
   }
 
-  saveLocalSession(request: SaveLocalSessionRequest): Promise<LocalStickerState> {
+  async saveLocalSession(request: SaveLocalSessionRequest): Promise<LocalStickerState> {
+    await assertSessionWritable(this.hostContext);
     const knowledge = this.knowledge();
     if (knowledge) return knowledge.dispatch('legacy-save', request as unknown as Record<string, unknown>).then(value => localStickerStateSchema.parse(value));
     return this.localStore.save(request);
   }
 
   async acknowledgeBacklinkDelete(request: { sessionId: string; stickerId: string }): Promise<LocalStickerState> {
+    await assertSessionWritable(this.hostContext);
     const knowledge = this.knowledge();
     if (knowledge) {
       const state = await this.readLocalState(request.sessionId);
@@ -42,6 +47,7 @@ export class StickerBoardRemoteService extends TypertRemoteService {
   }
 
   async knowledgeOperation(operation: string, inputJson: string): Promise<string> {
+    await assertSessionWritable(this.hostContext);
     if (inputJson.length > 512 * 1024) throw new Error('单次请求过大');
     const input = JSON.parse(inputJson) as Record<string, unknown>;
     const knowledge = this.knowledge();
