@@ -1,4 +1,3 @@
-import { assertMaintenanceSessionAvailable } from 'dsh-obsidian-bridge/api';
 import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge/api";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -6,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import type { BetterSidebarService, Context } from "../context-types.ts";
 import type { StickerRecord } from "../protocol.ts";
 import { createStickerBridgeChannel } from './bridge-channel.ts';
-import { applyDeepLink, resolveMaintenanceProjection } from "./deep-link.ts";
+import { applyDeepLink } from "./deep-link.ts";
 import { matchesRuntimeScope } from "./runtime-scope.ts";
 import {
   resolveDurableAnchorId,
@@ -20,9 +19,6 @@ import {
 } from "./sticker-sidebar.tsx";
 import { createStickerWorkspace, type StickerWorkspace } from "./sticker-workspace.ts";
 import "./styles.css";
-import { OrdinaryStickerTools } from './knowledge-panel.tsx';
-import { knowledgeRequest, migrateLegacyStickers } from './knowledge.ts';
-import { registerLinkedNotes } from './linked-notes.tsx';
 
 // Ordinary Sticker UI is available only with all three feature providers.
 // Cordis waits for late services and disposes the mounted fiber when any leaves.
@@ -30,7 +26,6 @@ export const inject = ["sessions", "remote", "uiConversation", "annotationCore",
 
 function StickerBoardRoot(props: {
   ctx: Context;
-  knowledge?: Pick<Parameters<typeof OrdinaryStickerTools>[0], 'local' | 'bridge'>;
   workspace: StickerWorkspace;
   openNote: Parameters<typeof StickerOverlay>[0]["onOpenNote"];
   openSticker: (record: StickerRecord) => boolean | Promise<boolean>;
@@ -84,7 +79,6 @@ function StickerBoardRoot(props: {
   if (!sessionId) return null;
   const title = sessionList.byId?.[sessionId]?.title ?? sessionId;
   return (
-    <>{props.knowledge && <OrdinaryStickerTools sessionId={sessionId} local={props.knowledge.local} bridge={props.knowledge.bridge} onMigrated={() => props.workspace.ensure(sessionId)} {...(props.workspace.selectVault ? {onSelectLegacyVault:(vaultId:string)=>props.workspace.selectVault!(sessionId,vaultId)} : {})} />}
     <StickerOverlay
       {...(selectionActions ? { selectionActions } : {})}
       sessionId={sessionId}
@@ -98,7 +92,6 @@ function StickerBoardRoot(props: {
       resolveAnchorKey={resolveAnchorKey}
       resolveLogicalLocation={props.resolveLogicalLocation}
     />
-    </>
   );
 }
 
@@ -108,24 +101,10 @@ export function apply(ctx: Context): void {
       try {
         const ready = injectedContext as unknown as Context & { obsidianBridgeLifecycle?: ObsidianBridgeLifecycle };
         const mountedRemote = await mountStickerRemote(ready);
-        let managedIdentity: { instanceId: string } | undefined;
-        if (mountedRemote.managed) void knowledgeRequest<{ instanceId: string }>('status').then(identity => { managedIdentity = identity; }).catch(() => undefined);
         const resolveBridge = () => ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
-        const currentIdentity = () => resolveBridge()?.runtimeIdentity ?? (managedIdentity ? { dshInstanceId: managedIdentity.instanceId } : undefined);
+        const currentIdentity = () => resolveBridge()?.runtimeIdentity;
         const bridge = createStickerBridgeChannel(resolveBridge);
-        const stickers = createStickerWorkspace(mountedRemote.managed ? {
-          ...mountedRemote,
-          // Keep the engine's structured error code across the browser boundary.
-          readLocalState: sessionId => knowledgeRequest('legacy-state', { nativeSessionId: sessionId }),
-        } : mountedRemote, bridge, mountedRemote.managed ? {
-          migrateLegacy: sessionId => migrateLegacyStickers(sessionId, mountedRemote, bridge),
-        } : {});
-        const knowledgeSlots = mountedRemote.managed ? ready.inject(['slots'], slotContext => {
-          const slotsReady = slotContext as unknown as Context;
-          const slots = slotsReady.slots;
-          slotsReady.effect(() => registerLinkedNotes(slotsReady, bridge));
-          return slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'knowledge-session-stickers', order: 89 }, () => <button className="dsh-knowledge-trigger" onClick={() => window.dispatchEvent(new CustomEvent('dsh-ordinary-sticker-tools'))}>贴纸与笔记链接</button>));
-        }) : undefined;
+        const stickers = createStickerWorkspace(mountedRemote, bridge);
         const stickerSidebar = createStickerSidebarController();
         let betterSidebar: BetterSidebarService | undefined;
         const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
@@ -150,29 +129,20 @@ export function apply(ctx: Context): void {
 
         const overlayHost = document.createElement("div");
         overlayHost.dataset.dshStickerBoard = "";
-        if (mountedRemote.managed) overlayHost.dataset.dshKnowledge = '1';
         document.body.appendChild(overlayHost);
         const root = createRoot(overlayHost);
         root.render(
           <StickerBoardRoot
             ctx={ready}
             workspace={stickers}
-            {...(mountedRemote.managed ? { knowledge: { local: mountedRemote, bridge: bridge as typeof bridge & { knowledge(operation: string, input: Record<string, unknown>): Promise<unknown> } } } : {})}
             openNote={(action) => bridge.openNote(action)}
             openSticker={(record) => stickerSidebar.openSticker(record)}
             resolveLogicalLocation={async ({ sessionId, anchorId }) => {
               const runtimeIdentity = currentIdentity();
-              const resolved = await resolveMaintenanceProjection({
-                referenceType: "sticker",
-                legacySessionId: sessionId,
-                legacyAnchorId: anchorId,
-              }).catch(() => undefined);
               return {
                 ...(runtimeIdentity?.dshInstanceId === undefined ? {} : {
                   dshInstanceId: runtimeIdentity.dshInstanceId,
                 }),
-                ...(resolved?.logicalSessionId === undefined ? {} : { logicalSessionId: resolved.logicalSessionId }),
-                ...(resolved?.logicalAnchorId === undefined ? {} : { logicalAnchorId: resolved.logicalAnchorId }),
                 legacySessionId: sessionId,
                 legacyAnchorId: anchorId,
               };
@@ -185,14 +155,10 @@ export function apply(ctx: Context): void {
           signal?.throwIfAborted();
           if (action.type !== "deep-link" || action.setId !== undefined) return false;
           if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
-          const logicalSessionId = action.logicalSessionId ?? (mountedRemote.managed
-            ? (await knowledgeRequest<{logicalSessionId:string}>('resolve', {nativeSessionId:action.sessionId})).logicalSessionId
-            : undefined);
-          await assertMaintenanceSessionAvailable(logicalSessionId);
           signal?.throwIfAborted();
-          if (action.anchorId === '@session' && action.logicalSessionId) {
-            const target = await knowledgeRequest<{ nativeSessionId: string }>('resolve', { logicalSessionId: action.logicalSessionId });
-            signal?.throwIfAborted(); await ready.sessions.open(target.nativeSessionId); return true;
+          if (action.anchorId === '@session') {
+            await ready.sessions.open(action.sessionId);
+            return true;
           }
           const isStickerAction = action.stickerId !== undefined
             || action.quoteHash !== undefined;
@@ -223,7 +189,6 @@ export function apply(ctx: Context): void {
             ...(runtimeIdentity === undefined ? {} : { runtimeIdentity: runtimeIdentity }),
             ...(signal === undefined ? {} : { signal }),
             ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
-            resolveLogicalTarget: async (target) => resolveMaintenanceProjection({ ...target, ...(signal === undefined ? {} : { signal }) }).catch(() => undefined),
           });
           if (result.status !== "located") {
             console.warn("[dsh-session-sticker-board] deep-link was not located", result);
@@ -259,7 +224,6 @@ export function apply(ctx: Context): void {
           void bridgeFiber.dispose();
           stickers.dispose();
           void sidebarFiber.dispose();
-          void knowledgeSlots?.dispose();
           void mountedRemote.dispose();
           setTimeout(() => root.unmount());
           overlayHost.remove();

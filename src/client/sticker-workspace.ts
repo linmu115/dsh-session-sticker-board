@@ -6,7 +6,6 @@ import { PROTOCOL_VERSION, type LocalStickerState, type SessionNoteDocument, typ
 type StickerBridge = Pick<BridgeClient, "readSessionNote" | "saveSessionNote" | "deleteStickerBacklinks"> & Pick<ObsidianBridgeLifecycle, "forVault" | "listVaults">;
 
 export interface StickerLocalPersistence {
-  managed?: boolean;
   readLocalState(sessionId: string): Promise<LocalStickerState>;
   saveLocalSession(request: {
     document: SessionNoteDocument;
@@ -46,7 +45,7 @@ interface StoreEntry {
 export function createStickerWorkspace(
   local: StickerLocalPersistence,
   bridge: StickerBridge,
-  options: { onSyncError?: (error: unknown) => void; migrateLegacy?: (sessionId: string) => Promise<unknown> } = {},
+  options: { onSyncError?: (error: unknown) => void } = {},
 ): StickerWorkspace {
   const sessionVaults = new Map<string, string>();
   const entries = new Map<string, StoreEntry>();
@@ -137,7 +136,7 @@ export function createStickerWorkspace(
     ...(sessionVaults.get(sessionId) ? { vaultId: sessionVaults.get(sessionId)! } : {}),
     sessionId,
     revision,
-    stickers: stickers.map(record => !local.managed && record.notePath && !record.vaultId && sessionVaults.get(sessionId) ? {...record,vaultId:sessionVaults.get(sessionId)!} : record),
+    stickers: stickers.map(record => record.notePath && !record.vaultId && sessionVaults.get(sessionId) ? {...record,vaultId:sessionVaults.get(sessionId)!} : record),
   });
 
   const sync = (sessionId: string): Promise<void> => {
@@ -180,11 +179,6 @@ export function createStickerWorkspace(
           if (disposed) return;
           await local.acknowledgeBacklinkDelete({ sessionId, stickerId: deleted.stickerId });
           if (disposed) return;
-        }
-        if (local.managed) {
-          const current = await local.readLocalState(sessionId);
-          if (current.document.revision !== entry(sessionId).store.snapshot().revision) attach(sessionId, createStickerStore(current.document.stickers, current.document.revision));
-          syncIssues.delete(sessionId); setSyncStatus(sessionId, 'synced'); return;
         }
         let vaultId = localState.document.vaultId ?? sessionVaults.get(sessionId);
         if (!vaultId && bridge.listVaults) {
@@ -256,12 +250,6 @@ export function createStickerWorkspace(
         await ensure(sessionId); await synchronizations.get(sessionId);
         bridge.forVault?.(vaultId);
         let current = await local.readLocalState(sessionId);
-        if (local.managed) {
-          for (const pending of current.pendingBacklinkDeletes.filter(record => record.pendingVaultIds === undefined && !record.vaultId)) {
-            current = await local.saveLocalSession({document:current.document,expectedRevision:current.document.revision,updateBacklinkDelete:{...pending,pendingVaultIds:[vaultId]}});
-          }
-          return;
-        }
         if (current.document.vaultId && current.document.vaultId !== vaultId) throw new Error('旧贴纸已固定到 Vault：' + current.document.vaultId);
         const saved = await local.saveLocalSession({ document: { ...current.document, vaultId, stickers:current.document.stickers.map(record=>record.notePath&&!record.vaultId?{...record,vaultId}:record) }, expectedRevision: current.document.revision });
         sessionVaults.set(sessionId, vaultId); attach(sessionId, createStickerStore(saved.document.stickers, saved.document.revision));
@@ -304,7 +292,6 @@ export function createStickerWorkspace(
         await synchronizations.get(sessionId);
         if (disposed) return;
         if (choice === "use-obsidian") {
-          if (local.managed) throw new Error('已迁移对象以 Maintenance 为准，请在扩展面板处理冲突');
           const vaultId = sessionVaults.get(sessionId);
           const remote = await (vaultId && bridge.forVault ? bridge.forVault(vaultId) : bridge).readSessionNote(sessionId);
           if (disposed) return;
@@ -332,18 +319,9 @@ export function createStickerWorkspace(
       }));
     },
     save(record) {
-      if (!local.managed && record.notePath && !record.vaultId && sessionVaults.get(record.sessionId)) record={...record,vaultId:sessionVaults.get(record.sessionId)!};
+      if (record.notePath && !record.vaultId && sessionVaults.get(record.sessionId)) record={...record,vaultId:sessionVaults.get(record.sessionId)!};
       return serialized(record.sessionId, async () => {
-        try {
-          await ensure(record.sessionId);
-        } catch (error) {
-          // Only an explicit create/edit may migrate. Visiting sessions must stay read-only.
-          if (!local.managed || !options.migrateLegacy ||
-            (error as { code?: string } | null)?.code !== 'STICKER_MIGRATION_REQUIRED') throw error;
-          await options.migrateLegacy(record.sessionId);
-          if (disposed) return;
-          await ensure(record.sessionId);
-        }
+        await ensure(record.sessionId);
         if (disposed) return;
         const store = entry(record.sessionId).store;
         const snapshot = store.snapshot();

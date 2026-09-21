@@ -61,7 +61,7 @@ function offlineBridge() {
 }
 
 describe("sticker workspace", () => {
-  it('keeps independent local CRUD available without any Bridge or Maintenance service', async () => {
+  it('keeps independent local CRUD available with no remote knowledge service injected', async () => {
     const persistence = local();
     const workspace = createStickerWorkspace(persistence, createStickerBridgeChannel(() => undefined));
     await workspace.save(sticker);
@@ -75,11 +75,11 @@ describe("sticker workspace", () => {
     workspace.dispose();
   });
 
-  it('does not replace unavailable managed storage with legacy writes when Bridge is absent', async () => {
-    const persistence = { ...local(), managed: true };
-    persistence.readLocalState.mockRejectedValue(new Error('Maintenance unavailable; migrated ownership retained'));
+  it('surfaces an unreadable local store instead of writing a replacement', async () => {
+    const persistence = local();
+    persistence.readLocalState.mockRejectedValue(new Error('store unreadable'));
     const workspace = createStickerWorkspace(persistence, createStickerBridgeChannel(() => undefined));
-    await expect(workspace.save(sticker)).rejects.toThrow('migrated ownership retained');
+    await expect(workspace.save(sticker)).rejects.toThrow('store unreadable');
     expect(persistence.saveLocalSession).not.toHaveBeenCalled();
     expect(workspace.list(sticker.sessionId)).toHaveLength(0);
     workspace.dispose();
@@ -209,7 +209,7 @@ it('persists partial multi-Vault deletion and retries only the original remainin
  const store=new StickerLocalStore(directory);
  let choices=['a','b'];let onlineB=false;
  const deletes={a:vi.fn(async()=>({notesChanged:1,linksRemoved:1})),b:vi.fn(async()=>{if(!onlineB)throw new Error('B offline');return{notesChanged:1,linksRemoved:1};}),c:vi.fn(async()=>({notesChanged:0,linksRemoved:0}))};
- const persistence={managed:true,readLocalState:(id:string)=>store.read(id),saveLocalSession:store.save.bind(store),acknowledgeBacklinkDelete:({sessionId,stickerId}:{sessionId:string;stickerId:string})=>store.acknowledgeBacklinkDelete(sessionId,stickerId)};
+ const persistence={readLocalState:(id:string)=>store.read(id),saveLocalSession:store.save.bind(store),acknowledgeBacklinkDelete:({sessionId,stickerId}:{sessionId:string;stickerId:string})=>store.acknowledgeBacklinkDelete(sessionId,stickerId)};
  const bridge={...offlineBridge(),listVaults:()=>choices.map(vaultId=>({vaultId,state:'bound',binding:{target:{instanceId:'instance'}}})) as never,forVault:(vaultId:string)=>({deleteStickerBacklinks:deletes[vaultId as keyof typeof deletes]}) as never};
  let workspace=createStickerWorkspace(persistence,bridge);
  try {

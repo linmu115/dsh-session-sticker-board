@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -63,40 +63,19 @@ export class StickerLocalStore {
 
   constructor(readonly root: string = defaultStickerStorageDirectory()) {}
 
+  /**
+   * Reads the freeze marker of a session whose stickers were moved out of the local copy by an
+   * older build. Nothing writes it any more; it is only honoured so such a copy is not resurrected.
+   */
   async ownership(sessionId: string): Promise<{ migrationId: string; phase: 'frozen' | 'active'; receiptId?: string; vaultId?: string } | null> {
     try {
       const value = JSON.parse(await readFile(sessionFile(this.root, sessionId) + '.ownership', 'utf8'));
-      if (typeof value.migrationId !== 'string' || !['frozen','active'].includes(value.phase)) throw new Error('贴纸迁移登记损坏，暂停写入');
+      if (typeof value.migrationId !== 'string' || !['frozen','active'].includes(value.phase)) throw new Error('贴纸归属登记损坏，暂停写入');
       return value;
     } catch (error) { if (isMissing(error)) return null; throw error; }
   }
-  freeze(sessionId: string, vaultId?: string): Promise<unknown> {
-    return this.serialized(sessionId, async () => {
-      const ownership = await this.ownership(sessionId) ?? { migrationId: randomUUID(), phase: 'frozen' as const, vaultId: undefined as string | undefined };
-      const originalVault = ownership.vaultId ?? (await this.read(sessionId)).document.vaultId;
-      if (originalVault && vaultId && originalVault !== vaultId) throw new Error('旧贴纸已固定到 Vault：' + originalVault);
-      if (vaultId && !ownership.vaultId) ownership.vaultId = vaultId;
-      await this.writeOwnership(sessionId, ownership);
-      return { ...ownership, state: await this.read(sessionId) };
-    });
-  }
-  activate(sessionId: string, migrationId: string, receiptId: string): Promise<void> {
-    return this.serialized(sessionId, async () => {
-      const ownership = await this.ownership(sessionId);
-      if (!ownership || ownership.migrationId !== migrationId || (ownership.receiptId && ownership.receiptId !== receiptId)) throw new Error('迁移回执与本地冻结记录不同');
-      await this.writeOwnership(sessionId, { ...ownership, migrationId, phase: 'active', receiptId });
-    });
-  }
-  private async writeOwnership(sessionId: string, value: unknown): Promise<void> {
-    const path = sessionFile(this.root, sessionId) + '.ownership';
-    await mkdir(dirname(path), { recursive: true });
-    const temporary = path + '.' + randomUUID() + '.tmp';
-    const handle = await open(temporary, 'wx');
-    try { await handle.writeFile(JSON.stringify(value), 'utf8'); await handle.sync(); } finally { await handle.close(); }
-    try { await rename(temporary, path); } catch (error) { await rm(temporary, { force: true }); throw error; }
-  }
   private async assertWritable(sessionId: string): Promise<void> {
-    if (await this.ownership(sessionId)) throw Object.assign(new Error('旧贴纸已冻结或迁入 Maintenance，禁止重新写入本地副本'), { code: 'STICKER_MIGRATION_REQUIRED' });
+    if (await this.ownership(sessionId)) throw Object.assign(new Error('此会话的贴纸已迁出本地副本，禁止重新写入'), { code: 'STICKER_MIGRATION_REQUIRED' });
   }
 
   async read(sessionId: string): Promise<LocalStickerState> {

@@ -6,8 +6,7 @@ import { STICKER_REMOTE } from "../remote/typert.ts";
 import type { LocalStickerState, SessionNoteDocument } from "../protocol.ts";
 
 export interface StickerBoardRemoteNamespace {
-  getBridgeConfig(): Promise<RemoteResult<{ origin: string; managed?: boolean }>>;
-  knowledgeOperation(operation: string, inputJson: string): Promise<RemoteResult<string>>;
+  getBridgeConfig(): Promise<RemoteResult<{ origin: string }>>;
   readLocalState(sessionId: string): Promise<RemoteResult<LocalStickerState>>;
   saveLocalSession(request: {
     document: SessionNoteDocument;
@@ -32,8 +31,6 @@ function unwrapRemote<T>(result: RemoteResult<T>): T {
 
 export async function mountStickerRemote(ctx: Context): Promise<{
   origin: string;
-  managed: boolean;
-  knowledgeOperation(operation: string, input: Record<string, unknown>): Promise<unknown>;
   readLocalState(sessionId: string): Promise<LocalStickerState>;
   saveLocalSession(request: {
     document: SessionNoteDocument;
@@ -55,8 +52,6 @@ export async function mountStickerRemote(ctx: Context): Promise<{
     const config = unwrapRemote(await namespace.getBridgeConfig());
     return {
       origin: normalizeBridgeOrigin(config.origin),
-      managed: config.managed === true,
-      knowledgeOperation: async (operation, input) => JSON.parse(unwrapRemote(await namespace.knowledgeOperation(operation, JSON.stringify(input)))),
       readLocalState: async (sessionId) => unwrapRemote(await namespace.readLocalState(sessionId)),
       saveLocalSession: async (request) => unwrapRemote(await namespace.saveLocalSession(request)),
       acknowledgeBacklinkDelete: async (request) => unwrapRemote(await namespace.acknowledgeBacklinkDelete(request)),

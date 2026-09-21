@@ -106,6 +106,22 @@ describe("DSH deep links", () => {
       expect(result.status).toBe("located");
     }
   });
+  it("jumps an ordinary sticker link through its legacy ids without asking any service", async () => {
+    const fixture = context([snapshot([{ key: action.anchorId, seq: 42, text: "目标问题" }], false)]);
+    const quote = "目标问题";
+    const result = await applyDeepLink(fixture.ctx as never, {
+      ...action,
+      dshInstanceId: "current",
+      stickerId: "9bb3a80e-230d-44d1-a37c-f7b79d2bf315",
+      quoteHash: await hashQuote(quote),
+    }, {
+      runtimeIdentity: { dshInstanceId: "current" },
+      quote,
+      locate: () => true,
+    });
+    expect(result).toEqual({ status: "located", sessionId: "session-demo", anchorId: action.anchorId });
+    expect(fixture.ctx.sessions.open).toHaveBeenCalledWith("session-demo");
+  });
   it("resolves a logical sticker link to the active projection before opening", async () => {
     const fixture = context([snapshot([
       { key: "message:user-42", seq: 42, text: "目标问题" },

@@ -30,59 +30,6 @@ export interface ApplyDeepLinkOptions {
   }) => Promise<{ readonly sessionId: string; readonly anchorId?: string } | undefined>;
 }
 
-export async function resolveMaintenanceProjection(input: {
-  readonly referenceType: "annotation" | "sticker" | "obsidian-reference";
-  readonly logicalSessionId?: string;
-  readonly logicalAnchorId?: string;
-  readonly legacySessionId: string;
-  readonly legacyAnchorId?: string;
-  readonly fetchImpl?: typeof fetch;
-  readonly signal?: AbortSignal;
-}): Promise<{
-  readonly logicalSessionId?: string;
-  readonly logicalAnchorId?: string;
-  readonly sessionId: string;
-  readonly anchorId?: string;
-} | undefined> {
-  // Creation waits for this optional identity enrichment before opening its editor.
-  // Bound both headers and body without discarding an explicit caller cancellation.
-  const deadline = AbortSignal.timeout(15000);
-  const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline;
-  const response = await (input.fetchImpl ?? fetch)("/dsh-session-maintenance/api", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    signal,
-    body: JSON.stringify({
-      operation: "reference:resolve",
-      referenceType: input.referenceType,
-      logicalSessionId: input.logicalSessionId ?? null,
-      logicalAnchorId: input.logicalAnchorId ?? null,
-      legacyNativeSessionId: input.legacySessionId,
-      legacyNativeAnchorId: input.legacyAnchorId ?? null,
-    }),
-  });
-  if (!response.ok) return undefined;
-  const body = await response.json() as {
-    readonly referenceResolution?: {
-      readonly status?: string;
-      readonly logicalSessionId?: string | null;
-      readonly logicalAnchorId?: string | null;
-      readonly nativeSessionId?: string | null;
-      readonly nativeAnchorId?: string | null;
-    };
-  };
-  const resolved = body.referenceResolution;
-  if (resolved?.status !== "resolved" || typeof resolved.nativeSessionId !== "string") return undefined;
-  return {
-    ...(resolved.logicalSessionId ? { logicalSessionId: resolved.logicalSessionId } : {}),
-    ...(resolved.logicalAnchorId ? { logicalAnchorId: resolved.logicalAnchorId } : {}),
-    sessionId: resolved.nativeSessionId,
-    ...(resolved.nativeAnchorId !== null && resolved.nativeAnchorId !== undefined
-      ? { anchorId: resolved.nativeAnchorId }
-      : input.legacyAnchorId === undefined ? {} : { anchorId: input.legacyAnchorId }),
-  };
-}
-
 function pause(milliseconds: number, signal?: AbortSignal): Promise<void> {
   signal?.throwIfAborted();
   return new Promise<void>((resolve, reject) => {
