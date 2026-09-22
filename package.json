@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-rc2.10",
+  "version": "0.7.4-rc2.11",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -41,7 +41,8 @@
     "pretest": "pnpm build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "check": "pnpm typecheck && pnpm test && pnpm pack --dry-run --json"
+    "check": "pnpm typecheck && pnpm test && pnpm pack --dry-run --json",
+    "package:release": "node scripts/package-release.mjs"
   },
   "dependencies": {
     "lucide-react": "0.542.0",
@@ -108,7 +109,7 @@
     "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1",
     "react": "*",
     "react-dom": "*",
-    "dsh-obsidian-bridge": "0.4.1-rc2.9"
+    "dsh-obsidian-bridge": "0.4.1-rc2.10"
   },
   "peerDependenciesMeta": {
     "dsh-better-sidebar": {
@@ -143,7 +144,7 @@
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "link:../dsh-annotation-core",
+    "dsh-annotation-core": "file:vendor/dsh-annotation-core-0.3.12-rc2.28.tgz",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -151,7 +152,8 @@
     "typescript": "^5.9.3",
     "unrun": "^0.3.1",
     "vitest": "^4.1.11",
-    "dsh-obsidian-bridge": "link:../dsh-obsidian-bridge-lifecycle"
+    "dsh-obsidian-bridge": "file:vendor/dsh-obsidian-bridge-0.4.1-rc2.10.tgz",
+    "tar": "7.5.22"
   },
   "packageManager": "pnpm@11.19.0",
   "repository": {
