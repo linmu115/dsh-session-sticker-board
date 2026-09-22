@@ -1,3 +1,9 @@
+# 0.7.4-rc2.10
+
+- 公开主线同步已完成的 Maintenance 解耦。
+- 必需依赖对齐 Annotation Core 0.3.12-rc2.28、DSH Obsidian Bridge 0.4.1-rc2.9。
+- 同步安装教程；不增加 Sidechat 或 Launcher 依赖。
+
 # Changelog
 
 ## 0.7.4-rc2.9 — 2026-09-21

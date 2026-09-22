@@ -1,6 +1,6 @@
 # DSH Session Sticker Board（普通贴纸）
 
-**0.7.4-rc2.9 · DSH 0.1.5-rc.2 · 依赖 Core + DSH Obsidian Bridge**
+**0.7.4-rc2.10 · DSH 0.1.5-rc.2 · 依赖 Core + DSH Obsidian Bridge**
 
 提供普通贴纸、正文/选文保存和笔记关联。通过 Core 接入选文与引用，通过共享 Bridge 交接 Obsidian；不依赖 Maintenance 或 Launcher。Better Sidebar 是可选展示位置，不是基础服务启动条件。
 
@@ -10,13 +10,13 @@
 
 ## 部署方法
 
-**环境要求**：Node.js 24，可正常启动的 DSH `0.1.5-rc.2` / `web` profile。**必须先安装 Annotation Core 和 DSH Obsidian Bridge**，贴纸依赖这两者。Better Sidebar 是可选展示位置，不是启动条件。
+**环境要求**：Node.js 24，可正常启动的 DSH `0.1.5-rc.2` / `web` profile。**必须先安装 Annotation Core 0.3.12-rc2.28 和 DSH Obsidian Bridge 0.4.1-rc2.9**，贴纸依赖这两者。Better Sidebar 是可选展示位置，不是启动条件。
 
-从 [Release v0.7.4-rc2.9](https://github.com/linmu115/dsh-session-sticker-board/releases/tag/v0.7.4-rc2.9) 下载 `dsh-session-sticker-board-0.7.4-rc2.9.tgz`，然后：
+从 [Release v0.7.4-rc2.10](https://github.com/linmu115/dsh-session-sticker-board/releases/tag/v0.7.4-rc2.10) 下载 `dsh-session-sticker-board-0.7.4-rc2.10.tgz`，然后：
 
 ```powershell
 $env:DSH_HOME = '<你的 DSH_HOME>'
-dsh plugin --profile web add ./dsh-session-sticker-board-0.7.4-rc2.9.tgz
+dsh plugin --profile web add ./dsh-session-sticker-board-0.7.4-rc2.10.tgz
 ```
 
 安装顺序为 Core → Bridge → 贴纸。安装命令会把包写进 profile 并在 `dsh.profile.bundles` 注册，**不要**再手工插入同名插件节点。随后正常重启 DSH 使新版本加载。
