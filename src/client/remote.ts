@@ -29,7 +29,7 @@ function unwrapRemote<T>(result: RemoteResult<T>): T {
   return result.value;
 }
 
-export async function mountStickerRemote(ctx: Context): Promise<{
+export async function mountStickerRemote(ctx: Context, signal?: AbortSignal): Promise<{
   origin: string;
   readLocalState(sessionId: string): Promise<LocalStickerState>;
   saveLocalSession(request: {
@@ -41,15 +41,20 @@ export async function mountStickerRemote(ctx: Context): Promise<{
   acknowledgeBacklinkDelete(request: { sessionId: string; stickerId: string }): Promise<LocalStickerState>;
   dispose(): Promise<void>;
 }> {
+  signal?.throwIfAborted();
   const remote = ctx.get("remote") as {
     $mount(contribution: typeof STICKER_REMOTE): Promise<() => Promise<void>>;
   } | undefined;
   if (remote === undefined) throw new Error("DSH remote service is unavailable");
-  const dispose = await remote.$mount(STICKER_REMOTE);
+  const unmount = await remote.$mount(STICKER_REMOTE);
+  let disposal: Promise<void> | undefined;
+  const dispose = () => disposal ??= Promise.resolve().then(unmount);
   try {
+    signal?.throwIfAborted();
     const namespace = ctx.get("remote.stickerBoard") as StickerBoardRemoteNamespace | undefined;
     if (namespace === undefined) throw new Error("Sticker bridge Remote descriptor was not mounted");
-    const config = unwrapRemote(await namespace.getBridgeConfig());
+    const config = unwrapRemote(await abortable(namespace.getBridgeConfig(), signal));
+    signal?.throwIfAborted();
     return {
       origin: normalizeBridgeOrigin(config.origin),
       readLocalState: async (sessionId) => unwrapRemote(await namespace.readLocalState(sessionId)),
@@ -61,4 +66,14 @@ export async function mountStickerRemote(ctx: Context): Promise<{
     await dispose();
     throw error;
   }
+}
+
+function abortable<T>(request: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return request;
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    request.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+    if (signal.aborted) abort();
+  });
 }

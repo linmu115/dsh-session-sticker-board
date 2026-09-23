@@ -8,7 +8,7 @@ import { StickerLocalStore, type LocalStickerState, type SaveLocalSessionRequest
 export class StickerBoardRemoteService extends TypertRemoteService {
   readonly origin: string;
 
-  constructor(private readonly hostContext: Context, origin: string, readonly localStore = new StickerLocalStore()) {
+  constructor(private readonly hostContext: Context, origin: string, readonly localStore: StickerLocalStore) {
     // Linked peers may resolve separate Cordis type augmentations; the runtime context is shared.
     super(hostContext as never, "stickerBoard");
     this.origin = normalizeBridgeOrigin(origin);

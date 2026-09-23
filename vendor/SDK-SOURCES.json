@@ -1,16 +1,16 @@
 {
   "snapshots": [
     {
-      "file": "dsh-annotation-core-0.3.12-rc2.28.tgz",
-      "version": "0.3.12-rc2.28",
-      "sha256": "cf44fa00c3f2c021d1473e0aba6ebda2c114a6b78eeeaa22c324106da65af103",
-      "source": "https://github.com/linmu115/dsh-annotation-core/releases/tag/v0.3.12-rc2.28"
+      "sha256": "3f7d65736183c21175f5e59555035edb426539dfedaed05a749a9c91a8473353",
+      "file": "dsh-annotation-core-0.3.12-rc2.29.tgz",
+      "version": "0.3.12-rc2.29",
+      "source": "https://github.com/linmu115/dsh-annotation-core/releases/tag/v0.3.12-rc2.29"
     },
     {
-      "file": "dsh-obsidian-bridge-0.4.1-rc2.10.tgz",
-      "version": "0.4.1-rc2.10",
-      "sha256": "8ebf95110f65e1ff97f5866c0f8c686e7eedc28a53d1395711cb753589a46a70",
-      "source": "https://github.com/linmu115/dsh-obsidian-bridge/releases/tag/v0.4.1-rc2.10"
+      "sha256": "ab8b6ec43008906320ad50d3578ee38d1f9a48ac2c8f8854101aab3aecf47a7a",
+      "file": "dsh-obsidian-bridge-0.4.1-rc2.11.tgz",
+      "version": "0.4.1-rc2.11",
+      "source": "https://github.com/linmu115/dsh-obsidian-bridge/releases/tag/v0.4.1-rc2.11"
     }
   ]
 }

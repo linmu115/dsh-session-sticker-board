@@ -3,7 +3,7 @@ import type { Context as CordisContext } from "@deepseek-ai/cordis";
 import { normalizeBridgeOrigin } from "./bridge/http-client.ts";
 import type { Context } from "./context-types.ts";
 import { StickerBoardRemoteService } from "./remote/service.ts";
-import { defaultStickerStorageDirectory, StickerLocalStore } from "./host/local-store.ts";
+import { defaultStickerStorageDirectory, legacyStickerStorageDirectory, StickerLocalStore } from "./host/local-store.ts";
 import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge/api";
 
 export const name = "dsh-session-sticker-board";
@@ -27,10 +27,13 @@ export function apply(ctx: Context, config: Config): void {
   if (lifecycle && bridgeOrigin !== lifecycle.bridgeOrigin) {
     throw new Error("Sticker Board and Bridge Lifecycle must use the same Obsidian Bridge address");
   }
-  const storageDirectory = config.storageDirectory?.trim() || defaultStickerStorageDirectory();
+  const explicitDirectory = config.storageDirectory?.trim();
+  const profileId = lifecycle?.runtimeIdentity?.profileId;
+  if (!explicitDirectory && !profileId) throw new Error('Sticker default storage requires the current Bridge profile identity');
+  const storageDirectory = explicitDirectory || defaultStickerStorageDirectory(profileId!);
   new StickerBoardRemoteService(
     ctx as unknown as CordisContext,
     bridgeOrigin,
-    new StickerLocalStore(storageDirectory),
+    new StickerLocalStore(storageDirectory, explicitDirectory ? undefined : { root: legacyStickerStorageDirectory(), profileId: profileId! }),
   );
 }

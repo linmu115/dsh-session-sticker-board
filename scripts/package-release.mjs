@@ -1,5 +1,5 @@
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { resolve, join, sep } from 'node:path';
+import { resolve, join, sep, dirname } from 'node:path';
 import { create } from 'tar';
 
 const root = resolve(import.meta.dirname, '..');
@@ -9,12 +9,15 @@ const out = join(root, '.artifacts');
 await mkdir(out, { recursive: true });
 const stage = await mkdtemp(join(out, '.release-'));
 const target = join(stage, 'package');
-const files = ["lib", "cordis.patch.yml", "README.md", "LICENSE"];
+const files = ["lib", "cordis.patch.yml", "README.md", "LICENSE", "scripts/migrate-storage.mjs"];
 try {
   await mkdir(target, { recursive: true });
-  for (const name of files) await cp(join(plugin, name), join(target, name), {
-    recursive: true, filter: source => !source.endsWith('.map'),
-  });
+  for (const name of files) {
+    await mkdir(dirname(join(target, name)), { recursive: true });
+    await cp(join(plugin, name), join(target, name), {
+      recursive: true, filter: source => !source.endsWith('.map'),
+    });
+  }
   const docTarget = join(target, 'docs');
   await mkdir(docTarget, { recursive: true });
   for (const entry of await readdir(join(plugin, 'docs'), { withFileTypes: true })) {

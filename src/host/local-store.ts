@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 
 import {
   PROTOCOL_VERSION,
@@ -14,6 +13,8 @@ import {
   type StickerRecord,
 } from "../protocol.ts";
 import type { LocalStickerState } from "../protocol.ts";
+import { MIGRATION_RECEIPT, parseMigrationReceipt, profileStickerStorageDirectory } from './storage-scope.ts';
+export { defaultStickerStorageDirectory, legacyStickerStorageDirectory } from './storage-scope.ts';
 export type { LocalStickerState } from "../protocol.ts";
 
 export interface SaveLocalSessionRequest {
@@ -21,15 +22,6 @@ export interface SaveLocalSessionRequest {
   expectedRevision: string;
   enqueueBacklinkDelete?: PendingBacklinkDelete;
   updateBacklinkDelete?: PendingBacklinkDelete;
-}
-
-export function defaultStickerStorageDirectory(
-  env: NodeJS.ProcessEnv = process.env,
-  userHome = homedir(),
-): string {
-  const configured = env.DSH_HOME?.trim();
-  const dshHome = configured ? configured : join(userHome, ".dsh");
-  return join(dshHome, "plugin-data", "dsh-session-sticker-board");
 }
 
 function emptyDocument(sessionId: string): SessionNoteDocument {
@@ -61,13 +53,40 @@ function isMissing(error: unknown): boolean {
 export class StickerLocalStore {
   private readonly mutations = new Map<string, Promise<unknown>>();
 
-  constructor(readonly root: string = defaultStickerStorageDirectory()) {}
+  constructor(readonly root: string, private readonly legacy?: { root: string; profileId: string }) {}
+
+  private async assertLegacyScope(sessionId: string): Promise<void> {
+    if (!this.legacy) return;
+    const file = sessionFile(this.legacy.root, sessionId);
+    const exists = async (path: string) => {
+      try { await access(path); return true; } catch (error) { if (isMissing(error)) return false; throw error; }
+    };
+    if (!await exists(file) && !await exists(file + '.ownership')) return;
+    try {
+      const receipt = parseMigrationReceipt(await readFile(join(this.legacy.root, MIGRATION_RECEIPT), 'utf8'));
+      // A complete explicit assignment is authoritative for all profiles. A
+      // different profile starts empty; it never borrows this legacy history.
+      if (receipt.sourceDirectory !== resolve(this.legacy.root)
+        || receipt.targetDirectory !== profileStickerStorageDirectory(receipt.sourceDirectory, receipt.profileId)) throw new Error('Sticker migration receipt storage identity mismatch');
+      if (receipt.completed) {
+        for (const source of [file, file + '.ownership']) {
+          if (!await exists(source)) continue;
+          const entry = receipt.files.find(item => item.name === basename(source));
+          if (!entry || createHash('sha256').update(await readFile(source)).digest('hex') !== entry.sha256) throw new Error('旧贴纸在 profile 迁移后发生变化，请核对原文件与迁移回执');
+          if (receipt.profileId === this.legacy.profileId && !await exists(join(this.root, 'sessions', entry.name))) throw new Error('贴纸 profile 迁移目标不完整，请从备份核对恢复');
+        }
+        return;
+      }
+    } catch (error) { if (!isMissing(error)) throw error; }
+    throw Object.assign(new Error('旧贴纸尚未确认 profile 归属；请正常停机并执行显式存储迁移，原文件保持不变'), { code: 'STICKER_STORAGE_SCOPE_REQUIRED' });
+  }
 
   /**
    * Reads the freeze marker of a session whose stickers were moved out of the local copy by an
    * older build. Nothing writes it any more; it is only honoured so such a copy is not resurrected.
    */
   async ownership(sessionId: string): Promise<{ migrationId: string; phase: 'frozen' | 'active'; receiptId?: string; vaultId?: string } | null> {
+    await this.assertLegacyScope(sessionId);
     try {
       const value = JSON.parse(await readFile(sessionFile(this.root, sessionId) + '.ownership', 'utf8'));
       if (typeof value.migrationId !== 'string' || !['frozen','active'].includes(value.phase)) throw new Error('贴纸归属登记损坏，暂停写入');
@@ -80,6 +99,7 @@ export class StickerLocalStore {
 
   async read(sessionId: string): Promise<LocalStickerState> {
     if (sessionId.trim() === "") throw new TypeError("Session ID must not be empty");
+    await this.assertLegacyScope(sessionId);
     const file = sessionFile(this.root, sessionId);
     try {
       const raw = JSON.parse(await readFile(file, "utf8")) as unknown;

@@ -95,144 +95,169 @@ function StickerBoardRoot(props: {
   );
 }
 
-export function apply(ctx: Context): void {
-  try {
-    ctx.inject(inject, async (injectedContext) => {
-      try {
-        const ready = injectedContext as unknown as Context & { obsidianBridgeLifecycle?: ObsidianBridgeLifecycle };
-        const mountedRemote = await mountStickerRemote(ready);
-        const resolveBridge = () => ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
-        const currentIdentity = () => resolveBridge()?.runtimeIdentity;
-        const bridge = createStickerBridgeChannel(resolveBridge);
-        const stickers = createStickerWorkspace(mountedRemote, bridge);
-        const stickerSidebar = createStickerSidebarController();
-        let betterSidebar: BetterSidebarService | undefined;
-        const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
-          const injected = sidebarContext as unknown as Context;
-          injected.effect(() => {
-            const service = injected.betterSidebar;
-            betterSidebar = service;
-            stickerSidebar.attach(service);
-            const unregister = registerStickerSidebar(
-              injected,
-              stickers,
-              (action) => bridge.openNote(action),
-              (record) => bridge.listBacklinks(record),
-            );
-            return () => {
-              unregister();
-              stickerSidebar.detach(service);
-              if (betterSidebar === service) betterSidebar = undefined;
-            };
-          }, "dsh-session-sticker-board: sidebar tab");
-        });
+async function mountStickerClient(ready: Context, signal: AbortSignal, own: (dispose: () => void | Promise<void>) => void): Promise<void> {
+  const mountedRemote = await mountStickerRemote(ready, signal);
+  own(() => mountedRemote.dispose());
+  signal.throwIfAborted();
+  const resolveBridge = () => ready.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle | undefined;
+  const currentIdentity = () => resolveBridge()?.runtimeIdentity;
+  const bridge = createStickerBridgeChannel(resolveBridge);
+  const stickers = createStickerWorkspace(mountedRemote, bridge);
+  own(() => stickers.dispose());
+  const stickerSidebar = createStickerSidebarController();
+  let betterSidebar: BetterSidebarService | undefined;
+  const sidebarFiber = ready.inject(["betterSidebar"], (sidebarContext) => {
+    const injected = sidebarContext as unknown as Context;
+    injected.effect(() => {
+      const service = injected.betterSidebar;
+      betterSidebar = service;
+      stickerSidebar.attach(service);
+      const unregister = registerStickerSidebar(
+        injected,
+        stickers,
+        (action) => bridge.openNote(action),
+        (record) => bridge.listBacklinks(record),
+      );
+      return () => {
+        unregister();
+        stickerSidebar.detach(service);
+        if (betterSidebar === service) betterSidebar = undefined;
+      };
+    }, "dsh-session-sticker-board: sidebar tab");
+  });
+  own(() => sidebarFiber.dispose());
 
-        const overlayHost = document.createElement("div");
-        overlayHost.dataset.dshStickerBoard = "";
-        document.body.appendChild(overlayHost);
-        const root = createRoot(overlayHost);
-        root.render(
-          <StickerBoardRoot
-            ctx={ready}
-            workspace={stickers}
-            openNote={(action) => bridge.openNote(action)}
-            openSticker={(record) => stickerSidebar.openSticker(record)}
-            resolveLogicalLocation={async ({ sessionId, anchorId }) => {
-              const runtimeIdentity = currentIdentity();
-              return {
-                ...(runtimeIdentity?.dshInstanceId === undefined ? {} : {
-                  dshInstanceId: runtimeIdentity.dshInstanceId,
-                }),
-                legacySessionId: sessionId,
-                legacyAnchorId: anchorId,
-              };
-            }}
-          />,
-        );
-
-        const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction, signal?: AbortSignal): Promise<boolean> => {
-          const runtimeIdentity = currentIdentity();
-          signal?.throwIfAborted();
-          if (action.type !== "deep-link" || action.setId !== undefined) return false;
-          if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
-          signal?.throwIfAborted();
-          if (action.anchorId === '@session') {
-            await ready.sessions.open(action.sessionId);
-            return true;
-          }
-          const isStickerAction = action.stickerId !== undefined
-            || action.quoteHash !== undefined;
-          if (isStickerAction) {
-            try {
-              await stickers.ensure(action.sessionId);
-              signal?.throwIfAborted();
-            } catch (error) {
-              console.warn("[dsh-session-sticker-board] sticker deep-link load failed", error);
-              return true;
-            }
-          }
-          const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => matchesRuntimeScope(view.record, runtimeIdentity) && (
-            action.stickerId !== undefined
-              ? view.record.stickerId === action.stickerId
-              : view.record.anchorId === action.anchorId
-                && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
-          ));
-          if (isStickerAction && matchingSticker === undefined) {
-            console.warn("[dsh-session-sticker-board] sticker deep-link target no longer exists", {
-              sessionId: action.sessionId,
-              stickerId: action.stickerId,
-              anchorId: action.anchorId,
-            });
-            return true;
-          }
-          const result = await applyDeepLink(ready, action, {
-            ...(runtimeIdentity === undefined ? {} : { runtimeIdentity: runtimeIdentity }),
-            ...(signal === undefined ? {} : { signal }),
-            ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
-          });
-          if (result.status !== "located") {
-            console.warn("[dsh-session-sticker-board] deep-link was not located", result);
-          }
-          return true;
+  const overlayHost = document.createElement("div");
+  overlayHost.dataset.dshStickerBoard = "";
+  document.body.appendChild(overlayHost);
+  own(() => overlayHost.remove());
+  const root = createRoot(overlayHost);
+  own(() => root.unmount());
+  root.render(
+    <StickerBoardRoot
+      ctx={ready}
+      workspace={stickers}
+      openNote={(action) => bridge.openNote(action)}
+      openSticker={(record) => stickerSidebar.openSticker(record)}
+      resolveLogicalLocation={async ({ sessionId, anchorId }) => {
+        const runtimeIdentity = currentIdentity();
+        return {
+          ...(runtimeIdentity?.dshInstanceId === undefined ? {} : {
+            dshInstanceId: runtimeIdentity.dshInstanceId,
+          }),
+          legacySessionId: sessionId,
+          legacyAnchorId: anchorId,
         };
-        const bridgeFiber = ready.inject(['obsidianBridgeLifecycle'], bridgeContext => {
-          const shared = bridgeContext.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle;
-          bridgeContext.effect(() => {
-            const unregisterHealth = shared.registerHealthSource?.('stickers', {
-              getHealth: () => stickers.health(),
-              subscribe: listener => stickers.subscribe(listener),
-              retry: () => { void stickers.syncAll(); },
-            });
-            const unregisterActions = shared.registerActionHandler?.('session-sticker-board', {
-              accepts: (action) => action.type === "deep-link"
-                && matchesRuntimeScope(action, currentIdentity())
-                && action.setId === undefined
-                && (action.stickerId !== undefined || action.quoteHash !== undefined || action.anchorId === '@session'),
-              handle: applyAction,
-            });
-            const unregisterSync = shared.mountWhenReady('session-sticker-board:sync', () => {
-              void stickers.syncAll();
-            });
-            return () => {
-              unregisterSync();
-              unregisterActions?.();
-              unregisterHealth?.();
-            };
-          }, 'stickers: shared Bridge channel');
-        });
-        ready.effect(() => () => {
-          void bridgeFiber.dispose();
-          stickers.dispose();
-          void sidebarFiber.dispose();
-          void mountedRemote.dispose();
-          setTimeout(() => root.unmount());
-          overlayHost.remove();
-        }, "dsh-session-sticker-board: client");
+      }}
+    />,
+  );
+
+  const applyAction = async (action: import("../bridge/http-client.ts").BridgeAction, signal?: AbortSignal): Promise<boolean> => {
+    const runtimeIdentity = currentIdentity();
+    signal?.throwIfAborted();
+    if (action.type !== "deep-link" || action.setId !== undefined) return false;
+    if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
+    signal?.throwIfAborted();
+    if (action.anchorId === '@session') {
+      await ready.sessions.open(action.sessionId);
+      return true;
+    }
+    const isStickerAction = action.stickerId !== undefined
+      || action.quoteHash !== undefined;
+    if (isStickerAction) {
+      try {
+        await stickers.ensure(action.sessionId);
+        signal?.throwIfAborted();
       } catch (error) {
-        throw error;
+        console.warn("[dsh-session-sticker-board] sticker deep-link load failed", error);
+        return true;
       }
+    }
+    const matchingSticker = !isStickerAction ? undefined : stickers.list(action.sessionId).find((view) => matchesRuntimeScope(view.record, runtimeIdentity) && (
+      action.stickerId !== undefined
+        ? view.record.stickerId === action.stickerId
+        : view.record.anchorId === action.anchorId
+          && (!action.quoteHash || view.record.quoteHash === action.quoteHash)
+    ));
+    if (isStickerAction && matchingSticker === undefined) {
+      console.warn("[dsh-session-sticker-board] sticker deep-link target no longer exists", {
+        sessionId: action.sessionId,
+        stickerId: action.stickerId,
+        anchorId: action.anchorId,
+      });
+      return true;
+    }
+    const result = await applyDeepLink(ready, action, {
+      ...(runtimeIdentity === undefined ? {} : { runtimeIdentity: runtimeIdentity }),
+      ...(signal === undefined ? {} : { signal }),
+      ...(matchingSticker ? { quote: matchingSticker.record.quote } : {}),
     });
-  } catch (error) {
-    throw error;
-  }
+    if (result.status !== "located") {
+      console.warn("[dsh-session-sticker-board] deep-link was not located", result);
+    }
+    return true;
+  };
+  const bridgeFiber = ready.inject(['obsidianBridgeLifecycle'], bridgeContext => {
+    const shared = bridgeContext.get('obsidianBridgeLifecycle') as ObsidianBridgeLifecycle;
+    bridgeContext.effect(() => {
+      const unregisterHealth = shared.registerHealthSource?.('stickers', {
+        getHealth: () => stickers.health(),
+        subscribe: listener => stickers.subscribe(listener),
+        retry: () => { void stickers.syncAll(); },
+      });
+      const unregisterActions = shared.registerActionHandler?.('session-sticker-board', {
+        accepts: (action) => action.type === "deep-link"
+          && matchesRuntimeScope(action, currentIdentity())
+          && action.setId === undefined
+          && (action.stickerId !== undefined || action.quoteHash !== undefined || action.anchorId === '@session'),
+        handle: applyAction,
+      });
+      const unregisterSync = shared.mountWhenReady('session-sticker-board:sync', () => {
+        void stickers.syncAll();
+      });
+      return () => {
+        unregisterSync();
+        unregisterActions?.();
+        unregisterHealth?.();
+      };
+    }, 'stickers: shared Bridge channel');
+  });
+  own(() => bridgeFiber.dispose());
+}
+
+export function apply(ctx: Context): void {
+  ctx.inject(inject, injectedContext => {
+    const ready = injectedContext as unknown as Context;
+    // Own startup before its first await so dependency loss can cancel it.
+    ready.effect(() => {
+      const lifetime = new AbortController();
+      const disposers: Array<() => void | Promise<void>> = [];
+      const cleanup = async () => {
+        const failures: unknown[] = [];
+        for (const dispose of disposers.splice(0).reverse()) {
+          try { await dispose(); } catch (error) { failures.push(error); }
+        }
+        if (failures.length) throw new AggregateError(failures, 'Sticker client cleanup failed');
+      };
+      // Cordis defers an async plugin's own effects until startup settles.
+      // The synchronous owner can cancel its LOADING child, while genuine
+      // initialization errors remain visible as a FAILED child activation.
+      const startup = ready.plugin({
+        name: 'dsh-session-sticker-board:client-startup',
+        apply: async () => {
+          try {
+            await mountStickerClient(ready, lifetime.signal, dispose => { disposers.push(dispose); });
+          } catch (error) {
+            await cleanup();
+            if (!lifetime.signal.aborted) throw error;
+          }
+        },
+      });
+      return async () => {
+        lifetime.abort();
+        await startup.dispose();
+        await cleanup();
+      };
+    }, 'dsh-session-sticker-board: client');
+  });
 }

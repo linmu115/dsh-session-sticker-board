@@ -25,8 +25,8 @@ const sticker: StickerRecord = {
 
 describe("StickerLocalStore", () => {
   it("uses the active DSH_HOME and persists a session independently from Obsidian", async () => {
-    expect(defaultStickerStorageDirectory({ DSH_HOME: "D:/launcher-alpha2" }, "C:/user"))
-      .toBe(join("D:/launcher-alpha2", "plugin-data", "dsh-session-sticker-board"));
+    expect(defaultStickerStorageDirectory('web', { DSH_HOME: "D:/launcher-alpha2" }, "C:/user"))
+      .toMatch(/dsh-session-sticker-board[\\/]profiles[\\/][a-f0-9]{64}$/);
     const root = await mkdtemp(join(tmpdir(), "dsh-stickers-"));
     roots.push(root);
     const store = new StickerLocalStore(root);

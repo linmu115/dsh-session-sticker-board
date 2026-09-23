@@ -43,7 +43,7 @@ const browserPlugin: NonNullable<UserConfig["plugins"]> = {
 
 export default [
   {
-    entry: { index: "src/index.ts", typert: "src/remote/typert.ts" },
+    entry: { index: "src/index.ts", typert: "src/remote/typert.ts", 'migrate-storage': 'src/host/migrate-storage.ts' },
     outDir: "lib",
     format: ["esm"],
     platform: "node",

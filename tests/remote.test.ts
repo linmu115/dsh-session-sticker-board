@@ -5,6 +5,34 @@ import { StickerBoardRemoteService } from "../src/remote/service.ts";
 import { STICKER_REMOTE, TYPERT } from "../src/remote/typert.ts";
 
 describe("sticker bridge Remote boundary", () => {
+  it('unmounts and settles cancellation without waiting for a hung configuration request', async () => {
+    const abort = new AbortController();
+    const dispose = vi.fn(async () => {});
+    const config = vi.fn(() => new Promise<never>(() => {}));
+    const get = (name: string) => name === 'remote' ? { $mount: async () => dispose } : { getBridgeConfig: config };
+    const mounting = mountStickerRemote({ get } as never, abort.signal);
+    await vi.waitFor(() => expect(config).toHaveBeenCalledOnce());
+    abort.abort();
+    await expect(mounting).rejects.toMatchObject({ name: 'AbortError' });
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+  it.each(['mount', 'configuration'])('releases a remote acquired after cancellation during %s', async (phase) => {
+    const abort = new AbortController();
+    const dispose = vi.fn(async () => {});
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const namespace = { getBridgeConfig: async () => {
+      if (phase === 'configuration') await pending;
+      return { ok: true, value: { origin: 'http://127.0.0.1:28473' } };
+    } };
+    const get = vi.fn((name: string) => name === 'remote' ? { $mount: async () => { if (phase === 'mount') await pending; return dispose; } } : namespace);
+    const mounting = mountStickerRemote({ get } as never, abort.signal);
+    await Promise.resolve();
+    abort.abort(); finish();
+    await expect(mounting).rejects.toMatchObject({ name: 'AbortError' });
+    expect(dispose).toHaveBeenCalledOnce();
+    if (phase === 'mount') expect(get).toHaveBeenCalledTimes(1);
+  });
   it("declares profile-scoped bridge configuration and durable local sticker operations", () => {
     expect(TYPERT.package).toBe("dsh-session-sticker-board");
     expect(TYPERT.face).toBe("host");
