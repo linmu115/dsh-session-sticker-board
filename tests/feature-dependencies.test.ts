@@ -6,7 +6,7 @@ it('waits for all ordinary Sticker providers and releases the feature fiber when
   const ctx = new Context();
   const mounted = vi.fn(), unmounted = vi.fn();
   try {
-    for (const name of ['sessions', 'remote', 'uiConversation']) ctx.provide(name, {} as never);
+    for (const name of ['sessions', 'uiWorkspace', 'remote', 'uiConversation']) ctx.provide(name, {} as never);
     const waiting = ctx.inject([...inject], child => { mounted(); child.effect(() => unmounted); });
     const core = await ctx.plugin(child => { child.provide('annotationCore', {} as never); });
     const sidebar = await ctx.plugin(child => { child.provide('betterSidebar', {} as never); });

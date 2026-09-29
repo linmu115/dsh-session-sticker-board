@@ -1,3 +1,4 @@
+import { currentMainSession, openMainSession } from '../client-session.ts';
 import { hashQuote } from "./anchor.ts";
 import type { ChatSnapshotLike, Context, ObservableSnapshot, SessionFace } from "../context-types.ts";
 import type { DeepLinkAction } from "../protocol.ts";
@@ -83,8 +84,8 @@ async function defaultWaitForBinding(ctx: Context, sessionId: string, signal?: A
   for (let attempt = 0; attempt < 200; attempt += 1) {
     signal?.throwIfAborted();
     const binding = ctx.sessions.binding(sessionId);
-    const current = ctx.sessions.list.getSnapshot().current;
-    if (binding && (current === undefined || current === sessionId)) return binding.session;
+    const current = currentMainSession(ctx.sessions.list.getSnapshot());
+    if (binding && current === sessionId) return binding.session;
     await pause(25, signal);
   }
   return undefined;
@@ -185,7 +186,7 @@ export async function applyDeepLink(
   }
 
   options.signal?.throwIfAborted();
-  ctx.sessions.open(sessionId);
+  await openMainSession(ctx, sessionId, options.signal);
   const session = options.waitForBinding
     ? await options.waitForBinding(ctx, sessionId)
     : await defaultWaitForBinding(ctx, sessionId, options.signal);

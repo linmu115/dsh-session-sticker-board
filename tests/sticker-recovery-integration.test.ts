@@ -120,7 +120,8 @@ describe("sticker recovery integration", () => {
     let loaded = false;
     const session = { getSnapshot: () => ({ hasMore: !loaded }), loadOlder };
     const ctx = {
-      sessions: { open: vi.fn(), list: { getSnapshot: () => ({ current: sessionId, phase: "ready", byId: { session: {} } }) }, binding: () => ({ session }) },
+      uiWorkspace: { openSession: vi.fn() },
+      sessions: { list: { getSnapshot: () => ({ phase: "ready", byId: { [sessionId]: { retainedBy: { mainView: 1 } } } }), subscribe: () => () => {} }, binding: () => ({ session }) },
       uiConversation: { binding: () => ({ target: () => ({ getSnapshot: () => ({ order: loaded ? ["anchor"] : [], nodes: { get: () => loaded ? { data: { content: [{ type: "text", text: "quote" }] } } : undefined } }) }) }) },
     };
     const navigating = applyDeepLink(ctx as never, { protocolVersion: 1, type: "deep-link", actionId: "action", sessionId, anchorId: "anchor", setId: "set" }, { signal: abort.signal, locate, openAnnotation });

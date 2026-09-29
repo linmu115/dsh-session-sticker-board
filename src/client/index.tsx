@@ -1,3 +1,4 @@
+import { currentMainSession, openMainSession } from '../client-session.ts';
 import type { ObsidianBridgeLifecycle } from "dsh-obsidian-bridge/api";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -22,7 +23,7 @@ import "./styles.css";
 
 // Ordinary Sticker UI is available only with all three feature providers.
 // Cordis waits for late services and disposes the mounted fiber when any leaves.
-export const inject = ["sessions", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle"] as const;
+export const inject = ["sessions", "uiWorkspace", "remote", "uiConversation", "annotationCore", "obsidianBridgeLifecycle"] as const;
 
 function StickerBoardRoot(props: {
   ctx: Context;
@@ -52,7 +53,7 @@ function StickerBoardRoot(props: {
     () => props.workspace.getSnapshot(),
     () => props.workspace.getSnapshot(),
   );
-  const sessionId = sessionList.current ?? "";
+  const sessionId = currentMainSession(sessionList) ?? "";
   const chatSource = useMemo(
     () => sessionId ? props.ctx.uiConversation.binding(sessionId).target("chat") : undefined,
     [props.ctx, sessionId],
@@ -77,7 +78,7 @@ function StickerBoardRoot(props: {
     });
   }, [props.workspace, sessionId]);
   if (!sessionId) return null;
-  const title = sessionList.byId?.[sessionId]?.title ?? sessionId;
+  const title = sessionList.byId?.[sessionId]?.displayTitle ?? sessionId;
   return (
     <StickerOverlay
       {...(selectionActions ? { selectionActions } : {})}
@@ -159,7 +160,7 @@ async function mountStickerClient(ready: Context, signal: AbortSignal, own: (dis
     if (!matchesRuntimeScope(action, runtimeIdentity)) return false;
     signal?.throwIfAborted();
     if (action.anchorId === '@session') {
-      await ready.sessions.open(action.sessionId);
+      await openMainSession(ready, action.sessionId, signal);
       return true;
     }
     const isStickerAction = action.stickerId !== undefined

@@ -22,7 +22,7 @@ async function setup() {
   const ctx = new Context(); roots.push(ctx);
   let startup!: Fiber;
   ctx.on('internal/plugin', fiber => { if (fiber.name === 'dsh-session-sticker-board:client-startup') startup = fiber; });
-  for (const name of ['sessions', 'remote', 'uiConversation', 'annotationCore']) ctx.provide(name, {} as never);
+  for (const name of ['sessions', 'uiWorkspace', 'remote', 'uiConversation', 'annotationCore']) ctx.provide(name, {} as never);
   const health = vi.fn(), actions = vi.fn(), sync = vi.fn();
   const bridge = await ctx.plugin(child => child.provide('obsidianBridgeLifecycle', {
     runtimeIdentity: { profileId: 'web' },

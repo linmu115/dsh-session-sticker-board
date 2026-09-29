@@ -41,13 +41,11 @@ export interface SessionFace extends ObservableSnapshot<SessionSnapshotLike> {
 
 export interface SessionsService {
   list: ObservableSnapshot<{
-    current?: SessionId;
-    byId?: Record<string, { title?: string; archived?: boolean } | undefined>;
+    byId?: Record<string, { title?: string; displayTitle?: string; archived?: boolean; retainedBy?: Readonly<Record<string, number>> } | undefined>;
     phase?: "pending" | "ready";
   }>;
   binding(id: SessionId): { session: SessionFace } | undefined;
   scope(id: SessionId): Context | undefined;
-  open(id: SessionId): void;
 }
 
 export interface SlotRegisterOptions {
@@ -178,6 +176,7 @@ export interface InputZone {
 
 export type Context = Omit<CordisContext, "sessions" | "slots"> & {
   sessions: SessionsService;
+  uiWorkspace: { openSession(id: string): void };
   slots: SlotsService;
   uiConversation: UiConversationService;
   betterSidebar: BetterSidebarService;

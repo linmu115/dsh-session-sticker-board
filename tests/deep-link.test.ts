@@ -34,11 +34,10 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
   let index = 0;
   const listeners = new Set<() => void>();
   let listSnapshot: {
-    current: string | undefined;
-    byId: Record<string, { title: string }>;
+    
+    byId: Record<string, { title: string; retainedBy?: Record<string, number> }>;
     phase: "pending" | "ready";
   } = {
-    current: "other",
     byId: { "session-demo": { title: "演示" } },
     phase: "ready",
   };
@@ -56,11 +55,11 @@ function context(snapshots: ReturnType<typeof snapshot>[]) {
         getSnapshot: () => listSnapshot,
         subscribe: () => () => undefined,
       },
-      open: vi.fn((sessionId: string) => {
-        listSnapshot = { ...listSnapshot, current: sessionId };
-      }),
       binding: () => ({ session }),
     },
+    uiWorkspace: { openSession: vi.fn((sessionId: string) => {
+      listSnapshot = { ...listSnapshot, byId: Object.fromEntries(Object.entries(listSnapshot.byId).map(([id, row]) => [id, { ...row, retainedBy: { mainView: id === sessionId ? 1 : 0 } }])) };
+    }) },
     uiConversation: {
       binding: () => ({
         target: () => ({
@@ -85,7 +84,7 @@ describe("DSH deep links", () => {
     });
     expect(result.status).toBe("scope-mismatch");
     expect(resolver).not.toHaveBeenCalled();
-    expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
+    expect(fixture.ctx.uiWorkspace.openSession).not.toHaveBeenCalled();
   });
 
   it("does not fall back to a legacy session when a scoped logical target is unresolved", async () => {
@@ -94,7 +93,7 @@ describe("DSH deep links", () => {
       runtimeIdentity: { dshInstanceId: "current" }, resolveLogicalTarget: async () => undefined,
     });
     expect(result.status).toBe("missing-session");
-    expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
+    expect(fixture.ctx.uiWorkspace.openSession).not.toHaveBeenCalled();
   });
 
   it("accepts current-instance links and legacy links without scope", async () => {
@@ -120,13 +119,13 @@ describe("DSH deep links", () => {
       locate: () => true,
     });
     expect(result).toEqual({ status: "located", sessionId: "session-demo", anchorId: action.anchorId });
-    expect(fixture.ctx.sessions.open).toHaveBeenCalledWith("session-demo");
+    expect(fixture.ctx.uiWorkspace.openSession).toHaveBeenCalledWith("session-demo");
   });
   it("resolves a logical sticker link to the active projection before opening", async () => {
     const fixture = context([snapshot([
       { key: "message:user-42", seq: 42, text: "目标问题" },
     ], false)]);
-    fixture.setListSnapshot({ current: "other", byId: { "session-alpha2": { title: "当前投影" } }, phase: "ready" });
+    fixture.setListSnapshot({ byId: { "session-alpha2": { title: "当前投影" } }, phase: "ready" });
     const resolver = vi.fn(async () => ({ sessionId: "session-alpha2", anchorId: "message:user-42" }));
     const result = await applyDeepLink(fixture.ctx as never, {
       ...action,
@@ -143,7 +142,7 @@ describe("DSH deep links", () => {
       legacySessionId: "session-alpha1",
       legacyAnchorId: "message:user-41",
     });
-    expect(fixture.ctx.sessions.open).toHaveBeenCalledWith("session-alpha2");
+    expect(fixture.ctx.uiWorkspace.openSession).toHaveBeenCalledWith("session-alpha2");
     expect(result).toEqual({ status: "located", sessionId: "session-alpha2", anchorId: "message:user-42" });
   });
 
@@ -164,7 +163,7 @@ describe("DSH deep links", () => {
 
     const result = await applyDeepLink(fixture.ctx as never, action, { locate });
 
-    expect(fixture.ctx.sessions.open).toHaveBeenCalledWith("session-demo");
+    expect(fixture.ctx.uiWorkspace.openSession).toHaveBeenCalledWith("session-demo");
     expect(fixture.session.loadOlder).toHaveBeenCalledTimes(1);
     expect(locate).toHaveBeenCalledWith("message:user-42");
     expect(result).toEqual({ status: "located", sessionId: "session-demo", anchorId: "message:user-42" });
@@ -198,29 +197,28 @@ describe("DSH deep links", () => {
 
   it("rejects a deleted session without changing the current session", async () => {
     const fixture = context([snapshot([], false)]);
-    fixture.setListSnapshot({ current: "other", byId: {}, phase: "ready" });
+    fixture.setListSnapshot({ byId: {}, phase: "ready" });
     expect(await applyDeepLink(fixture.ctx as never, action)).toEqual({
       status: "missing-session",
       sessionId: "session-demo",
     });
-    expect(fixture.ctx.sessions.open).not.toHaveBeenCalled();
+    expect(fixture.ctx.uiWorkspace.openSession).not.toHaveBeenCalled();
   });
 
   it("waits for the alpha.1 session catalog before deciding that a deep-link session is missing", async () => {
     const fixture = context([snapshot([
       { key: "message:user-42", seq: 42, text: "目标问题" },
     ], false)]);
-    fixture.setListSnapshot({ current: undefined, byId: {}, phase: "pending" });
+    fixture.setListSnapshot({ byId: {}, phase: "pending" });
     setTimeout(() => fixture.setListSnapshot({
-      current: "other",
-      byId: { "session-demo": { title: "演示" } },
+        byId: { "session-demo": { title: "演示" } },
       phase: "ready",
     }), 5);
 
     const result = await applyDeepLink(fixture.ctx as never, action, { locate: () => true });
 
     expect(result.status).toBe("located");
-    expect(fixture.ctx.sessions.open).toHaveBeenCalledWith("session-demo");
+    expect(fixture.ctx.uiWorkspace.openSession).toHaveBeenCalledWith("session-demo");
   });
 
   it("maps a durable message ID through the native Conversation node identity and opens its annotation", async () => {

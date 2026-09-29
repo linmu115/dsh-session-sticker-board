@@ -27,6 +27,22 @@
       "sha256": "6a339857df5e930780ca9376211c78010b148541f5ea81d9f40b57ee9e2730e0",
       "source": "local isolated DSH 0.2.0-rc.2 candidate",
       "sourceDirectory": "D:\\AI\\DeepSeekHarness-Plugin\\worktrees\\dsh02rc2-20260929\\dsh-obsidian-bridge"
+    },
+    {
+      "name": "dsh-annotation-core",
+      "file": "dsh-annotation-core-0.3.12-dsh02.2.tgz",
+      "version": "0.3.12-dsh02.2",
+      "sha256": "a500453aeb66b1a9528f7a2ec33a09e9005e7a0ab3a8249f5728bcfa0df18917",
+      "source": "local isolated DSH 0.2.0-rc.2 candidate",
+      "sourceDirectory": "D:\\AI\\DeepSeekHarness-Plugin\\worktrees\\dsh02rc2-20260929\\dsh-annotation-core"
+    },
+    {
+      "name": "dsh-obsidian-bridge",
+      "file": "dsh-obsidian-bridge-0.4.1-dsh02.2.tgz",
+      "version": "0.4.1-dsh02.2",
+      "sha256": "b86851a5884e49312fcfb74ef757dfb9833227938031b1962d6d6188ac494833",
+      "source": "local isolated DSH 0.2.0-rc.2 candidate",
+      "sourceDirectory": "D:\\AI\\DeepSeekHarness-Plugin\\worktrees\\dsh02rc2-20260929\\dsh-obsidian-bridge"
     }
   ]
 }
