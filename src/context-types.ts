@@ -87,6 +87,7 @@ export interface SidebarSnapshot {
 }
 
 export interface TabComponentProps {
+  readonly signal?: AbortSignal
   ctx: Context;
   scope: SessionScope;
   tab: SidebarTab;
@@ -121,7 +122,7 @@ export interface BetterSidebarService {
   }, scope?: SessionScope): void;
   closeTab(tabId: string, scope?: SessionScope): void;
   activateTab(tabId: string, scope?: SessionScope): void;
-  updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
+  updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }, scope?: { sessionId: string }): void;
   isTabEnabled(id: string): boolean;
   getSnapshot(): SidebarSnapshot;
   subscribeState?(listener: () => void): () => void;

@@ -11,6 +11,22 @@
       "file": "dsh-obsidian-bridge-0.4.1-rc2.11.tgz",
       "version": "0.4.1-rc2.11",
       "source": "https://github.com/linmu115/dsh-obsidian-bridge/releases/tag/v0.4.1-rc2.11"
+    },
+    {
+      "name": "dsh-annotation-core",
+      "file": "dsh-annotation-core-0.3.12-dsh02.1.tgz",
+      "version": "0.3.12-dsh02.1",
+      "sha256": "e483552f8c9be46afd10d1d8572b5c8852bbe7365e5788a75e07040f1a54140a",
+      "source": "local isolated DSH 0.2.0-rc.2 candidate",
+      "sourceDirectory": "D:\\AI\\DeepSeekHarness-Plugin\\worktrees\\dsh02rc2-20260929\\dsh-annotation-core"
+    },
+    {
+      "name": "dsh-obsidian-bridge",
+      "file": "dsh-obsidian-bridge-0.4.1-dsh02.1.tgz",
+      "version": "0.4.1-dsh02.1",
+      "sha256": "6a339857df5e930780ca9376211c78010b148541f5ea81d9f40b57ee9e2730e0",
+      "source": "local isolated DSH 0.2.0-rc.2 candidate",
+      "sourceDirectory": "D:\\AI\\DeepSeekHarness-Plugin\\worktrees\\dsh02rc2-20260929\\dsh-obsidian-bridge"
     }
   ]
 }

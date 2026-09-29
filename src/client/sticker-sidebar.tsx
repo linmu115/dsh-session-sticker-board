@@ -21,6 +21,8 @@ import {
 import { createStickerCommands } from "./overlay.tsx";
 import type { StickerWorkspace } from "./sticker-workspace.ts";
 
+import { nativeTabs, disposeNativeTabs, usesNativeTabs } from './native-tabs.ts';
+
 export const STICKER_DETAIL_TAB_TYPE = "dsh-session-sticker-board:detail";
 export const STICKER_DETAIL_TAB_ID = "dsh-session-sticker-board:detail";
 
@@ -51,6 +53,14 @@ export function backlinkOpenAction(
 }
 
 export async function openStickerInSidebar(service: BetterSidebarService, record: StickerRecord): Promise<boolean> {
+  if (usesNativeTabs(service)) {
+    if (!service.isTabEnabled(STICKER_DETAIL_TAB_TYPE)) return false;
+    const registry = nativeTabs(service);
+    const tab = await registry.open(record.sessionId, STICKER_DETAIL_TAB_TYPE, { stickerId: record.stickerId });
+    if (!registry.update(record.sessionId, tab.id, { meta: { stickerId: record.stickerId } })) return false;
+    service.activateTab(tab.id, { sessionId: record.sessionId });
+    return true;
+  }
   const snapshot = service.getSnapshot();
   if (snapshot.sessionId !== record.sessionId || snapshot.state === undefined) return false;
   if (!service.isTabEnabled(STICKER_DETAIL_TAB_TYPE)) return false;
@@ -338,7 +348,9 @@ export function registerStickerSidebar(
     order: 65,
     hidden: true,
     single: true,
-    component: ({ tab, scope }: TabComponentProps) => (
+    component: ({ tab, scope, signal }: TabComponentProps) => {
+      useEffect(() => { if (signal) nativeTabs(ctx.betterSidebar).register(scope.sessionId, tab, signal); }, [tab, scope.sessionId, signal]);
+      return (
       <StickerDetailPanel
         workspace={workspace}
         tab={tab}
@@ -347,7 +359,7 @@ export function registerStickerSidebar(
         listBacklinks={listBacklinks}
         close={() => ctx.betterSidebar.closeTab(tab.id, scope)}
       />
-    ),
+    ); },
   });
-  return unregisterDetail;
+  return () => { disposeNativeTabs(ctx.betterSidebar); unregisterDetail(); };
 }

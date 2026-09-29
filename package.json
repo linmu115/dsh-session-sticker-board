@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-rc2.12",
+  "version": "0.7.4-dsh02.1",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "lucide-react": "0.542.0",
-    "zod": "4.4.3"
+    "zod": "4.6.5"
   },
   "dsh": {
     "bundle": {
@@ -104,13 +104,13 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "*",
-    "dsh-annotation-core": "0.3.12-rc2.29",
-    "dsh-better-sidebar": "^0.18.0 || ^0.19.1 || 0.19.2-rc2compat.1",
+    "dsh-annotation-core": "0.3.12-dsh02.1",
+    "dsh-better-sidebar": "0.24.1-dsh02.1",
     "react": "*",
     "react-dom": "*",
-    "dsh-obsidian-bridge": "0.4.1-rc2.11"
+    "dsh-obsidian-bridge": "0.4.1-dsh02.1"
   },
   "peerDependenciesMeta": {
     "dsh-better-sidebar": {
@@ -134,18 +134,18 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-api-gateway": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-invariants": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-scope": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-session": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-typert-protocol": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-typert-registry": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-scope": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "3.18.2",
     "@types/jsdom": "21.1.7",
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "file:vendor/dsh-annotation-core-0.3.12-rc2.29.tgz",
+    "dsh-annotation-core": "file:vendor/dsh-annotation-core-0.3.12-dsh02.1.tgz",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -153,7 +153,7 @@
     "typescript": "^5.9.3",
     "unrun": "^0.3.1",
     "vitest": "^4.1.11",
-    "dsh-obsidian-bridge": "file:vendor/dsh-obsidian-bridge-0.4.1-rc2.11.tgz",
+    "dsh-obsidian-bridge": "file:vendor/dsh-obsidian-bridge-0.4.1-dsh02.1.tgz",
     "tar": "7.5.22"
   },
   "packageManager": "pnpm@11.19.0",

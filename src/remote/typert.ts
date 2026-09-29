@@ -7,13 +7,13 @@ const jsonParameter = (name: string, schema: z.ZodType, typeSymbol: string) => (
   name,
   wire: name,
   source: "json" as const,
-  codec: { mode: "strict" as const, typeSymbol, schema },
+  codec: { mode: "strict" as const, typeSymbol, create: () => schema },
 });
 
 const localStateCodec = {
   mode: "strict" as const,
   typeSymbol: "dsh-session-sticker-board#LocalStickerState",
-  schema: localStickerStateSchema,
+  create: () => localStickerStateSchema,
 };
 
 const saveLocalSessionRequestSchema = z.object({
@@ -38,7 +38,7 @@ export const STICKER_REMOTE_DESCRIPTORS: readonly InvocationDescriptor[] = [{
   result: {
     mode: "strict",
     typeSymbol: "dsh-session-sticker-board#BridgeConfig",
-    schema: z.object({ origin: z.string().url() }).strict(),
+    create: () => z.object({ origin: z.string().url() }).strict(),
   },
 }, {
   id: "dsh-session-sticker-board#stickerBoard/readLocalState",

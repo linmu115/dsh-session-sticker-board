@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { BetterSidebarService } from "../src/context-types.ts";
 import type { StickerRecord } from "../src/protocol.ts";
+import { nativeTabs, disposeNativeTabs } from "../src/client/native-tabs.ts";
 import {
   STICKER_DETAIL_TAB_ID,
   STICKER_DETAIL_TAB_TYPE,
@@ -39,6 +40,21 @@ function service(overrides: Partial<BetterSidebarService> = {}): BetterSidebarSe
 }
 
 describe("sticker sidebar", () => {
+  it("uses the mounted native ID and owner across selection changes, reuse and close", async () => {
+    const sidebar = service({ features: ["nativeTabLifetime"], getSnapshot: () => ({ sessionId: "another-session", state: {} }) });
+    const opening = openStickerInSidebar(sidebar, sticker);
+    const seed = vi.mocked(sidebar.openTab).mock.calls[0]![0];
+    const lifetime = new AbortController();
+    nativeTabs(sidebar).register(sticker.sessionId, { ...seed, id: "native-real-id", title: "贴纸" }, lifetime.signal);
+    expect(await opening).toBe(true);
+    expect(sidebar.activateTab).toHaveBeenCalledWith("native-real-id", { sessionId: sticker.sessionId });
+    expect(await openStickerInSidebar(sidebar, { ...sticker, stickerId: "second-sticker" })).toBe(true);
+    expect(sidebar.openTab).toHaveBeenCalledTimes(1);
+    expect(sidebar.updateTab).toHaveBeenLastCalledWith("native-real-id", { meta: { stickerId: "second-sticker" } }, { sessionId: sticker.sessionId });
+    lifetime.abort();
+    expect(nativeTabs(sidebar).get(sticker.sessionId, "native-real-id")).toBeUndefined();
+    disposeNativeTabs(sidebar);
+  });
   it("waits for the real instance and updates business metadata without a file path", async () => {
     const handle = { sessionId: sticker.sessionId, id: "actual-instance" };
     let resolve!: (value: typeof handle) => void;
