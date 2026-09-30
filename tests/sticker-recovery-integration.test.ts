@@ -138,8 +138,10 @@ describe("sticker recovery integration", () => {
   ] as const)("classifies %s and exposes its diagnostic", async (error, status) => {
     const f = fixture(); f.bridge.readSessionNote.mockRejectedValueOnce(error);
     await f.workspace.ensure(sessionId);
-    await vi.waitFor(() => expect(f.workspace.syncStatus(sessionId)).toBe(status));
-    expect(f.workspace.syncIssue(sessionId)).toBe(error.message);
+    await vi.waitFor(() => {
+      expect(f.workspace.syncStatus(sessionId)).toBe(status);
+      expect(f.workspace.syncIssue(sessionId)).toBe(error.message);
+    });
     expect(f.workspace.health()).toMatchObject({ pendingCount: 1, lastError: error.message });
   });
 });

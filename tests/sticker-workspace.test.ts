@@ -61,6 +61,87 @@ function offlineBridge() {
 }
 
 describe("sticker workspace", () => {
+  it('waits for its first Vault metadata commit before saving a newly selected sticker', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sticker-first-save-race-'));
+    const store = new StickerLocalStore(directory);
+    let release!: () => void;
+    const metadataReturned = new Promise<void>(resolve => { release = resolve; });
+    let committed = false;
+    const persistence = {
+      readLocalState: (id: string) => store.read(id),
+      saveLocalSession: vi.fn(async (request: Parameters<StickerLocalStore['save']>[0]) => {
+        const result = await store.save(request);
+        if (!request.document.stickers.length) { committed = true; await metadataReturned; }
+        return result;
+      }),
+      acknowledgeBacklinkDelete: ({ sessionId, stickerId }: { sessionId: string; stickerId: string }) => store.acknowledgeBacklinkDelete(sessionId, stickerId),
+    };
+    const route = { readSessionNote: vi.fn(async () => document()), saveSessionNote: vi.fn(async () => ({ revision: 'saved' })), deleteStickerBacklinks: vi.fn() };
+    const workspace = createStickerWorkspace(persistence, { ...route, listVaults: () => [{ vaultId: 'vault-a', state: 'bound' }] as never, forVault: () => route as never });
+    try {
+      await workspace.ensure(sticker.sessionId);
+      await vi.waitFor(() => expect(committed).toBe(true));
+      const saving = workspace.save(sticker);
+      await Promise.resolve(); await Promise.resolve();
+      expect(persistence.saveLocalSession).toHaveBeenCalledTimes(1);
+      expect((await store.read(sticker.sessionId)).document.revision).not.toBe('sha256:empty');
+      release();
+      await saving;
+      await workspace.sync(sticker.sessionId);
+      expect((await store.read(sticker.sessionId)).document).toMatchObject({ vaultId: 'vault-a', stickers: [sticker] });
+      expect(workspace.revision(sticker.sessionId)).toBe((await store.read(sticker.sessionId)).document.revision);
+    } finally { release(); workspace.dispose(); await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it('adopts another client metadata-only revision but refuses a later genuine content edit', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sticker-multiclient-race-'));
+    const store = new StickerLocalStore(directory);
+    const persistence = {
+      readLocalState: (id: string) => store.read(id), saveLocalSession: store.save.bind(store),
+      acknowledgeBacklinkDelete: ({ sessionId, stickerId }: { sessionId: string; stickerId: string }) => store.acknowledgeBacklinkDelete(sessionId, stickerId),
+    };
+    const bridge = offlineBridge();
+    const workspace = createStickerWorkspace(persistence, bridge);
+    try {
+      await workspace.ensure(sticker.sessionId); await workspace.sync(sticker.sessionId);
+      const otherClient = await store.save({ document: { ...document(), vaultId: 'vault-a' }, expectedRevision: 'sha256:empty' });
+      expect(workspace.revision(sticker.sessionId)).toBe('sha256:empty');
+      await workspace.sync(sticker.sessionId);
+      expect(workspace.revision(sticker.sessionId)).toBe(otherClient.document.revision);
+      await workspace.save(sticker); await workspace.sync(sticker.sessionId);
+      const baseline = await store.read(sticker.sessionId);
+      const concurrent = await store.save({ document: { ...baseline.document, stickers: [{ ...sticker, markdown: 'other client edit' }] }, expectedRevision: baseline.document.revision });
+      await expect(workspace.save({ ...sticker, markdown: 'stale client draft' })).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+      expect((await store.read(sticker.sessionId)).document).toEqual(concurrent.document);
+      expect(workspace.list(sticker.sessionId)[0]?.record.markdown).toBe(sticker.markdown);
+      expect(workspace.syncStatus(sticker.sessionId)).toBe('conflict');
+      expect(bridge.saveSessionNote).not.toHaveBeenCalled();
+    } finally { workspace.dispose(); await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it('imports existing remote stickers after its first Vault pin, but never resurrects an explicitly emptied document', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sticker-pristine-import-'));
+    const store = new StickerLocalStore(directory);
+    const persistence = {
+      readLocalState: (id: string) => store.read(id), saveLocalSession: store.save.bind(store),
+      acknowledgeBacklinkDelete: ({ sessionId, stickerId }: { sessionId: string; stickerId: string }) => store.acknowledgeBacklinkDelete(sessionId, stickerId),
+    };
+    const route = { readSessionNote: vi.fn(async () => document([sticker], 'sha256:remote')), saveSessionNote: vi.fn(async () => ({ revision: 'saved' })), deleteStickerBacklinks: vi.fn(async () => ({ notesChanged: 0, linksRemoved: 0 })) };
+    const bridge = { ...route, listVaults: () => [{ vaultId: 'vault-a', state: 'bound' }] as never, forVault: () => route as never };
+    let workspace = createStickerWorkspace(persistence, bridge);
+    try {
+      await workspace.ensure(sticker.sessionId); await workspace.sync(sticker.sessionId);
+      expect(workspace.list(sticker.sessionId)).toHaveLength(1);
+      await workspace.remove(sticker.sessionId, sticker.stickerId); await workspace.sync(sticker.sessionId);
+      expect(workspace.list(sticker.sessionId)).toHaveLength(0);
+      workspace.dispose(); workspace = createStickerWorkspace(persistence, bridge);
+      await workspace.ensure(sticker.sessionId); await workspace.sync(sticker.sessionId);
+      expect(workspace.list(sticker.sessionId)).toHaveLength(0);
+      expect((await store.read(sticker.sessionId)).document.stickers).toEqual([]);
+      expect(route.saveSessionNote).toHaveBeenLastCalledWith(expect.objectContaining({ stickers: [] }), 'sha256:remote');
+    } finally { workspace.dispose(); await rm(directory, { recursive: true, force: true }); }
+  });
+
   it('keeps independent local CRUD available with no remote knowledge service injected', async () => {
     const persistence = local();
     const workspace = createStickerWorkspace(persistence, createStickerBridgeChannel(() => undefined));

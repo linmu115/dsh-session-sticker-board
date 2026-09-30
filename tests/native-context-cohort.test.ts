@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 
 it("declares the native context cohort without altering the supported profile contract", async () => {
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  expect(manifest.version).toBe("0.7.4-dsh02.4");
+  expect(manifest.version).toBe("0.7.4-dsh02.5");
   expect(manifest.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-dsh02.2");
   expect(manifest.peerDependenciesMeta["dsh-annotation-core"]?.optional).not.toBe(true);
   expect(manifest.files).toContain("docs/changes");

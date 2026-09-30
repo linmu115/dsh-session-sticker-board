@@ -139,6 +139,33 @@ export function createStickerWorkspace(
     stickers: stickers.map(record => record.notePath && !record.vaultId && sessionVaults.get(sessionId) ? {...record,vaultId:sessionVaults.get(sessionId)!} : record),
   });
 
+  // A second client may have pinned the same content to a Vault. Adopt that
+  // metadata revision, but retain our copy on a real content change for explicit
+  // conflict resolution; never retry a user's edit against an unseen revision.
+  const refreshLocalRevision = (sessionId: string, state: LocalStickerState): void => {
+    const snapshot = entry(sessionId).store.snapshot();
+    const currentVault = sessionVaults.get(sessionId);
+    const nextVault = state.document.vaultId;
+    const records = snapshot.stickers.map(({ record }) => record as StickerRecord);
+    const attributed = records.map(record => record.notePath && !record.vaultId && nextVault
+      ? { ...record, vaultId: nextVault } : record);
+    const content = (items: readonly StickerRecord[]): string => JSON.stringify(items, (_key, value: unknown) =>
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+    if ((currentVault && currentVault !== nextVault)
+      || content(attributed) !== content(state.document.stickers)) {
+      const error = Object.assign(new Error('Sticker content changed in another client; choose which copy to keep'), { code: 'REVISION_CONFLICT' });
+      conflicts.add(sessionId);
+      syncIssues.set(sessionId, error.message);
+      setSyncStatus(sessionId, 'conflict');
+      throw error;
+    }
+    if (nextVault) sessionVaults.set(sessionId, nextVault);
+    if (snapshot.revision !== state.document.revision) {
+      attach(sessionId, createStickerStore(state.document.stickers, state.document.revision));
+    }
+  };
+
   const sync = (sessionId: string): Promise<void> => {
     if (disposed || conflicts.has(sessionId)) return Promise.resolve();
     const active = synchronizations.get(sessionId);
@@ -151,8 +178,9 @@ export function createStickerWorkspace(
         await ensure(sessionId);
         if (disposed) return;
         setSyncStatus(sessionId, "syncing");
-        const localState = await local.readLocalState(sessionId);
+        let localState = await local.readLocalState(sessionId);
         if (disposed) return;
+        refreshLocalRevision(sessionId, localState);
         for (const deleted of localState.pendingBacklinkDeletes) {
           let remaining = deleted.pendingVaultIds;
           const legacyVault = deleted.vaultId ?? localState.document.vaultId;
@@ -180,6 +208,12 @@ export function createStickerWorkspace(
           await local.acknowledgeBacklinkDelete({ sessionId, stickerId: deleted.stickerId });
           if (disposed) return;
         }
+        localState = await local.readLocalState(sessionId);
+        if (disposed) return;
+        refreshLocalRevision(sessionId, localState);
+        // Only the actual never-written state can import remote stickers. Our
+        // own Vault pin below changes its revision but does not make it edited.
+        const pristine = localState.document.revision === 'sha256:empty' && localState.document.stickers.length === 0;
         let vaultId = localState.document.vaultId ?? sessionVaults.get(sessionId);
         if (!vaultId && bridge.listVaults) {
           const choices = bridge.listVaults().filter(vault => vault.state === 'bound');
@@ -195,22 +229,16 @@ export function createStickerWorkspace(
         const remote = await route.readSessionNote(sessionId);
         if (disposed) return;
         let snapshot = entry(sessionId).store.snapshot();
-        if (snapshot.revision === "sha256:empty" && snapshot.stickers.length === 0 && remote.stickers.length > 0) {
-          try {
-            const imported = await local.saveLocalSession({
-              document: documentWith(sessionId, snapshot.revision, remote.stickers),
-              expectedRevision: snapshot.revision,
-            });
-            if (disposed) return;
-            attach(sessionId, createStickerStore(imported.document.stickers, imported.document.revision));
-            snapshot = entry(sessionId).store.snapshot();
-          } catch {
-            if (disposed) return;
-            const current = await local.readLocalState(sessionId);
-            if (disposed) return;
-            attach(sessionId, createStickerStore(current.document.stickers, current.document.revision));
-            snapshot = entry(sessionId).store.snapshot();
-          }
+        if (pristine && snapshot.stickers.length === 0 && remote.stickers.length > 0) {
+          // A competing writer remains a CAS conflict, not an implicit content
+          // choice or permission to overwrite the remote note.
+          const imported = await local.saveLocalSession({
+            document: documentWith(sessionId, snapshot.revision, remote.stickers),
+            expectedRevision: snapshot.revision,
+          });
+          if (disposed) return;
+          attach(sessionId, createStickerStore(imported.document.stickers, imported.document.revision));
+          snapshot = entry(sessionId).store.snapshot();
         }
         const stickers = snapshot.stickers.map((view) => view.record as StickerRecord);
         if (disposed) return;
@@ -233,12 +261,14 @@ export function createStickerWorkspace(
         options.onSyncError?.(error);
       }
     };
-    const synchronization = (async () => {
+    // Synchronization writes local Vault metadata/imports too. Use the same
+    // session queue as save/remove so neither can commit from a stale snapshot.
+    const synchronization = serialized(sessionId, async () => {
       do {
         resyncRequested.delete(sessionId);
         await synchronizeOnce();
       } while (!disposed && !conflicts.has(sessionId) && resyncRequested.delete(sessionId));
-    })().finally(() => synchronizations.delete(sessionId));
+    }).finally(() => synchronizations.delete(sessionId));
     synchronizations.set(sessionId, synchronization);
     return synchronization;
   };
@@ -247,7 +277,7 @@ export function createStickerWorkspace(
     vaults: () => bridge.listVaults?.() ?? [],
     selectVault: async (sessionId, vaultId) => {
       await serialized(sessionId, async () => {
-        await ensure(sessionId); await synchronizations.get(sessionId);
+        await ensure(sessionId);
         bridge.forVault?.(vaultId);
         let current = await local.readLocalState(sessionId);
         if (current.document.vaultId && current.document.vaultId !== vaultId) throw new Error('旧贴纸已固定到 Vault：' + current.document.vaultId);
@@ -286,10 +316,9 @@ export function createStickerWorkspace(
       };
     },
     sync,
-    resolveConflict(sessionId, choice) {
-      return serialized(sessionId, async () => {
+    async resolveConflict(sessionId, choice) {
+      await serialized(sessionId, async () => {
         await ensure(sessionId);
-        await synchronizations.get(sessionId);
         if (disposed) return;
         if (choice === "use-obsidian") {
           const vaultId = sessionVaults.get(sessionId);
@@ -304,12 +333,24 @@ export function createStickerWorkspace(
           });
           if (disposed) return;
           attach(sessionId, createStickerStore(adopted.document.stickers, adopted.document.revision));
+        } else {
+          const current = await local.readLocalState(sessionId);
+          if (disposed) return;
+          const snapshot = entry(sessionId).store.snapshot();
+          if (current.document.revision !== snapshot.revision) {
+            const kept = await local.saveLocalSession({
+              document: documentWith(sessionId, current.document.revision, snapshot.stickers.map(view => view.record as StickerRecord)),
+              expectedRevision: current.document.revision,
+            });
+            if (disposed) return;
+            attach(sessionId, createStickerStore(kept.document.stickers, kept.document.revision));
+          }
         }
         conflicts.delete(sessionId);
         syncIssues.delete(sessionId);
         setSyncStatus(sessionId, "local-only");
-        await sync(sessionId);
       });
+      await sync(sessionId);
     },
     async syncAll() {
       const sessions = [...new Set([...loaded, ...syncIssues.keys()])];
@@ -319,10 +360,13 @@ export function createStickerWorkspace(
       }));
     },
     save(record) {
-      if (record.notePath && !record.vaultId && sessionVaults.get(record.sessionId)) record={...record,vaultId:sessionVaults.get(record.sessionId)!};
       return serialized(record.sessionId, async () => {
         await ensure(record.sessionId);
         if (disposed) return;
+        const current = await local.readLocalState(record.sessionId);
+        if (disposed) return;
+        refreshLocalRevision(record.sessionId, current);
+        if (record.notePath && !record.vaultId && sessionVaults.get(record.sessionId)) record={...record,vaultId:sessionVaults.get(record.sessionId)!};
         const store = entry(record.sessionId).store;
         const snapshot = store.snapshot();
         const records = snapshot.stickers.map((view) => view.record as StickerRecord);
@@ -345,6 +389,9 @@ export function createStickerWorkspace(
       return serialized(sessionId, async () => {
         await ensure(sessionId);
         if (disposed) return;
+        const localState = await local.readLocalState(sessionId);
+        if (disposed) return;
+        refreshLocalRevision(sessionId, localState);
         const store = entry(sessionId).store;
         const snapshot = store.snapshot();
         const current = snapshot.stickers.find((view) => view.record.stickerId === stickerId);
