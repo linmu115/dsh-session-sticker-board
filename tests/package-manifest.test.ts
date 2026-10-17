@@ -6,11 +6,11 @@ describe("published package manifest", () => {
   it("uses the Harness-owned Schemastery runtime", async () => {
     const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-    expect(manifest.version).toBe("0.7.4-dsh02.5");
+    expect(manifest.version).toBe("0.7.4-dsh021.1");
     expect(manifest.dependencies?.["@deepseek-ai/schemastery"]).toBeUndefined();
     expect(manifest.optionalDependencies?.["@deepseek-ai/schemastery"]).toBeUndefined();
     expect(manifest.peerDependencies?.["@deepseek-ai/schemastery"]).toBe("*");
     expect(manifest.peerDependenciesMeta?.["@deepseek-ai/schemastery"]).toEqual({ optional: true });
-    expect(manifest.devDependencies?.["@deepseek-ai/schemastery"]).toBe("3.18.2");
+    expect(manifest.devDependencies?.["@deepseek-ai/schemastery"]).toMatch(/^link:/);
   });
 });

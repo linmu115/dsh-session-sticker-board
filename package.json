@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-dsh02.5",
+  "version": "0.7.4-dsh021.1",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -23,7 +23,8 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": "0.2.1-rc.2"
   },
   "files": [
     "lib",
@@ -43,11 +44,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "check": "pnpm typecheck && pnpm test && pnpm pack --dry-run --json",
-    "package:release": "node scripts/package-release.mjs"
+    "package:release": "node scripts/package-release.mjs",
+    "prepare:host": "node scripts/prepare-host.mjs"
   },
   "dependencies": {
     "lucide-react": "0.542.0",
-    "zod": "4.6.5"
+    "zod": "4.4.3"
   },
   "dsh": {
     "bundle": {
@@ -105,14 +107,14 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
     "@deepseek-ai/schemastery": "*",
-    "dsh-annotation-core": "0.3.12-dsh02.2",
-    "dsh-better-sidebar": "0.24.1-dsh02.2",
+    "dsh-annotation-core": "0.3.12-dsh021.1",
+    "dsh-better-sidebar": "0.28.0-dsh021.1",
     "react": "*",
     "react-dom": "*",
-    "dsh-obsidian-bridge": "0.4.1-dsh02.2",
-    "@deepseek-ai/dsh-client-ui-workspace": "0.2.0-rc.2"
+    "dsh-obsidian-bridge": "0.4.1-dsh021.1",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.2"
   },
   "peerDependenciesMeta": {
     "dsh-better-sidebar": {
@@ -135,19 +137,18 @@
     }
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-scope": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-typert-registry": "0.2.0-rc.2",
-    "@deepseek-ai/schemastery": "3.18.2",
+    "@deepseek-ai/cordis": "link:.dsh-host/vendor/cordis",
+    "@deepseek-ai/dsh-api-gateway": "link:.dsh-host/packages/api/gateway",
+    "@deepseek-ai/dsh-scope": "link:.dsh-host/packages/core/scope",
+    "@deepseek-ai/dsh-session": "link:.dsh-host/packages/core/session",
+    "@deepseek-ai/dsh-typert-protocol": "link:.dsh-host/packages/typert/protocol",
+    "@deepseek-ai/dsh-typert-registry": "link:.dsh-host/packages/typert/registry",
+    "@deepseek-ai/schemastery": "link:.dsh-host/vendor/schemastery",
     "@types/jsdom": "21.1.7",
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
-    "dsh-annotation-core": "file:vendor/dsh-annotation-core-0.3.12-dsh02.2.tgz",
+    "dsh-annotation-core": "link:../dsh-annotation-core",
     "jsdom": "26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -155,8 +156,10 @@
     "typescript": "^5.9.3",
     "unrun": "^0.3.1",
     "vitest": "^4.1.11",
-    "dsh-obsidian-bridge": "file:vendor/dsh-obsidian-bridge-0.4.1-dsh02.2.tgz",
-    "tar": "7.5.22"
+    "dsh-obsidian-bridge": "link:../dsh-obsidian-bridge",
+    "tar": "7.5.22",
+    "@deepseek-ai/dsh-client-ui-workspace": "link:.dsh-host/packages/client/ui-workspace",
+    "@deepseek-ai/dsh-api-session-controller": "link:.dsh-host/packages/api/session-controller"
   },
   "packageManager": "pnpm@11.19.0",
   "repository": {

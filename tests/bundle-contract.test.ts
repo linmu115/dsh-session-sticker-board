@@ -31,7 +31,7 @@ describe("sticker-board 0.6 package boundary", () => {
     }
     expect(pkg.peerDependencies).not.toHaveProperty('dsh-session-maintenance');
     expect(pkg.peerDependenciesMeta['dsh-better-sidebar'].optional).toBe(true);
-    expect(pkg.devDependencies['dsh-obsidian-bridge']).toBe('file:vendor/dsh-obsidian-bridge-0.4.1-dsh02.2.tgz');
+    expect(pkg.devDependencies['dsh-obsidian-bridge']).toBe('link:../dsh-obsidian-bridge');
   });
   it("keeps every Maintenance endpoint out of the client bundle", async () => {
     const client = await text("lib/client.js");
@@ -51,10 +51,10 @@ describe("sticker-board 0.6 package boundary", () => {
   });
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.4-dsh02.5");
-    expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("0.2.0-rc.2");
-    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-dsh02.2");
-    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-dsh02.2");
+    expect(packageJson.version).toBe("0.7.4-dsh021.1");
+    expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("0.2.1-rc.2");
+    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-dsh021.1");
+    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-dsh021.1");
     expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-lifecycle");
     expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-protocol");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();
