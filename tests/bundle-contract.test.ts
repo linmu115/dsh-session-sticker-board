@@ -51,10 +51,10 @@ describe("sticker-board 0.6 package boundary", () => {
   });
   it("declares version-open shared Core and host peers", async () => {
     const packageJson = JSON.parse(await text("package.json")) as PackageJson;
-    expect(packageJson.version).toBe("0.7.4-dsh021.1");
-    expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("0.2.1-rc.2");
-    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-dsh021.1");
-    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-dsh021.1");
+    expect(packageJson.version).toBe("0.7.4-dsh021rc3.1");
+    expect(packageJson.peerDependencies["@deepseek-ai/dsh-typert-protocol"]).toBe("0.2.1-rc.3");
+    expect(packageJson.peerDependencies["dsh-annotation-core"]).toBe("0.3.12-dsh021rc3.1");
+    expect(packageJson.peerDependencies["dsh-obsidian-bridge"]).toBe("0.4.1-dsh021rc3.1");
     expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-lifecycle");
     expect(packageJson.peerDependencies).not.toHaveProperty("dsh-obsidian-bridge-protocol");
     expect(packageJson.dshWorkshop.compatibility).toBeUndefined();

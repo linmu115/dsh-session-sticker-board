@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-sticker-board",
-  "version": "0.7.4-dsh021.1",
+  "version": "0.7.4-dsh021rc3.1",
   "private": false,
   "description": "Persistent ordinary stickers and note associations through the shared DSH Obsidian Bridge",
   "type": "module",
@@ -24,7 +24,7 @@
   },
   "engines": {
     "node": ">=20",
-    "dsh": "0.2.1-rc.2"
+    "dsh": "0.2.1-rc.3"
   },
   "files": [
     "lib",
@@ -107,14 +107,14 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.3",
     "@deepseek-ai/schemastery": "*",
-    "dsh-annotation-core": "0.3.12-dsh021.1",
+    "dsh-annotation-core": "0.3.12-dsh021rc3.1",
     "dsh-better-sidebar": "0.28.0-dsh021.1",
     "react": "*",
     "react-dom": "*",
-    "dsh-obsidian-bridge": "0.4.1-dsh021.1",
-    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.2"
+    "dsh-obsidian-bridge": "0.4.1-dsh021rc3.1",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.1-rc.3"
   },
   "peerDependenciesMeta": {
     "dsh-better-sidebar": {
